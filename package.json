@@ -1,0 +1,9 @@
+{
+  "name": "narang-stock-management",
+  "private": true,
+  "scripts": {
+    "dev:api": "npm run dev --prefix narang-backend",
+    "dev:mobile": "npm run start --prefix narang-mobile",
+    "dev": "echo \"Run in two terminals: npm run dev:api  AND  npm run dev:mobile\""
+  }
+}

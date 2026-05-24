@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  CASHIER
+}
+
+enum Unit {
+  KG
+  BAG
+  LITRE
+  PIECE
+  BOTTLE
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(CASHIER)
+  createdAt DateTime @default(now())
+  sales     Sale[]
+}
+
+model Settings {
+  id            Int     @id @default(1)
+  shopName      String  @default("Hafeez Zarai Markaz")
+  address       String  @default("Main Bazar, Punjab, Pakistan")
+  phone         String  @default("")
+  taxPercent    Decimal @default(0)
+  invoicePrefix String  @default("HZM")
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Supplier {
+  id        String     @id @default(uuid())
+  name      String
+  phone     String?
+  address   String?
+  createdAt DateTime   @default(now())
+  products  Product[]
+  purchases Purchase[]
+}
+
+model Customer {
+  id             String                  @id @default(uuid())
+  name           String
+  phone          String?
+  address        String?
+  advanceBalance Decimal                 @default(0)
+  createdAt      DateTime                @default(now())
+  sales          Sale[]
+  advanceEntries CustomerAdvanceEntry[]
+}
+
+// Customer account ledger: positive = advance received, negative = credit sale charged.
+model CustomerAdvanceEntry {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  saleId     String?
+  sale       Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  amount     Decimal
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model Product {
+  id            String         @id @default(uuid())
+  name          String
+  categoryId    String
+  category      Category       @relation(fields: [categoryId], references: [id])
+  unit          Unit           @default(BAG)
+  costPrice     Decimal
+  salePrice     Decimal
+  currentStock  Decimal        @default(0)
+  minStockAlert Decimal        @default(10)
+  supplierId    String?
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
+  createdAt     DateTime       @default(now())
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
+}
+
+model Sale {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  subtotal      Decimal
+  taxPercent    Decimal       @default(0)
+  taxAmount     Decimal       @default(0)
+  discount      Decimal       @default(0)
+  totalAmount   Decimal
+  paymentMethod      PaymentMethod @default(CASH)
+  promiseReturnDate  DateTime?
+  notes              String?
+  createdById   String
+  createdBy     User          @relation(fields: [createdById], references: [id])
+  createdAt     DateTime               @default(now())
+  items         SaleItem[]
+  advanceEntries CustomerAdvanceEntry[]
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Decimal
+  unitPrice Decimal
+  total     Decimal
+}
+
+model Purchase {
+  id          String         @id @default(uuid())
+  supplierId  String?
+  supplier    Supplier?      @relation(fields: [supplierId], references: [id])
+  totalAmount Decimal
+  notes       String?
+  createdAt   DateTime       @default(now())
+  items       PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         String   @id @default(uuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Decimal
+  costPrice  Decimal
+}
+
+model Expense {
+  id        String   @id @default(uuid())
+  title     String
+  amount    Decimal
+  category  String
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+}
