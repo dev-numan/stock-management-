@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { db } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { parseExpiryDate } from '../../utils/parseExpiryDate.js';
 
 export const getAllProducts = async ({ search, categoryId, lowStock }) => {
   const where = {};
@@ -65,6 +66,7 @@ export const createProduct = async (data) => {
       salePrice: new Prisma.Decimal(data.salePrice),
       currentStock: new Prisma.Decimal(data.currentStock ?? 0),
       minStockAlert: new Prisma.Decimal(data.minStockAlert ?? 10),
+      expiryDate: parseExpiryDate(data.expiryDate),
       supplierId: data.supplierId || null,
     },
     include: { category: true, supplier: true },
@@ -90,6 +92,7 @@ export const updateProduct = async (id, data) => {
   if (data.salePrice !== undefined) updateData.salePrice = new Prisma.Decimal(data.salePrice);
   if (data.currentStock !== undefined) updateData.currentStock = new Prisma.Decimal(data.currentStock);
   if (data.minStockAlert !== undefined) updateData.minStockAlert = new Prisma.Decimal(data.minStockAlert);
+  if (data.expiryDate !== undefined) updateData.expiryDate = parseExpiryDate(data.expiryDate);
   if (data.supplierId !== undefined) updateData.supplierId = data.supplierId || null;
 
   return db.product.update({

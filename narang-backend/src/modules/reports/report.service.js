@@ -1,4 +1,5 @@
 import { db } from '../../config/db.js';
+import { clampExpiryAlertMonths } from '../../utils/parseExpiryDate.js';
 
 const toNumber = (d) => Number(d ?? 0);
 
@@ -21,48 +22,83 @@ const todayRange = () => {
   return { gte: start, lte: end };
 };
 
+function expiryCutoffDate(months) {
+  const cutoff = new Date();
+  cutoff.setHours(23, 59, 59, 999);
+  cutoff.setMonth(cutoff.getMonth() + clampExpiryAlertMonths(months));
+  return cutoff;
+}
+
 export const getDashboard = async () => {
   const today = todayRange();
+  const settings = await db.settings.findUnique({ where: { id: 1 } });
+  const showLowStockAlert = settings?.showLowStockAlert ?? true;
+  const showExpiryAlert = settings?.showExpiryAlert ?? true;
+  const expiryAlertMonths = clampExpiryAlertMonths(settings?.expiryAlertMonths ?? 3);
 
-  const [todaySales, products, recentSales, lowStockProducts] = await Promise.all([
-    db.sale.aggregate({
-      where: { createdAt: today },
-      _sum: { totalAmount: true },
-      _count: { _all: true },
-    }),
-    db.product.count(),
-    db.sale.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        items: {
-          take: 3,
-          include: { product: { select: { id: true, name: true, unit: true } } },
+  const [todaySales, products, recentSales, lowStockProducts, lowStockCountRow, expiringProducts, expiringCount] =
+    await Promise.all([
+      db.sale.aggregate({
+        where: { createdAt: today },
+        _sum: { totalAmount: true },
+        _count: { _all: true },
+      }),
+      db.product.count(),
+      db.sale.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          items: {
+            take: 3,
+            include: { product: { select: { id: true, name: true, unit: true } } },
+          },
         },
-      },
-    }),
-    db.$queryRaw`
-      SELECT id, name, "currentStock", "minStockAlert", unit
-      FROM "Product"
-      WHERE "currentStock" <= "minStockAlert"
-      ORDER BY "currentStock" ASC
-      LIMIT 10
-    `,
-  ]);
-
-  const lowStockCount = await db.$queryRaw`
-    SELECT COUNT(*)::int AS count
-    FROM "Product"
-    WHERE "currentStock" <= "minStockAlert"
-  `;
+      }),
+      showLowStockAlert
+        ? db.$queryRaw`
+            SELECT id, name, "currentStock", "minStockAlert", unit
+            FROM "Product"
+            WHERE "currentStock" <= "minStockAlert"
+            ORDER BY "currentStock" ASC
+            LIMIT 10
+          `
+        : Promise.resolve([]),
+      db.$queryRaw`
+        SELECT COUNT(*)::int AS count
+        FROM "Product"
+        WHERE "currentStock" <= "minStockAlert"
+      `,
+      showExpiryAlert
+        ? db.product.findMany({
+            where: {
+              expiryDate: { not: null, lte: expiryCutoffDate(expiryAlertMonths) },
+            },
+            select: { id: true, name: true, expiryDate: true, unit: true, currentStock: true },
+            orderBy: { expiryDate: 'asc' },
+            take: 10,
+          })
+        : Promise.resolve([]),
+      showExpiryAlert
+        ? db.product.count({
+            where: {
+              expiryDate: { not: null, lte: expiryCutoffDate(expiryAlertMonths) },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
 
   return {
     todaySalesTotal: toNumber(todaySales._sum.totalAmount),
     todaySalesCount: todaySales._count._all ?? 0,
     totalProducts: products,
-    lowStockCount: lowStockCount[0]?.count ?? 0,
-    lowStockProducts,
+    lowStockCount: lowStockCountRow[0]?.count ?? 0,
+    lowStockProducts: showLowStockAlert ? lowStockProducts : [],
+    showLowStockAlert,
+    showExpiryAlert,
+    expiryAlertMonths,
+    expiringCount: showExpiryAlert ? expiringCount : 0,
+    expiringProducts: showExpiryAlert ? expiringProducts : [],
     recentSales,
   };
 };

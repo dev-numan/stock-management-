@@ -10,10 +10,13 @@ import { FormFieldsSkeleton } from '../../components/common/Skeleton';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { settingsSchema } from '../../utils/validation';
 import { SHOP_NAME, INVOICE_PREFIX } from '../../constants/branding';
-import CreditSettingsSection from '../../components/settings/CreditSettingsSection';
+import AlertSettingsSection from '../../components/settings/AlertSettingsSection';
+import { useAuth } from '../../context/AuthContext';
+import { useDashboardStore } from '../../stores/dashboardStore';
 
-export default function SettingsScreen({ navigation }) {
+export default function SettingsScreen() {
   const theme = useTheme();
+  const { isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -25,6 +28,9 @@ export default function SettingsScreen({ navigation }) {
     defaultValues: {
       address: '',
       phone: '',
+      showLowStockAlert: true,
+      showExpiryAlert: true,
+      expiryAlertMonths: 3,
     },
   });
 
@@ -34,6 +40,9 @@ export default function SettingsScreen({ navigation }) {
       reset({
         address: s.address,
         phone: s.phone,
+        showLowStockAlert: s.showLowStockAlert !== false,
+        showExpiryAlert: s.showExpiryAlert !== false,
+        expiryAlertMonths: Math.min(12, Math.max(1, Number(s.expiryAlertMonths) || 3)),
       });
       setLoading(false);
     });
@@ -45,6 +54,7 @@ export default function SettingsScreen({ navigation }) {
       setError(null);
       setSuccess(false);
       await updateSettings(formData);
+      useDashboardStore.getState().invalidate();
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save');
@@ -55,11 +65,11 @@ export default function SettingsScreen({ navigation }) {
 
   return (
     <KeyboardFormView insideTab>
-      <CreditSettingsSection navigation={navigation} />
       {loading ? (
         <FormFieldsSkeleton rows={2} />
       ) : (
         <>
+      {isAdmin ? <AlertSettingsSection control={control} /> : null}
       <Card mode="elevated" style={{ marginBottom: 16, borderRadius: theme.roundness }}>
         <Card.Content>
           <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>Shop name</Text>
@@ -74,11 +84,13 @@ export default function SettingsScreen({ navigation }) {
       <Controller control={control} name="phone" render={({ field: { onChange, onBlur, value } }) => (
         <AppInput label="Phone *" value={value} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" error={errors.phone?.message} />
       )} />
-      <AppButton
-        title="Save Settings"
-        onPress={handleSubmit(onSubmit, () => setError('Please fix the errors above'))}
-        loading={saving}
-      />
+      {isAdmin ? (
+        <AppButton
+          title="Save Settings"
+          onPress={handleSubmit(onSubmit, () => setError('Please fix the errors above'))}
+          loading={saving}
+        />
+      ) : null}
       <ErrorMessage message={error} />
       {success ? (
         <Text variant="bodyMedium" style={{ color: theme.colors.primary, marginTop: 8, textAlign: 'center' }}>

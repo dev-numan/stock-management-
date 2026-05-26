@@ -55,7 +55,7 @@ export const useProductsStore = create(
 
       fetchProducts: async (force = false) => {
         const { products, lastFetched } = get();
-        if (!force && products.length && !isStale(lastFetched)) {
+        if (!force && products.length > 0 && !isStale(lastFetched)) {
           return products;
         }
         if (!getIsOnline()) {

@@ -30,24 +30,50 @@ export const getYearDateRange = (year) => ({
   to: `${year}-12-31`,
 });
 
-/** @param {'month'|'year'|'all'} mode */
-export const getPeriodQueryParams = (mode, year, month) => {
+/** day: 1–31 */
+export const getDayDateRange = (year, month, day) => {
+  const dateStr = format(new Date(year, month - 1, day), 'yyyy-MM-dd');
+  return { from: dateStr, to: dateStr };
+};
+
+export const daysInMonth = (year, month) => new Date(year, month, 0).getDate();
+
+export const shiftCalendarDay = (year, month, day, delta) => {
+  const d = new Date(year, month - 1, day + delta);
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+  };
+};
+
+/** @param {'day'|'month'|'year'|'all'} mode */
+export const getPeriodQueryParams = (mode, year, month, day = 1) => {
   if (mode === 'all') return {};
   if (mode === 'year') return getYearDateRange(year);
+  if (mode === 'day') return getDayDateRange(year, month, day);
   return getMonthDateRange(year, month);
 };
 
-/** @param {'month'|'year'|'all'} mode */
-export const getPeriodLabel = (mode, year, month) => {
+/** @param {'day'|'month'|'year'|'all'} mode */
+export const getPeriodLabel = (mode, year, month, day = 1) => {
   if (mode === 'all') return 'All time';
   if (mode === 'year') return `Year ${year}`;
+  if (mode === 'day') return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
   return `${MONTH_NAMES[month - 1]} ${year}`;
 };
 
-/** @param {'month'|'year'|'all'} mode */
-export const isDateInPeriod = (date, mode, year, month) => {
+/** @param {'day'|'month'|'year'|'all'} mode */
+export const isDateInPeriod = (date, mode, year, month, day = 1) => {
   if (mode === 'all' || !date) return true;
   const d = new Date(date);
   if (mode === 'year') return d.getFullYear() === year;
+  if (mode === 'day') {
+    return (
+      d.getFullYear() === year &&
+      d.getMonth() + 1 === month &&
+      d.getDate() === day
+    );
+  }
   return d.getFullYear() === year && d.getMonth() + 1 === month;
 };

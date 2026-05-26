@@ -24,13 +24,14 @@ export default function ReportsScreen() {
   const [mode, setMode] = useState('all');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [day, setDay] = useState(now.getDate());
   const [exporting, setExporting] = useState(false);
 
   const loadReports = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const params = getPeriodQueryParams(mode, year, month);
+      const params = getPeriodQueryParams(mode, year, month, day);
       const [s, p, st] = await Promise.all([
         getSalesSummary(params),
         getProfitLoss(params),
@@ -44,7 +45,7 @@ export default function ReportsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [mode, year, month]);
+  }, [mode, year, month, day]);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,7 +53,7 @@ export default function ReportsScreen() {
     }, [loadReports])
   );
 
-  const periodLabel = getPeriodLabel(mode, year, month);
+  const periodLabel = getPeriodLabel(mode, year, month, day);
 
   const handleExportPdf = async () => {
     if (!summary || !profitLoss || !stock) return;
@@ -82,9 +83,11 @@ export default function ReportsScreen() {
         mode={mode}
         year={year}
         month={month}
+        day={day}
         onModeChange={setMode}
         onYearChange={setYear}
         onMonthChange={setMonth}
+        onDayChange={setDay}
         summaryText={showSkeleton ? 'Loading reports...' : `Showing: ${periodLabel}`}
       />
       <ErrorMessage message={error} />

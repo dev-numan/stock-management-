@@ -37,12 +37,15 @@ model User {
 }
 
 model Settings {
-  id            Int     @id @default(1)
-  shopName      String  @default("Hafeez Zarai Markaz")
-  address       String  @default("Main Bazar, Punjab, Pakistan")
-  phone         String  @default("")
-  taxPercent    Decimal @default(0)
-  invoicePrefix String  @default("HZM")
+  id                 Int     @id @default(1)
+  shopName           String  @default("Hafeez Zarai Markaz")
+  address            String  @default("Main Bazar, Punjab, Pakistan")
+  phone              String  @default("")
+  taxPercent         Decimal @default(0)
+  invoicePrefix      String  @default("HZM")
+  showLowStockAlert  Boolean @default(true)
+  showExpiryAlert    Boolean @default(true)
+  expiryAlertMonths  Int     @default(3)
 }
 
 model Category {
@@ -94,6 +97,7 @@ model Product {
   salePrice     Decimal
   currentStock  Decimal        @default(0)
   minStockAlert Decimal        @default(10)
+  expiryDate    DateTime?
   supplierId    String?
   supplier      Supplier?      @relation(fields: [supplierId], references: [id])
   createdAt     DateTime       @default(now())

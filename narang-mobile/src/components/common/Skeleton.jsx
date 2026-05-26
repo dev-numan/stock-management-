@@ -153,6 +153,28 @@ export function ProductListSkeleton({ count = 4 }) {
   );
 }
 
+/** Compact rows for product search modal — matches ProductSearchModal row height. */
+export function ProductSearchSkeleton({ count = 8 }) {
+  const theme = useTheme();
+
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <Card
+          key={i}
+          mode="elevated"
+          style={{ marginBottom: 8, borderRadius: theme.roundness }}
+        >
+          <Card.Content style={{ paddingVertical: 10 }}>
+            <SkeletonLine width="55%" height={14} style={{ marginBottom: 6 }} />
+            <SkeletonLine width="38%" height={11} />
+          </Card.Content>
+        </Card>
+      ))}
+    </>
+  );
+}
+
 export function InvoiceSkeleton() {
   const theme = useTheme();
   return (

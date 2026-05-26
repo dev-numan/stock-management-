@@ -1,7 +1,8 @@
 import React, { useEffect, useCallback } from 'react';
-import { View, ScrollView, RefreshControl } from 'react-native';
+import { View, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { formatExpiryLabel, expiryTone } from '../../utils/expiry';
 import StatCard from '../../components/dashboard/StatCard';
 import RecentSaleItem from '../../components/dashboard/RecentSaleItem';
 import SalesTrendChart from '../../components/dashboard/SalesTrendChart';
@@ -48,13 +49,20 @@ export default function DashboardScreen({ navigation }) {
         <DashboardSkeleton />
       ) : (
         <>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8, marginBottom: 8 }}>
         <StatCard title="Today's Sales" value={formatCurrency(display?.todaySalesTotal)} subtitle={`${display?.todaySalesCount || 0} invoices`} color="green" />
         <StatCard title="Products" value={String(display?.totalProducts || 0)} color="amber" />
-        <StatCard title="Low Stock" value={String(display?.lowStockCount || 0)} color="red" />
+        <Pressable
+          style={{ flex: 1 }}
+          onPress={() =>
+            navigation.navigate('Stock', { screen: 'ProductsList', params: { lowStockOnly: true } })
+          }
+        >
+          <StatCard title="Low Stock" value={String(display?.lowStockCount || 0)} color="red" />
+        </Pressable>
       </View>
       <SalesTrendChart />
-      {display?.lowStockProducts?.length > 0 && (
+      {display?.showLowStockAlert !== false && display?.lowStockProducts?.length > 0 ? (
         <AppCard>
           <Text variant="titleMedium" style={{ color: theme.colors.error, fontWeight: '600', marginBottom: 8 }}>
             ⚠️ Low Stock Alert
@@ -65,7 +73,32 @@ export default function DashboardScreen({ navigation }) {
             </Text>
           ))}
         </AppCard>
-      )}
+      ) : null}
+      {display?.showExpiryAlert !== false && display?.expiringProducts?.length > 0 ? (
+        <AppCard>
+          <Text variant="titleMedium" style={{ color: '#B45309', fontWeight: '600', marginBottom: 4 }}>
+            📅 Expiry Alert
+          </Text>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
+            Within {display.expiryAlertMonths || 3} month(s)
+          </Text>
+          {display.expiringProducts.map((p) => {
+            const label = formatExpiryLabel(p.expiryDate);
+            const tone = expiryTone(p.expiryDate);
+            const color =
+              tone === 'error'
+                ? theme.colors.error
+                : tone === 'warning'
+                  ? '#B45309'
+                  : theme.colors.onSurface;
+            return (
+              <Text key={p.id} variant="bodyMedium" style={{ color, paddingVertical: 4 }}>
+                {p.name} — {label}
+              </Text>
+            );
+          })}
+        </AppCard>
+      ) : null}
         <AppCard>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text variant="titleMedium" style={{ fontWeight: '600' }}>

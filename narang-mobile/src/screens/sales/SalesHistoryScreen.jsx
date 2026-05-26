@@ -20,12 +20,13 @@ export default function SalesHistoryScreen({ navigation }) {
   const [mode, setMode] = useState('all');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [day, setDay] = useState(now.getDate());
 
   const fetchSales = useCallback(async (force = false) => {
     try {
       setLoading(true);
       setError(null);
-      const params = getPeriodQueryParams(mode, year, month);
+      const params = getPeriodQueryParams(mode, year, month, day);
       const list = await useSalesStore.getState().fetchSales(params, force);
       setSales(list);
     } catch (err) {
@@ -33,14 +34,14 @@ export default function SalesHistoryScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [mode, year, month]);
+  }, [mode, year, month, day]);
 
   useEffect(() => {
     fetchSales();
   }, [fetchSales]);
 
   const totalAmount = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-  const periodLabel = getPeriodLabel(mode, year, month);
+  const periodLabel = getPeriodLabel(mode, year, month, day);
   const showSkeleton = loading && sales.length === 0;
   const summaryText = showSkeleton
     ? 'Loading sales...'
@@ -55,9 +56,11 @@ export default function SalesHistoryScreen({ navigation }) {
         mode={mode}
         year={year}
         month={month}
+        day={day}
         onModeChange={setMode}
         onYearChange={setYear}
         onMonthChange={setMonth}
+        onDayChange={setDay}
         summaryText={summaryText}
       />
     </View>

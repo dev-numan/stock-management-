@@ -145,7 +145,7 @@ export default function NewSaleScreen({ navigation }) {
             variant="bodyLarge"
             style={{ color: cart.selectedCustomer ? theme.colors.onSurface : theme.colors.outline }}
           >
-            {cart.selectedCustomer ? cart.selectedCustomer.name : 'Tap to select from contacts'}
+            {cart.selectedCustomer ? cart.selectedCustomer.name : 'Tap to search customers'}
           </Text>
         </Card.Content>
       </Card>
@@ -172,11 +172,16 @@ export default function NewSaleScreen({ navigation }) {
         visible={customerPickerVisible}
         onClose={() => setCustomerPickerVisible(false)}
         resolving={resolvingCustomer}
-        onSelect={async (contact) => {
+        onSelect={async (selection) => {
           try {
             setResolvingCustomer(true);
             setError(null);
-            const customer = await resolveContactToCustomer(contact);
+            if (selection.type === 'app') {
+              cart.setSelectedCustomer(selection.customer);
+              setCustomerPickerVisible(false);
+              return;
+            }
+            const customer = await resolveContactToCustomer(selection.contact);
             cart.setSelectedCustomer(customer);
             setCustomerPickerVisible(false);
           } catch (err) {

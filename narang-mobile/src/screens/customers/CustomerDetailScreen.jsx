@@ -52,6 +52,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [mode, setMode] = useState('all');
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [day, setDay] = useState(now.getDate());
   const [shopSettings, setShopSettings] = useState(null);
   const [reminderLoading, setReminderLoading] = useState(null);
   const reminderCaptureRef = useRef(null);
@@ -74,7 +75,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
       let apiSales = [];
       let entries = [];
-      const periodParams = getPeriodQueryParams(mode, year, month);
+      const periodParams = getPeriodQueryParams(mode, year, month, day);
 
       if (!isLocal && getIsOnline()) {
         const [salesRes, advanceRes] = await Promise.all([
@@ -91,7 +92,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
         .pendingSales.filter(
           (s) =>
             (s.customerId === customerId || s.customer?.id === customerId) &&
-            isDateInPeriod(s.createdAt, mode, year, month)
+            isDateInPeriod(s.createdAt, mode, year, month, day)
         );
 
       const merged = [...pending, ...apiSales].sort(
@@ -103,7 +104,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [customerId, initialCustomer, mode, year, month]);
+  }, [customerId, initialCustomer, mode, year, month, day]);
 
   useFocusEffect(
     useCallback(() => {
@@ -174,7 +175,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
     }
   };
 
-  const periodLabel = getPeriodLabel(mode, year, month);
+  const periodLabel = getPeriodLabel(mode, year, month, day);
   const salesSummaryText =
     mode === 'all'
       ? `${sales.length} sale(s) · ${formatCurrency(totalSpent)}`
@@ -359,9 +360,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
             mode={mode}
             year={year}
             month={month}
+            day={day}
             onModeChange={setMode}
             onYearChange={setYear}
             onMonthChange={setMonth}
+            onDayChange={setDay}
             summaryText="Loading sales..."
             title="Filter by period"
           />
@@ -375,9 +378,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
             mode={mode}
             year={year}
             month={month}
+            day={day}
             onModeChange={setMode}
             onYearChange={setYear}
             onMonthChange={setMonth}
+            onDayChange={setDay}
             summaryText={loading ? 'Loading sales...' : salesSummaryText}
             title="Filter by period"
           />

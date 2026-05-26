@@ -6,6 +6,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getProduct } from '../../api/products.api';
 import AppInput from '../../components/common/AppInput';
+import DatePickerField from '../../components/common/DatePickerField';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import ConfirmModal from '../../components/common/ConfirmModal';
@@ -53,6 +54,9 @@ export default function AddEditProductScreen({ route, navigation }) {
       salePrice: initialProduct ? String(Number(initialProduct.salePrice)) : '',
       currentStock: initialProduct ? String(Number(initialProduct.currentStock)) : '0',
       minStockAlert: initialProduct ? String(Number(initialProduct.minStockAlert)) : '10',
+      expiryDate: initialProduct?.expiryDate
+        ? new Date(initialProduct.expiryDate).toISOString().slice(0, 10)
+        : '',
     },
   });
 
@@ -77,6 +81,7 @@ export default function AddEditProductScreen({ route, navigation }) {
         setValue('salePrice', String(Number(p.salePrice)));
         setValue('currentStock', String(Number(p.currentStock)));
         setValue('minStockAlert', String(Number(p.minStockAlert)));
+        setValue('expiryDate', p.expiryDate ? new Date(p.expiryDate).toISOString().slice(0, 10) : '');
       })
       .catch(() => {
         if (!cancelled) setError('Could not load product');
@@ -93,7 +98,6 @@ export default function AddEditProductScreen({ route, navigation }) {
   const selectedCategoryId = watch('categoryId');
   const selectedUnit = watch('unit');
   const currentStock = watch('currentStock');
-
   useEffect(() => {
     trigger('minStockAlert');
   }, [currentStock, trigger]);
@@ -255,6 +259,21 @@ export default function AddEditProductScreen({ route, navigation }) {
             onBlur={onBlur}
             keyboardType="decimal-pad"
             error={errors.minStockAlert?.message}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="expiryDate"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <DatePickerField
+            label="Expiry Date (optional)"
+            value={value || ''}
+            onChange={onChange}
+            onBlur={onBlur}
+            placeholder="Tap to pick expiry date"
+            error={errors.expiryDate?.message}
+            clearable
           />
         )}
       />

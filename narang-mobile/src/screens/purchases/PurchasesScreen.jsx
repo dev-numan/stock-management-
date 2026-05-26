@@ -35,16 +35,20 @@ export default function PurchasesScreen({ navigation }) {
         renderItem={({ item }) => (
           <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
             <Card.Content>
-              <Card.Title
-                title={item.supplier?.name || 'No supplier'}
-                subtitle={formatDateTime(item.createdAt)}
-                right={() => (
-                  <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700' }}>
-                    {formatCurrency(item.totalAmount)}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text variant="titleMedium" style={{ fontWeight: '600' }}>
+                    {item.supplier?.name || 'No supplier'}
                   </Text>
-                )}
-              />
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {formatDateTime(item.createdAt)}
+                  </Text>
+                </View>
+                <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700' }}>
+                  {formatCurrency(item.totalAmount)}
+                </Text>
+              </View>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
                 {item.items?.length} items
               </Text>
             </Card.Content>

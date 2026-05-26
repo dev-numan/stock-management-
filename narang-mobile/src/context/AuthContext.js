@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { login as loginApi } from '../api/auth.api';
 import { getToken, setToken, getUser, setUser, clearAuth } from '../utils/storage';
+import { useProductsStore } from '../stores/productsStore';
+import { useCategoriesStore } from '../stores/categoriesStore';
+import { useCustomersStore } from '../stores/customersStore';
 
 const AuthContext = createContext(null);
 
@@ -15,6 +18,11 @@ export const AuthProvider = ({ children }) => {
         const storedUser = await getUser();
         if (token && storedUser) {
           setUserState(storedUser);
+          await Promise.all([
+            useProductsStore.getState().fetchProducts(true),
+            useCategoriesStore.getState().fetchCategories(true),
+            useCustomersStore.getState().fetchCustomers(true),
+          ]);
         }
       } finally {
         setLoading(false);
@@ -29,6 +37,11 @@ export const AuthProvider = ({ children }) => {
     await setToken(token);
     await setUser(userData);
     setUserState(userData);
+    await Promise.all([
+      useProductsStore.getState().fetchProducts(true),
+      useCategoriesStore.getState().fetchCategories(true),
+      useCustomersStore.getState().fetchCustomers(true),
+    ]);
     return userData;
   };
 

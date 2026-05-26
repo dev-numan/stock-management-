@@ -37,6 +37,15 @@ export const dateField = z
   .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v), 'Use format YYYY-MM-DD')
   .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date');
 
+/** Optional YYYY-MM-DD; empty string becomes null */
+export const optionalDateField = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v === undefined || v === '' ? null : v))
+  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), 'Use format YYYY-MM-DD')
+  .refine((v) => v === null || !Number.isNaN(Date.parse(v)), 'Invalid date');
+
 export const loginSchema = z.object({
   email: z.string().trim().email('Valid email is required'),
   password: z.string().min(1, 'Password is required'),
@@ -51,6 +60,7 @@ export const productFormSchema = z
     salePrice: amountField('Sale price', { min: 0.01 }),
     currentStock: amountField('Current stock', { min: 0 }),
     minStockAlert: amountField('Low stock alert', { min: 0 }),
+    expiryDate: optionalDateField,
   })
   .superRefine((data, ctx) => {
     if (data.minStockAlert > data.currentStock) {
@@ -91,6 +101,9 @@ export const settingsSchema = z.object({
     (v) => /^[\d\s+\-()]{7,20}$/.test(v),
     'Enter a valid phone number'
   ),
+  showLowStockAlert: z.boolean(),
+  showExpiryAlert: z.boolean(),
+  expiryAlertMonths: z.number().int().min(1, 'Minimum 1 month').max(12, 'Maximum 12 months'),
 });
 
 export const validateSaleCheckout = ({

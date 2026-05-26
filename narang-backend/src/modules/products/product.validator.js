@@ -10,6 +10,7 @@ export const createProductValidator = [
   body('salePrice').isFloat({ min: 0 }).withMessage('Valid sale price is required'),
   body('currentStock').optional().isFloat({ min: 0 }),
   body('minStockAlert').optional().isFloat({ min: 0 }),
+  body('expiryDate').optional({ nullable: true }).isISO8601().withMessage('Expiry date must be YYYY-MM-DD'),
   body('supplierId').optional({ nullable: true }).isUUID(),
 ];
 
@@ -21,5 +22,6 @@ export const updateProductValidator = [
   body('salePrice').optional().isFloat({ min: 0 }),
   body('currentStock').optional().isFloat({ min: 0 }),
   body('minStockAlert').optional().isFloat({ min: 0 }),
+  body('expiryDate').optional({ nullable: true }).isISO8601().withMessage('Expiry date must be YYYY-MM-DD'),
   body('supplierId').optional({ nullable: true }).isUUID(),
 ];
