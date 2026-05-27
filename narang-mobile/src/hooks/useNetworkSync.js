@@ -3,7 +3,6 @@ import NetInfo from '@react-native-community/netinfo';
 import { useNetworkStore } from '../stores/networkStore';
 import { processSyncQueue } from '../services/syncService';
 import { useProductsStore } from '../stores/productsStore';
-import { useCategoriesStore } from '../stores/categoriesStore';
 import { useCustomersStore } from '../stores/customersStore';
 import { getToken } from '../utils/storage';
 
@@ -19,7 +18,6 @@ export function useNetworkSync() {
       if (!token) return;
       await Promise.all([
         useProductsStore.getState().fetchProducts(true),
-        useCategoriesStore.getState().fetchCategories(true),
         useCustomersStore.getState().fetchCustomers(true),
       ]);
     };

@@ -3,7 +3,6 @@ import { login as loginApi, getMe } from '../api/auth.api';
 import { getToken, setToken, getUser, setUser, clearAuth } from '../utils/storage';
 import { setSessionExpiredHandler } from '../utils/authSession';
 import { useProductsStore } from '../stores/productsStore';
-import { useCategoriesStore } from '../stores/categoriesStore';
 import { useCustomersStore } from '../stores/customersStore';
 import { useDashboardStore } from '../stores/dashboardStore';
 
@@ -32,7 +31,6 @@ export const AuthProvider = ({ children }) => {
           setUserState(userData);
           await Promise.all([
             useProductsStore.getState().fetchProducts(true),
-            useCategoriesStore.getState().fetchCategories(true),
             useCustomersStore.getState().fetchCustomers(true),
           ]);
         } catch {
@@ -54,7 +52,6 @@ export const AuthProvider = ({ children }) => {
     setUserState(userData);
     await Promise.all([
       useProductsStore.getState().fetchProducts(true),
-      useCategoriesStore.getState().fetchCategories(true),
       useCustomersStore.getState().fetchCustomers(true),
     ]);
     return userData;

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "prisma migrate deploy && node server.js",
+    "postinstall": "prisma generate",
     "dev": "node --watch server.js",
     "dev:tunnel": "ENABLE_NGROK=true node --watch server.js",
     "db:migrate": "prisma migrate dev",

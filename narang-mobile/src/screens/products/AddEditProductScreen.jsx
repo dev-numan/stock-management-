@@ -61,10 +61,6 @@ export default function AddEditProductScreen({ route, navigation }) {
   });
 
   useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
-
-  useEffect(() => {
     if (!initialProduct?.id) return undefined;
 
     let cancelled = false;
@@ -75,7 +71,7 @@ export default function AddEditProductScreen({ route, navigation }) {
         const p = data.data;
         setProductId(p.id);
         setValue('name', p.name);
-        setValue('categoryId', p.categoryId);
+        setValue('category', p.category || p.category?.name || PRODUCT_CATEGORIES[0]);
         setValue('unit', p.unit);
         setValue('costPrice', String(Number(p.costPrice)));
         setValue('salePrice', String(Number(p.salePrice)));
@@ -95,7 +91,7 @@ export default function AddEditProductScreen({ route, navigation }) {
     };
   }, [initialProduct?.id, setValue]);
 
-  const selectedCategoryId = watch('categoryId');
+  const selectedCategory = watch('category');
   const selectedUnit = watch('unit');
   const currentStock = watch('currentStock');
   useEffect(() => {
@@ -163,29 +159,23 @@ export default function AddEditProductScreen({ route, navigation }) {
         )}
       />
       <Text variant="labelLarge" style={{ marginBottom: 8 }}>Category *</Text>
-      {categoriesLoading ? (
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>Loading categories...</Text>
-      ) : categories.length === 0 ? (
-        <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 12 }}>No categories found. Ask admin to add categories.</Text>
-      ) : (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
-          {categories.map((cat) => {
-            const selected = selectedCategoryId === cat.id;
-            return (
-              <Chip
-                key={cat.id}
-                selected={selected}
-                onPress={() => setValue('categoryId', cat.id, { shouldValidate: true, shouldDirty: true })}
-                style={{ marginBottom: 4 }}
-              >
-                {cat.name}
-              </Chip>
-            );
-          })}
-        </View>
-      )}
-      {errors.categoryId ? (
-        <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>{errors.categoryId.message}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+        {PRODUCT_CATEGORIES.map((cat) => {
+          const selected = selectedCategory === cat;
+          return (
+            <Chip
+              key={cat}
+              selected={selected}
+              onPress={() => setValue('category', cat, { shouldValidate: true, shouldDirty: true })}
+              style={{ marginBottom: 4 }}
+            >
+              {cat}
+            </Chip>
+          );
+        })}
+      </View>
+      {errors.category ? (
+        <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>{errors.category.message}</Text>
       ) : null}
       <Text variant="labelLarge" style={{ marginBottom: 8 }}>Unit *</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>

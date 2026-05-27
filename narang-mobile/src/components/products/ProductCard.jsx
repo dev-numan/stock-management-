@@ -21,9 +21,9 @@ export default function ProductCard({ product, onPress }) {
               <Text variant="titleMedium" style={{ fontWeight: '600' }}>
                 {product.name}
               </Text>
-              {product.category?.name ? (
+              {product.category ? (
                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  {product.category.name}
+                  {typeof product.category === 'string' ? product.category : product.category?.name}
                 </Text>
               ) : null}
             </View>
