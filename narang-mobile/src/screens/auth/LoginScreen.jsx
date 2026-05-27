@@ -21,7 +21,7 @@ export default function LoginScreen() {
   const { control, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(loginSchema),
     mode: 'onChange',
-    defaultValues: { email: 'admin@narangfertilizers.com', password: 'admin123' },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data) => {
@@ -57,7 +57,7 @@ export default function LoginScreen() {
                 label="Email"
                 value={value}
                 onChangeText={onChange}
-                placeholder="email@example.com"
+                placeholder="admin@narangfertilizers.com"
                 error={errors.email?.message}
                 keyboardType="email-address"
               />

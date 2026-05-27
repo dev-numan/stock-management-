@@ -25,6 +25,14 @@ export const amountField = (label, { min = 0, max, integer = false } = {}) =>
       message: `${label} cannot exceed ${max}`,
     });
 
+/** Empty string uses defaultString before amount validation (for placeholders). */
+export const amountFieldWithDefault = (label, defaultString, options = {}) =>
+  z
+    .string()
+    .trim()
+    .transform((v) => (v === '' ? String(defaultString) : v))
+    .pipe(amountField(label, options));
+
 export const requiredText = (label) => z.string().trim().min(1, `${label} is required`);
 
 export const optionalPhone = z
@@ -60,8 +68,8 @@ export const productFormSchema = z
     unit: z.enum(PRODUCT_UNITS, { message: 'Please select a unit' }),
     costPrice: amountField('Cost price', { min: 0.01 }),
     salePrice: amountField('Sale price', { min: 0.01 }),
-    currentStock: amountField('Current stock', { min: 0 }),
-    minStockAlert: amountField('Low stock alert', { min: 0 }),
+    currentStock: amountFieldWithDefault('Current stock', '0', { min: 0 }),
+    minStockAlert: amountFieldWithDefault('Low stock alert', '10', { min: 0 }),
     expiryDate: optionalDateField,
   })
   .superRefine((data, ctx) => {
@@ -89,11 +97,21 @@ export const customerSchema = z.object({
 
 export const supplierSchema = customerSchema;
 
+const expenseDateField = z
+  .string()
+  .trim()
+  .transform((v) => (v === '' ? new Date().toISOString().split('T')[0] : v))
+  .pipe(dateField);
+
 export const expenseSchema = z.object({
   title: requiredText('Title'),
   amount: amountField('Amount', { min: 0.01 }),
-  category: requiredText('Category'),
-  date: dateField,
+  category: z
+    .string()
+    .trim()
+    .transform((v) => (v === '' ? 'General' : v))
+    .pipe(requiredText('Category')),
+  date: expenseDateField,
   notes: z.string().trim().optional(),
 });
 
@@ -163,15 +181,20 @@ export const validatePurchaseItems = (items) => {
   }
 
   items.forEach((item) => {
-    const qty = Number(item.quantity);
-    const cost = Number(item.costPrice);
-
     const qtyStr = String(item.quantity).trim();
-    if (!qtyStr || Number.isNaN(qty) || qty <= 0 || !amountRegex.test(qtyStr)) {
+    const effectiveQty = qtyStr === '' ? '1' : qtyStr;
+    const qty = Number(effectiveQty);
+
+    const costStr = String(item.costPrice ?? '').trim();
+    const effectiveCost =
+      costStr === '' && item.suggestedCost != null ? String(item.suggestedCost).trim() : costStr;
+    const cost = Number(effectiveCost);
+
+    if (Number.isNaN(qty) || qty <= 0 || !amountRegex.test(effectiveQty)) {
       fieldErrors[`${item.productId}-quantity`] = 'Enter a valid quantity greater than 0';
     }
 
-    if (!item.costPrice?.toString().trim() || Number.isNaN(cost) || cost <= 0) {
+    if (!effectiveCost || Number.isNaN(cost) || cost <= 0 || !amountRegex.test(effectiveCost)) {
       fieldErrors[`${item.productId}-costPrice`] = 'Enter a valid cost price';
     }
   });

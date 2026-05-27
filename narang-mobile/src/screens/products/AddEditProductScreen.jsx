@@ -52,8 +52,8 @@ export default function AddEditProductScreen({ route, navigation }) {
       unit: initialProduct?.unit || 'BAG',
       costPrice: initialProduct ? String(Number(initialProduct.costPrice)) : '',
       salePrice: initialProduct ? String(Number(initialProduct.salePrice)) : '',
-      currentStock: initialProduct ? String(Number(initialProduct.currentStock)) : '0',
-      minStockAlert: initialProduct ? String(Number(initialProduct.minStockAlert)) : '10',
+      currentStock: initialProduct ? String(Number(initialProduct.currentStock)) : '',
+      minStockAlert: initialProduct ? String(Number(initialProduct.minStockAlert)) : '',
       expiryDate: initialProduct?.expiryDate
         ? new Date(initialProduct.expiryDate).toISOString().slice(0, 10)
         : '',
@@ -234,6 +234,7 @@ export default function AddEditProductScreen({ route, navigation }) {
             onChangeText={(t) => onChange(sanitizeAmountInput(t))}
             onBlur={onBlur}
             keyboardType="decimal-pad"
+            placeholder="0"
             error={errors.currentStock?.message}
           />
         )}
@@ -248,6 +249,7 @@ export default function AddEditProductScreen({ route, navigation }) {
             onChangeText={(t) => onChange(sanitizeAmountInput(t))}
             onBlur={onBlur}
             keyboardType="decimal-pad"
+            placeholder="10"
             error={errors.minStockAlert?.message}
           />
         )}

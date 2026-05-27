@@ -199,6 +199,7 @@ export default function NewSaleScreen({ navigation }) {
         value={cart.discount === 0 ? '' : String(cart.discount)}
         onChangeText={handleDiscountChange}
         keyboardType="decimal-pad"
+        placeholder="0"
         error={discountError}
       />
       <SegmentedButtons

@@ -27,7 +27,7 @@ export default function ExpensesScreen() {
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(expenseSchema),
     mode: 'onChange',
-    defaultValues: { title: '', amount: '', category: 'General', date: today, notes: '' },
+    defaultValues: { title: '', amount: '', category: '', date: '', notes: '' },
   });
 
   const fetch = async () => {
@@ -43,7 +43,7 @@ export default function ExpensesScreen() {
       setSaving(true);
       setApiError(null);
       await createExpense(formData);
-      reset({ title: '', amount: '', category: 'General', date: today, notes: '' });
+      reset({ title: '', amount: '', category: '', date: '', notes: '' });
       fetch();
     } catch (err) {
       setApiError(err.response?.data?.message || 'Failed to add expense');
@@ -63,10 +63,24 @@ export default function ExpensesScreen() {
         <AppInput label="Amount (PKR) *" value={value} onChangeText={(t) => onChange(sanitizeAmountInput(t))} onBlur={onBlur} keyboardType="decimal-pad" error={errors.amount?.message} />
       )} />
       <Controller control={control} name="category" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Category *" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.category?.message} />
+        <AppInput
+          label="Category *"
+          value={value}
+          onChangeText={onChange}
+          onBlur={onBlur}
+          placeholder="General"
+          error={errors.category?.message}
+        />
       )} />
       <Controller control={control} name="date" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Date (YYYY-MM-DD) *" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.date?.message} />
+        <AppInput
+          label="Date (YYYY-MM-DD) *"
+          value={value}
+          onChangeText={onChange}
+          onBlur={onBlur}
+          placeholder={today}
+          error={errors.date?.message}
+        />
       )} />
       <Controller control={control} name="notes" render={({ field: { onChange, onBlur, value } }) => (
         <AppInput label="Notes" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.notes?.message} />

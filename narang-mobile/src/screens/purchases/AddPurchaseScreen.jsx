@@ -20,7 +20,16 @@ export default function AddPurchaseScreen({ navigation }) {
   const addProduct = (product) => {
     setItems((prev) => {
       if (prev.find((i) => i.productId === product.id)) return prev;
-      return [...prev, { productId: product.id, name: product.name, quantity: '1', costPrice: String(Number(product.costPrice)) }];
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          name: product.name,
+          quantity: '',
+          costPrice: '',
+          suggestedCost: String(Number(product.costPrice)),
+        },
+      ];
     });
   };
 
@@ -51,8 +60,10 @@ export default function AddPurchaseScreen({ navigation }) {
         notes,
         items: items.map((i) => ({
           productId: i.productId,
-          quantity: Number(i.quantity),
-          costPrice: Number(i.costPrice),
+          quantity: Number(String(i.quantity).trim() || '1'),
+          costPrice: Number(
+            String(i.costPrice).trim() || i.suggestedCost || 0
+          ),
         })),
       });
       navigation.goBack();
@@ -80,16 +91,18 @@ export default function AddPurchaseScreen({ navigation }) {
             <Text variant="titleSmall" style={{ fontWeight: '600', marginBottom: 8 }}>{item.name}</Text>
             <AppInput
               label="Quantity *"
-              value={String(item.quantity)}
+              value={item.quantity === '' ? '' : String(item.quantity)}
               onChangeText={(v) => updateItem(item.productId, 'quantity', v)}
               keyboardType="decimal-pad"
+              placeholder="1"
               error={fieldErrors[`${item.productId}-quantity`]}
             />
             <AppInput
               label="Cost Price (PKR) *"
-              value={String(item.costPrice)}
+              value={item.costPrice === '' ? '' : String(item.costPrice)}
               onChangeText={(v) => updateItem(item.productId, 'costPrice', v)}
               keyboardType="decimal-pad"
+              placeholder={item.suggestedCost || '0'}
               error={fieldErrors[`${item.productId}-costPrice`]}
             />
           </Card.Content>
