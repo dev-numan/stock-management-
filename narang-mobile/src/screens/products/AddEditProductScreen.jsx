@@ -11,9 +11,9 @@ import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
-import { useCategoriesStore } from '../../stores/categoriesStore';
 import { useProductsStore } from '../../stores/productsStore';
 import {
+  PRODUCT_CATEGORIES,
   PRODUCT_UNITS,
   productFormSchema,
   sanitizeAmountInput,
@@ -25,9 +25,6 @@ export default function AddEditProductScreen({ route, navigation }) {
   const [productId, setProductId] = useState(initialProduct?.id ?? null);
   const isEdit = Boolean(productId);
   const { isAdmin } = useAuth();
-  const categories = useCategoriesStore((s) => s.categories);
-  const categoriesLoading = useCategoriesStore((s) => s.loading);
-  const fetchCategories = useCategoriesStore((s) => s.fetchCategories);
   const saveProduct = useProductsStore((s) => s.saveProduct);
   const createProduct = useProductsStore((s) => s.createProduct);
   const deleteProduct = useProductsStore((s) => s.deleteProduct);
@@ -48,7 +45,10 @@ export default function AddEditProductScreen({ route, navigation }) {
     mode: 'onChange',
     defaultValues: {
       name: initialProduct?.name || '',
-      categoryId: initialProduct?.categoryId || '',
+      category:
+        initialProduct?.category ||
+        initialProduct?.category?.name ||
+        PRODUCT_CATEGORIES[0],
       unit: initialProduct?.unit || 'BAG',
       costPrice: initialProduct ? String(Number(initialProduct.costPrice)) : '',
       salePrice: initialProduct ? String(Number(initialProduct.salePrice)) : '',

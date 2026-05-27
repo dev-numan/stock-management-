@@ -207,14 +207,12 @@ export const getSalesTrend = async ({ mode = 'month', year }) => {
 };
 
 export const getStockValuation = async () => {
-  const products = await db.product.findMany({
-    include: { category: true },
-  });
+  const products = await db.product.findMany();
 
   const items = products.map((p) => ({
     id: p.id,
     name: p.name,
-    category: p.category.name,
+    category: p.category,
     currentStock: toNumber(p.currentStock),
     costPrice: toNumber(p.costPrice),
     salePrice: toNumber(p.salePrice),

@@ -48,12 +48,6 @@ model Settings {
   expiryAlertMonths  Int     @default(3)
 }
 
-model Category {
-  id       String    @id @default(uuid())
-  name     String    @unique
-  products Product[]
-}
-
 model Supplier {
   id        String     @id @default(uuid())
   name      String
@@ -90,8 +84,7 @@ model CustomerAdvanceEntry {
 model Product {
   id            String         @id @default(uuid())
   name          String
-  categoryId    String
-  category      Category       @relation(fields: [categoryId], references: [id])
+  category      String
   unit          Unit           @default(BAG)
   costPrice     Decimal
   salePrice     Decimal

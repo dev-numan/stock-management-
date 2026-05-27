@@ -37,7 +37,7 @@ export const getSaleById = async (id) => {
     include: {
       customer: true,
       createdBy: { select: { id: true, name: true, email: true } },
-      items: { include: { product: { include: { category: true } } } },
+      items: { include: { product: true } },
     },
   });
   if (!sale) throw new ApiError(404, 'Sale not found');

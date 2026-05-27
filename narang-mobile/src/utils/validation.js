@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const PRODUCT_UNITS = ['BAG', 'KG', 'LITRE', 'PIECE', 'BOTTLE'];
 
+export const PRODUCT_CATEGORIES = ['Fertilizers', 'Pesticides', 'Seeds', 'Other'];
+
 const amountRegex = /^\d+(\.\d{1,2})?$/;
 const integerRegex = /^\d+$/;
 
@@ -54,7 +56,7 @@ export const loginSchema = z.object({
 export const productFormSchema = z
   .object({
     name: requiredText('Product name'),
-    categoryId: z.string().min(1, 'Please select a category'),
+    category: z.enum(PRODUCT_CATEGORIES, { message: 'Please select a category' }),
     unit: z.enum(PRODUCT_UNITS, { message: 'Please select a unit' }),
     costPrice: amountField('Cost price', { min: 0.01 }),
     salePrice: amountField('Sale price', { min: 0.01 }),

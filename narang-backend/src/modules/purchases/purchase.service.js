@@ -32,7 +32,7 @@ export const getPurchaseById = async (id) => {
     where: { id },
     include: {
       supplier: true,
-      items: { include: { product: { include: { category: true } } } },
+      items: { include: { product: true } },
     },
   });
   if (!purchase) throw new ApiError(404, 'Purchase not found');

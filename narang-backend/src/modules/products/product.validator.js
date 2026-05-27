@@ -1,10 +1,14 @@
 import { body } from 'express-validator';
+import { PRODUCT_CATEGORIES } from '../../constants/productCategories.js';
 
 const units = ['KG', 'BAG', 'LITRE', 'PIECE', 'BOTTLE'];
 
 export const createProductValidator = [
   body('name').trim().notEmpty().withMessage('Name is required'),
-  body('categoryId').isUUID().withMessage('Valid category is required'),
+  body('category')
+    .trim()
+    .isIn(PRODUCT_CATEGORIES)
+    .withMessage('Valid category is required'),
   body('unit').optional().isIn(units).withMessage('Invalid unit'),
   body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price is required'),
   body('salePrice').isFloat({ min: 0 }).withMessage('Valid sale price is required'),
@@ -16,7 +20,7 @@ export const createProductValidator = [
 
 export const updateProductValidator = [
   body('name').optional().trim().notEmpty(),
-  body('categoryId').optional().isUUID(),
+  body('category').optional().trim().isIn(PRODUCT_CATEGORIES),
   body('unit').optional().isIn(units),
   body('costPrice').optional().isFloat({ min: 0 }),
   body('salePrice').optional().isFloat({ min: 0 }),

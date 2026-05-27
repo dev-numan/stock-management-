@@ -1,21 +1,22 @@
 import { Prisma } from '@prisma/client';
 import { db } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { isValidProductCategory } from '../../constants/productCategories.js';
 import { parseExpiryDate } from '../../utils/parseExpiryDate.js';
 
-export const getAllProducts = async ({ search, categoryId, lowStock }) => {
+export const getAllProducts = async ({ search, category, lowStock }) => {
   const where = {};
 
   if (search) {
     where.name = { contains: search, mode: 'insensitive' };
   }
-  if (categoryId) {
-    where.categoryId = categoryId;
+  if (category) {
+    where.category = category;
   }
 
   const products = await db.product.findMany({
     where,
-    include: { category: true, supplier: true },
+    include: { supplier: true },
     orderBy: { name: 'asc' },
   });
 
@@ -31,7 +32,7 @@ export const getAllProducts = async ({ search, categoryId, lowStock }) => {
 export const getProductById = async (id) => {
   const product = await db.product.findUnique({
     where: { id },
-    include: { category: true, supplier: true },
+    include: { supplier: true },
   });
   if (!product) throw new ApiError(404, 'Product not found');
   return product;
@@ -51,16 +52,20 @@ const validateProductNumbers = (data) => {
   }
 };
 
-export const createProduct = async (data) => {
-  const category = await db.category.findUnique({ where: { id: data.categoryId } });
-  if (!category) throw new ApiError(400, 'Category not found');
+const validateCategory = (category) => {
+  if (!isValidProductCategory(category)) {
+    throw new ApiError(400, 'Invalid product category');
+  }
+};
 
+export const createProduct = async (data) => {
+  validateCategory(data.category);
   validateProductNumbers(data);
 
   return db.product.create({
     data: {
       name: data.name,
-      categoryId: data.categoryId,
+      category: data.category.trim(),
       unit: data.unit ?? 'BAG',
       costPrice: new Prisma.Decimal(data.costPrice),
       salePrice: new Prisma.Decimal(data.salePrice),
@@ -69,7 +74,7 @@ export const createProduct = async (data) => {
       expiryDate: parseExpiryDate(data.expiryDate),
       supplierId: data.supplierId || null,
     },
-    include: { category: true, supplier: true },
+    include: { supplier: true },
   });
 };
 
@@ -86,7 +91,10 @@ export const updateProduct = async (id, data) => {
 
   const updateData = {};
   if (data.name !== undefined) updateData.name = data.name;
-  if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+  if (data.category !== undefined) {
+    validateCategory(data.category);
+    updateData.category = data.category.trim();
+  }
   if (data.unit !== undefined) updateData.unit = data.unit;
   if (data.costPrice !== undefined) updateData.costPrice = new Prisma.Decimal(data.costPrice);
   if (data.salePrice !== undefined) updateData.salePrice = new Prisma.Decimal(data.salePrice);
@@ -98,7 +106,7 @@ export const updateProduct = async (id, data) => {
   return db.product.update({
     where: { id },
     data: updateData,
-    include: { category: true, supplier: true },
+    include: { supplier: true },
   });
 };
 

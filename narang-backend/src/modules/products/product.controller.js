@@ -5,7 +5,7 @@ import * as productService from './product.service.js';
 export const getAllProducts = asyncHandler(async (req, res) => {
   const products = await productService.getAllProducts({
     search: req.query.search,
-    categoryId: req.query.categoryId,
+    category: req.query.category,
     lowStock: req.query.lowStock,
   });
   return res.json(new ApiResponse(200, products, 'Products fetched'));
