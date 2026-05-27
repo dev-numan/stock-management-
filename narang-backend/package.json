@@ -10,6 +10,8 @@
     "dev:tunnel": "ENABLE_NGROK=true node --watch server.js",
     "db:migrate": "prisma migrate dev",
     "db:seed": "node prisma/seed.js",
+    "db:create-admin": "node scripts/create-admin.js",
+    "db:reset": "prisma migrate reset --force",
     "db:generate": "prisma generate"
   },
   "prisma": {

@@ -11,3 +11,7 @@ export const register = asyncHandler(async (req, res) => {
   const result = await authService.register(req.body);
   return res.json(new ApiResponse(201, result, 'User registered'));
 });
+
+export const me = asyncHandler(async (req, res) => {
+  return res.json(new ApiResponse(200, req.user, 'Session valid'));
+});

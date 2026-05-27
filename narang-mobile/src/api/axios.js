@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { getToken } from '../utils/storage';
+import { handleSessionExpired } from '../utils/authSession';
 import { API_BASE_URL } from '../config/api';
+
+const AUTH_SKIP_PATHS = ['/auth/login', '/auth/register'];
 
 const isNgrok = /ngrok/i.test(API_BASE_URL || '');
 
@@ -15,7 +18,15 @@ const api = axios.create({
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const status = error.response?.status;
+    const url = error.config?.url || '';
+    const isAuthAttempt = AUTH_SKIP_PATHS.some((p) => url.includes(p));
+
+    if (status === 401 && !isAuthAttempt) {
+      await handleSessionExpired();
+    }
+
     if (!error.response) {
       const tunnelHint =
         'Cannot reach the API. Start backend with: cd narang-backend && npm run dev:tunnel (needs NGROK_AUTHTOKEN), then restart Expo: npx expo start --tunnel --clear';

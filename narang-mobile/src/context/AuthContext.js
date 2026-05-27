@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { login as loginApi } from '../api/auth.api';
+import { login as loginApi, getMe } from '../api/auth.api';
 import { getToken, setToken, getUser, setUser, clearAuth } from '../utils/storage';
+import { setSessionExpiredHandler } from '../utils/authSession';
 import { useProductsStore } from '../stores/productsStore';
 import { useCategoriesStore } from '../stores/categoriesStore';
 import { useCustomersStore } from '../stores/customersStore';
+import { useDashboardStore } from '../stores/dashboardStore';
 
 const AuthContext = createContext(null);
 
@@ -12,17 +14,30 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setSessionExpiredHandler(() => setUserState(null));
+    return () => setSessionExpiredHandler(null);
+  }, []);
+
+  useEffect(() => {
     const load = async () => {
       try {
         const token = await getToken();
         const storedUser = await getUser();
-        if (token && storedUser) {
-          setUserState(storedUser);
+        if (!token || !storedUser) return;
+
+        try {
+          const { data } = await getMe();
+          const userData = data.data;
+          await setUser(userData);
+          setUserState(userData);
           await Promise.all([
             useProductsStore.getState().fetchProducts(true),
             useCategoriesStore.getState().fetchCategories(true),
             useCustomersStore.getState().fetchCustomers(true),
           ]);
+        } catch {
+          await clearAuth();
+          setUserState(null);
         }
       } finally {
         setLoading(false);
@@ -48,6 +63,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await clearAuth();
     setUserState(null);
+    useDashboardStore.setState({ dashboard: null, error: null, lastFetched: null });
   };
 
   const isAdmin = user?.role === 'ADMIN';
