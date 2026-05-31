@@ -13,6 +13,7 @@ import AddEditProductScreen from '../screens/products/AddEditProductScreen';
 import SalesHistoryScreen from '../screens/sales/SalesHistoryScreen';
 import MoreScreen from '../screens/more/MoreScreen';
 import ReportsScreen from '../screens/reports/ReportsScreen';
+import ProfitScreen from '../screens/profit/ProfitScreen';
 import PurchasesScreen from '../screens/purchases/PurchasesScreen';
 import AddPurchaseScreen from '../screens/purchases/AddPurchaseScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
@@ -64,6 +65,8 @@ function MoreStack() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions(theme)}>
       <Stack.Screen name="MoreMenu" component={MoreScreen} options={{ title: 'More' }} />
+      <Stack.Screen name="SalesHistory" component={SalesHistoryScreen} options={{ title: 'Sales' }} />
+      <Stack.Screen name="Profit" component={ProfitScreen} options={{ title: 'Profit' }} />
       <Stack.Screen name="Reports" component={ReportsScreen} options={{ title: 'Reports' }} />
       <Stack.Screen name="Purchases" component={PurchasesScreen} options={{ title: 'Purchases' }} />
       <Stack.Screen name="AddPurchase" component={AddPurchaseScreen} options={{ title: 'Add Purchase' }} />

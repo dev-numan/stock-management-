@@ -1,9 +1,10 @@
-import React, { useEffect, useCallback } from 'react';
-import { View, ScrollView, RefreshControl, Pressable } from 'react-native';
+import React, { useEffect, useCallback, useState } from 'react';
+import { View, ScrollView, RefreshControl } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatExpiryLabel, expiryTone } from '../../utils/expiry';
 import StatCard from '../../components/dashboard/StatCard';
+import InventoryStatCard from '../../components/dashboard/InventoryStatCard';
 import RecentSaleItem from '../../components/dashboard/RecentSaleItem';
 import SalesTrendChart from '../../components/dashboard/SalesTrendChart';
 import { DashboardSkeleton } from '../../components/common/Skeleton';
@@ -20,6 +21,7 @@ export default function DashboardScreen({ navigation }) {
   const fetchDashboard = useDashboardStore((s) => s.fetchDashboard);
   const enrichDashboard = useDashboardStore((s) => s.enrichDashboard);
   const isOnline = useNetworkStore((s) => s.isOnline);
+  const [inventoryCardHeight, setInventoryCardHeight] = useState(null);
 
   const load = useCallback(async (force = false) => {
     await fetchDashboard(force);
@@ -49,17 +51,34 @@ export default function DashboardScreen({ navigation }) {
         <DashboardSkeleton />
       ) : (
         <>
-      <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 8, marginBottom: 8 }}>
-        <StatCard title="Today's Sales" value={formatCurrency(display?.todaySalesTotal)} subtitle={`${display?.todaySalesCount || 0} invoices`} color="green" />
-        <StatCard title="Products" value={String(display?.totalProducts || 0)} color="amber" />
-        <Pressable
-          style={{ flex: 1 }}
-          onPress={() =>
-            navigation.navigate('Stock', { screen: 'ProductsList', params: { lowStockOnly: true } })
-          }
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+        <View
+          style={{
+            flex: 2,
+            minHeight: inventoryCardHeight ?? undefined,
+          }}
         >
-          <StatCard title="Low Stock" value={String(display?.lowStockCount || 0)} color="red" />
-        </Pressable>
+          <StatCard
+            style={{ flex: 1, minHeight: inventoryCardHeight ?? undefined }}
+            title="Today's Sales"
+            value={formatCurrency(display?.todaySalesTotal)}
+            subtitle={`${display?.todaySalesCount || 0} invoices`}
+            color="green"
+          />
+        </View>
+        <View
+          style={{ flex: 1 }}
+          onLayout={(e) => setInventoryCardHeight(e.nativeEvent.layout.height)}
+        >
+          <InventoryStatCard
+            lowStockCount={display?.lowStockCount}
+            totalProducts={display?.totalProducts}
+            onLowStockPress={() =>
+              navigation.navigate('Stock', { screen: 'ProductsList', params: { lowStockOnly: true } })
+            }
+            onProductsPress={() => navigation.navigate('Stock', { screen: 'ProductsList' })}
+          />
+        </View>
       </View>
       <SalesTrendChart />
       {display?.showLowStockAlert !== false && display?.lowStockProducts?.length > 0 ? (
@@ -109,10 +128,11 @@ export default function DashboardScreen({ navigation }) {
             </Button>
           </View>
         {display?.recentSales?.length ? (
-          display.recentSales.map((sale) => (
+          display.recentSales.map((sale, index, arr) => (
             <RecentSaleItem
               key={sale.id}
               sale={sale}
+              isLast={index === arr.length - 1}
               onPress={() =>
                 sale.pendingSync
                   ? navigation.navigate('History', {

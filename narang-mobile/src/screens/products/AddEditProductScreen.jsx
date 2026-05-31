@@ -9,6 +9,7 @@ import AppInput from '../../components/common/AppInput';
 import DatePickerField from '../../components/common/DatePickerField';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
@@ -110,7 +111,7 @@ export default function AddEditProductScreen({ route, navigation }) {
       }
       navigation.goBack();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save product');
+      setError(getFriendlyErrorMessage(err, 'Could not save product.'));
     } finally {
       setLoading(false);
     }
@@ -128,7 +129,7 @@ export default function AddEditProductScreen({ route, navigation }) {
       await deleteProduct(productId);
       navigation.goBack();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete');
+      setError(getFriendlyErrorMessage(err, 'Could not delete product.'));
     } finally {
       setLoading(false);
       setShowDelete(false);

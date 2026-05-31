@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { customerSchema } from '../../utils/validation';
 import { useCustomersStore } from '../../stores/customersStore';
@@ -30,7 +31,7 @@ export default function AddCustomerScreen({ navigation }) {
       });
       navigation.goBack();
     } catch (err) {
-      setApiError(err.response?.data?.message || 'Failed to add customer');
+      setApiError(getFriendlyErrorMessage(err, 'Could not add customer.'));
     } finally {
       setSaving(false);
     }

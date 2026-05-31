@@ -10,6 +10,7 @@ import AppCard from '../../components/common/AppCard';
 import AppButton from '../../components/common/AppButton';
 import { ReportCardsSkeleton } from '../../components/common/Skeleton';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import PeriodFilter from '../../components/common/PeriodFilter';
 
 const now = new Date();
@@ -41,7 +42,7 @@ export default function ReportsScreen() {
       setProfitLoss(p.data.data);
       setStock(st.data.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load reports');
+      setError(getFriendlyErrorMessage(err, 'Could not load reports.'));
     } finally {
       setLoading(false);
     }
@@ -62,7 +63,7 @@ export default function ReportsScreen() {
       setError(null);
       await exportReportPdf({ summary, profitLoss, stock, periodLabel });
     } catch (err) {
-      setError(err.message || 'Failed to export PDF');
+      setError(getFriendlyErrorMessage(err, 'Could not export PDF.'));
     } finally {
       setExporting(false);
     }

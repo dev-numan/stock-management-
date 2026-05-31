@@ -10,16 +10,17 @@ const accentColors = {
 
 const SUBTITLE_LINE_HEIGHT = 18;
 
-export default function StatCard({ title, value, subtitle, color = 'green' }) {
+export default function StatCard({ title, value, subtitle, color = 'green', style }) {
   const theme = useTheme();
   const accent = accentColors[color] || accentColors.green;
 
   return (
-    <View style={{ flex: 1, alignSelf: 'stretch' }}>
+    <View style={[{ flex: 1, alignSelf: 'stretch', height: '100%' }, style]}>
       <Card
         mode="elevated"
         style={{
           flex: 1,
+          height: '100%',
           borderRadius: theme.roundness,
           borderLeftWidth: 4,
           borderLeftColor: accent,

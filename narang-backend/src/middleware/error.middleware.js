@@ -50,7 +50,11 @@ export const errorHandler = (err, req, res, _next) => {
   }
 
   const statusCode = error.statusCode || 500;
-  const message = error.message || 'Internal Server Error';
+  const rawMessage = error.message || 'Internal Server Error';
+  const message =
+    statusCode >= 500 && process.env.NODE_ENV === 'production'
+      ? 'Something went wrong. Please try again.'
+      : rawMessage;
 
   if (statusCode === 500) {
     logger.error(`${req.method} ${req.path} - ${message}`, { stack: err.stack });

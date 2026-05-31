@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, FlatList, RefreshControl } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { Text, useTheme } from 'react-native-paper';
+import { useFocusEffect } from '@react-navigation/native';
 import { getPeriodQueryParams, getPeriodLabel } from '../../utils/formatDate';
 import SaleListItem from '../../components/sales/SaleListItem';
 import { SaleListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import PeriodFilter from '../../components/common/PeriodFilter';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { useSalesStore } from '../../stores/salesStore';
@@ -30,15 +32,17 @@ export default function SalesHistoryScreen({ navigation }) {
       const list = await useSalesStore.getState().fetchSales(params, force);
       setSales(list);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load sales');
+      setError(getFriendlyErrorMessage(err, 'Could not load sales.'));
     } finally {
       setLoading(false);
     }
   }, [mode, year, month, day]);
 
-  useEffect(() => {
-    fetchSales();
-  }, [fetchSales]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSales();
+    }, [fetchSales])
+  );
 
   const totalAmount = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
   const periodLabel = getPeriodLabel(mode, year, month, day);
@@ -51,6 +55,9 @@ export default function SalesHistoryScreen({ navigation }) {
 
   const ListHeader = (
     <View style={{ marginBottom: 12 }}>
+      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
+        Tap a sale to view or share its invoice.
+      </Text>
       <ErrorMessage message={error} />
       <PeriodFilter
         mode={mode}

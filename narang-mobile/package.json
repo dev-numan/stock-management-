@@ -8,7 +8,8 @@
     "start:tunnel": "expo start --tunnel --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "preview:reminder": "node scripts/generate-payment-reminder.mjs"
+    "preview:reminder": "node scripts/generate-payment-reminder.mjs",
+    "build:android:apk": "eas build --platform android --profile preview --non-interactive"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

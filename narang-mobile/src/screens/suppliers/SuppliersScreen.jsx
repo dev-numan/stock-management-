@@ -9,6 +9,7 @@ import AppButton from '../../components/common/AppButton';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { supplierSchema } from '../../utils/validation';
 
@@ -45,7 +46,7 @@ export default function SuppliersScreen() {
       reset({ name: '', phone: '', address: '' });
       fetch();
     } catch (err) {
-      setApiError(err.response?.data?.message || 'Failed to add supplier');
+      setApiError(getFriendlyErrorMessage(err, 'Could not add supplier.'));
     } finally {
       setSaving(false);
     }

@@ -10,6 +10,7 @@ import AppButton from '../../components/common/AppButton';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate } from '../../utils/formatDate';
@@ -46,7 +47,7 @@ export default function ExpensesScreen() {
       reset({ title: '', amount: '', category: '', date: '', notes: '' });
       fetch();
     } catch (err) {
-      setApiError(err.response?.data?.message || 'Failed to add expense');
+      setApiError(getFriendlyErrorMessage(err, 'Could not add expense.'));
     } finally {
       setSaving(false);
     }

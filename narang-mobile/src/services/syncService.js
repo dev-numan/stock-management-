@@ -7,6 +7,7 @@ import { useCustomersStore } from '../stores/customersStore';
 import { useSalesStore } from '../stores/salesStore';
 import { useDashboardStore } from '../stores/dashboardStore';
 import { getIsOnline } from '../stores/networkStore';
+import { getFriendlyErrorMessage } from '../utils/apiErrors';
 
 const customerIdMap = new Map();
 
@@ -100,7 +101,7 @@ export const processSyncQueue = async () => {
       synced += 1;
     } catch (err) {
       failed += 1;
-      const message = err.response?.data?.message || err.message || 'Sync failed';
+      const message = getFriendlyErrorMessage(err, 'Could not sync this change.');
       remaining.push({
         ...item,
         error: message,

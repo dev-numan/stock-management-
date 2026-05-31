@@ -75,8 +75,12 @@ export const completeSale = async ({
       useProductsStore.getState().applyStockDelta(i.product.id, i.quantity);
     });
     useSalesStore.getState().invalidateAll();
+    // Instant UI updates (Dashboard + graph) without waiting for refetch.
+    useDashboardStore.getState().applySaleToDashboard(sale);
+    useDashboardStore.getState().invalidateTrends();
+    // Still refetch dashboard to ensure server-calculated fields stay correct.
     useDashboardStore.getState().invalidate();
-    await useDashboardStore.getState().fetchDashboard(true);
+    useDashboardStore.getState().fetchDashboard(true);
 
     if (sale.customer) {
       useCustomersStore.getState().patchCustomer(sale.customer);
@@ -130,6 +134,7 @@ export const completeSale = async ({
 
   useSalesStore.getState().addPendingSale(localSale);
   useDashboardStore.getState().invalidate();
+  useDashboardStore.getState().invalidateTrends();
 
   useSyncStore.getState().enqueue({
     type: 'CREATE_SALE',

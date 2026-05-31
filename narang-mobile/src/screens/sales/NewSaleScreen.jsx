@@ -8,6 +8,7 @@ import ProductSearchModal from '../../components/sales/ProductSearchModal';
 import AppButton from '../../components/common/AppButton';
 import AppInput from '../../components/common/AppInput';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { sanitizeAmountInput, validateSaleCheckout } from '../../utils/validation';
@@ -102,7 +103,7 @@ export default function NewSaleScreen({ navigation }) {
       cart.clearCart();
       navigation.navigate('Invoice', { sale });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to create sale');
+      setError(getFriendlyErrorMessage(err, 'Could not complete sale. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -185,7 +186,7 @@ export default function NewSaleScreen({ navigation }) {
             cart.setSelectedCustomer(customer);
             setCustomerPickerVisible(false);
           } catch (err) {
-            setError(err.message || 'Could not add customer');
+            setError(getFriendlyErrorMessage(err, 'Could not add customer.'));
           } finally {
             setResolvingCustomer(false);
           }

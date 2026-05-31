@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getToken } from '../utils/storage';
 import { handleSessionExpired } from '../utils/authSession';
+import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { API_BASE_URL } from '../config/api';
 
 const AUTH_SKIP_PATHS = ['/auth/login', '/auth/register'];
@@ -27,14 +28,7 @@ api.interceptors.response.use(
       await handleSessionExpired();
     }
 
-    if (!error.response) {
-      const tunnelHint =
-        'Cannot reach the API. Start backend with: cd narang-backend && npm run dev:tunnel (needs NGROK_AUTHTOKEN), then restart Expo: npx expo start --tunnel --clear';
-      const lanHint =
-        'Cannot reach the server. Use same Wi‑Fi or run backend with npm run dev:tunnel for ngrok.';
-      const hint = isNgrok || API_BASE_URL?.startsWith('https://') ? tunnelHint : lanHint;
-      error.message = error.code === 'ECONNABORTED' ? 'Request timed out' : hint;
-    }
+    error.friendlyMessage = getFriendlyErrorMessage(error);
     return Promise.reject(error);
   }
 );

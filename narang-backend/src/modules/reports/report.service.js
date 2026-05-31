@@ -128,6 +128,38 @@ export const getSalesSummary = async ({ from, to }) => {
   };
 };
 
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const formatYmd = (year, month, day) => `${year}-${pad2(month)}-${pad2(day)}`;
+
+const emptyBucket = () => ({ revenue: 0, cogs: 0, expenses: 0 });
+
+const saleCogs = (sale) =>
+  sale.items.reduce(
+    (sum, item) => sum + toNumber(item.product.costPrice) * toNumber(item.quantity),
+    0
+  );
+
+const bucketFromSale = (date, breakdown) => {
+  const d = new Date(date);
+  if (breakdown === 'year') return d.getFullYear();
+  if (breakdown === 'month') return d.getMonth() + 1;
+  if (breakdown === 'day') return d.getDate();
+  return 0;
+};
+
+const bucketFromExpense = (date, breakdown) => bucketFromSale(date, breakdown);
+
+const buildProfitSummary = (sales, expenses) => {
+  const revenue = sales.reduce((sum, s) => sum + toNumber(s.totalAmount), 0);
+  const cogs = sales.reduce((sum, s) => sum + saleCogs(s), 0);
+  const expenseTotal = expenses.reduce((sum, e) => sum + toNumber(e.amount), 0);
+  const grossProfit = revenue - cogs;
+  const netProfit = grossProfit - expenseTotal;
+  return { revenue, cogs, grossProfit, expenses: expenseTotal, netProfit };
+};
+
 export const getProfitLoss = async ({ from, to }) => {
   const createdAt = dateRange(from, to);
   const saleWhere = createdAt ? { createdAt } : undefined;
@@ -141,30 +173,106 @@ export const getProfitLoss = async ({ from, to }) => {
     db.expense.findMany({ where: expenseWhere }),
   ]);
 
-  const revenue = sales.reduce((sum, s) => sum + toNumber(s.totalAmount), 0);
-
-  let cogs = 0;
-  for (const sale of sales) {
-    for (const item of sale.items) {
-      cogs += toNumber(item.product.costPrice) * toNumber(item.quantity);
-    }
-  }
-
-  const expenseTotal = expenses.reduce((sum, e) => sum + toNumber(e.amount), 0);
-
-  const grossProfit = revenue - cogs;
-  const netProfit = grossProfit - expenseTotal;
-
-  return {
-    revenue,
-    cogs,
-    grossProfit,
-    expenses: expenseTotal,
-    netProfit,
-  };
+  return buildProfitSummary(sales, expenses);
 };
 
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** @param {'all'|'day'|'month'|'year'} mode */
+export const getProfitReport = async ({ mode = 'month', year, month, day }) => {
+  const y = Number(year) || new Date().getFullYear();
+  const m = Number(month) || new Date().getMonth() + 1;
+  const d = Number(day) || new Date().getDate();
+
+  let from;
+  let to;
+  let breakdown = null;
+
+  if (mode === 'all') {
+    breakdown = 'year';
+  } else if (mode === 'year') {
+    from = `${y}-01-01`;
+    to = `${y}-12-31`;
+    breakdown = 'month';
+  } else if (mode === 'month') {
+    from = formatYmd(y, m, 1);
+    to = formatYmd(y, m, new Date(y, m, 0).getDate());
+    breakdown = 'day';
+  } else if (mode === 'day') {
+    from = formatYmd(y, m, d);
+    to = from;
+    breakdown = null;
+  }
+
+  const createdAt = dateRange(from, to);
+  const saleWhere = createdAt ? { createdAt } : undefined;
+  const expenseWhere = createdAt ? { date: createdAt } : undefined;
+
+  const [sales, expenses] = await Promise.all([
+    db.sale.findMany({
+      where: saleWhere,
+      include: { items: { include: { product: true } } },
+    }),
+    db.expense.findMany({ where: expenseWhere }),
+  ]);
+
+  const summary = buildProfitSummary(sales, expenses);
+
+  if (!breakdown) {
+    return { mode, summary, breakdown: [] };
+  }
+
+  const buckets = new Map();
+
+  const touch = (key) => {
+    if (!buckets.has(key)) buckets.set(key, emptyBucket());
+    return buckets.get(key);
+  };
+
+  for (const sale of sales) {
+    const key = bucketFromSale(sale.createdAt, breakdown);
+    const bucket = touch(key);
+    bucket.revenue += toNumber(sale.totalAmount);
+    bucket.cogs += saleCogs(sale);
+  }
+
+  for (const expense of expenses) {
+    const key = bucketFromExpense(expense.date, breakdown);
+    const bucket = touch(key);
+    bucket.expenses += toNumber(expense.amount);
+  }
+
+  const formatLabel = (key) => {
+    if (breakdown === 'year') return String(key);
+    if (breakdown === 'month') return MONTH_LABELS[key - 1] ?? String(key);
+    return String(key);
+  };
+
+  let keys;
+  if (breakdown === 'day') {
+    const days = new Date(y, m, 0).getDate();
+    keys = Array.from({ length: days }, (_, i) => i + 1);
+  } else if (breakdown === 'month') {
+    keys = Array.from({ length: 12 }, (_, i) => i + 1);
+  } else {
+    keys = [...buckets.keys()].sort((a, b) => a - b);
+  }
+
+  const breakdownRows = keys.map((key) => {
+    const bucket = buckets.get(key) ?? emptyBucket();
+    const grossProfit = bucket.revenue - bucket.cogs;
+    const netProfit = grossProfit - bucket.expenses;
+    return {
+      key,
+      label: formatLabel(key),
+      revenue: bucket.revenue,
+      cogs: bucket.cogs,
+      grossProfit,
+      expenses: bucket.expenses,
+      netProfit,
+    };
+  });
+
+  return { mode, summary, breakdown: breakdownRows };
+};
 
 export const getSalesTrend = async ({ mode = 'month', year }) => {
   const y = Number(year) || new Date().getFullYear();

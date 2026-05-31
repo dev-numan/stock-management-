@@ -5,6 +5,7 @@ import { getSettings } from '../api/settings.api';
 import { APP_NAME_URDU } from '../constants/branding';
 import { buildPaymentReminderText } from './paymentReminder';
 import { formatPhoneDisplay, toWhatsAppPhone } from './phone';
+import { getFriendlyErrorMessage } from './apiErrors';
 
 const loadShopSettings = async () => {
   try {
@@ -96,7 +97,7 @@ export const sharePaymentReminderWhatsApp = async ({
     // iOS (Expo Go): open WhatsApp directly to this customer with the Urdu reminder text.
     await openWhatsAppChat(waPhone, text);
   } catch (err) {
-    Alert.alert('WhatsApp failed', err.message || 'Could not open WhatsApp for this customer.');
+    Alert.alert('WhatsApp failed', getFriendlyErrorMessage(err, 'Could not open WhatsApp for this customer.'));
   }
 };
 

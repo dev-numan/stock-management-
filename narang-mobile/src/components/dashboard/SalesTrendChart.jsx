@@ -4,6 +4,7 @@ import { Text, ActivityIndicator, useTheme } from 'react-native-paper';
 import { LineChart } from 'react-native-gifted-charts';
 import AppCard from '../common/AppCard';
 import ErrorMessage from '../common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import PeriodFilter from '../common/PeriodFilter';
 import { formatCurrency, formatCurrencyCompact } from '../../utils/formatCurrency';
 import { useDashboardStore } from '../../stores/dashboardStore';
@@ -22,6 +23,7 @@ export default function SalesTrendChart() {
 
   const fetchSalesTrend = useDashboardStore((s) => s.fetchSalesTrend);
   const trendLoading = useDashboardStore((s) => s.trendLoading);
+  const trendVersion = useDashboardStore((s) => s.trendVersion);
 
   const chartWidth = Dimensions.get('window').width - H_PADDING;
 
@@ -33,11 +35,11 @@ export default function SalesTrendChart() {
       setTrend(data);
     } catch (err) {
       setTrend(null);
-      setError(err.response?.data?.message || 'Failed to load sales chart');
+      setError(getFriendlyErrorMessage(err, 'Could not load sales chart.'));
     } finally {
       setLoading(false);
     }
-  }, [mode, year, fetchSalesTrend]);
+  }, [mode, year, fetchSalesTrend, trendVersion]);
 
   useEffect(() => {
     loadTrend();

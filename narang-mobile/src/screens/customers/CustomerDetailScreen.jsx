@@ -14,6 +14,7 @@ import SaleListItem from '../../components/sales/SaleListItem';
 import { CustomerDetailSkeleton, SaleListSkeleton, SkeletonCard, SkeletonLine } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import AppButton from '../../components/common/AppButton';
 import AddAdvanceModal from '../../components/customers/AddAdvanceModal';
 import PaymentReminderCard from '../../components/customers/PaymentReminderCard';
@@ -100,7 +101,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       );
       setSales(merged);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to load customer');
+      setError(getFriendlyErrorMessage(err, 'Could not load customer.'));
     } finally {
       setLoading(false);
     }
@@ -169,7 +170,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setAdvanceModalVisible(false);
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to record advance');
+      setError(getFriendlyErrorMessage(err, 'Could not record advance.'));
     } finally {
       setAdvanceSaving(false);
     }

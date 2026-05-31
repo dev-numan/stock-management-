@@ -23,6 +23,17 @@ export const getProfitLoss = asyncHandler(async (req, res) => {
   return res.json(new ApiResponse(200, data, 'Profit/loss report fetched'));
 });
 
+export const getProfitReport = asyncHandler(async (req, res) => {
+  const mode = ['all', 'day', 'month', 'year'].includes(req.query.mode) ? req.query.mode : 'month';
+  const data = await reportService.getProfitReport({
+    mode,
+    year: req.query.year,
+    month: req.query.month,
+    day: req.query.day,
+  });
+  return res.json(new ApiResponse(200, data, 'Profit report fetched'));
+});
+
 export const getSalesTrend = asyncHandler(async (req, res) => {
   const mode = req.query.mode === 'year' ? 'year' : 'month';
   const data = await reportService.getSalesTrend({

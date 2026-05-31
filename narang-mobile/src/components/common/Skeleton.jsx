@@ -117,13 +117,18 @@ export function ReportCardsSkeleton() {
 export function DashboardSkeleton() {
   return (
     <View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        {[1, 2, 3, 4].map((i) => (
-          <SkeletonListCard key={i} style={{ flex: 1, minWidth: '45%' }}>
-            <SkeletonLine width="60%" height={12} style={{ marginBottom: 8 }} />
-            <SkeletonLine width="80%" height={22} />
-          </SkeletonListCard>
-        ))}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+        <SkeletonListCard style={{ flex: 2 }}>
+          <SkeletonLine width="60%" height={12} style={{ marginBottom: 8 }} />
+          <SkeletonLine width="80%" height={28} style={{ marginBottom: 8 }} />
+          <SkeletonLine width="40%" height={12} />
+        </SkeletonListCard>
+        <SkeletonListCard style={{ flex: 1 }}>
+          <SkeletonLine width="55%" height={12} style={{ marginBottom: 8 }} />
+          <SkeletonLine width="35%" height={22} style={{ marginBottom: 12 }} />
+          <SkeletonLine width="50%" height={12} style={{ marginBottom: 8 }} />
+          <SkeletonLine width="45%" height={16} />
+        </SkeletonListCard>
       </View>
       <SkeletonCard>
         <SkeletonLine width="50%" height={18} style={{ marginBottom: 16 }} />

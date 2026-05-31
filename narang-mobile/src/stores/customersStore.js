@@ -5,6 +5,7 @@ import {
   createCustomer as createCustomerApi,
   updateCustomer as updateCustomerApi,
 } from '../api/customers.api';
+import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { normalizePhone } from '../utils/phone';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
@@ -36,7 +37,7 @@ export const useCustomersStore = create(
         } catch (err) {
           set({
             loading: false,
-            error: err.response?.data?.message || 'Failed to load customers',
+            error: getFriendlyErrorMessage(err, 'Could not load customers. Pull down to refresh.'),
           });
           return customers;
         }

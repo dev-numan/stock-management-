@@ -19,17 +19,26 @@
           "NSAllowsLocalNetworking": true
         },
         "NSContactsUsageDescription": "Allow access to contacts to select customers for sales.",
-        "LSApplicationQueriesSchemes": ["whatsapp", "whatsapp-business"]
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "whatsapp-business"
+        ]
       }
     },
     "android": {
+      "package": "com.hafeezzaraimarkaz.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2E7D32"
       },
       "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",
-      "permissions": ["READ_CONTACTS"]
+      "permissions": [
+        "READ_CONTACTS",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -42,6 +51,12 @@
           "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts to select customers for sales."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dbfc6f0c-1c5b-4864-89d2-5c9af146cf3c"
+      }
+    },
+    "owner": "numanqamar16"
   }
 }

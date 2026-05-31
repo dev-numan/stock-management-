@@ -10,6 +10,7 @@ import { loginSchema } from '../../utils/validation';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 
 export default function LoginScreen() {
@@ -30,7 +31,7 @@ export default function LoginScreen() {
       setError(null);
       await login(data.email, data.password);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Login failed');
+      setError(getFriendlyErrorMessage(err, 'Could not sign in. Check your email and password.'));
     } finally {
       setLoading(false);
     }
@@ -57,7 +58,6 @@ export default function LoginScreen() {
                 label="Email"
                 value={value}
                 onChangeText={onChange}
-                placeholder="admin@narangfertilizers.com"
                 error={errors.email?.message}
                 keyboardType="email-address"
               />
@@ -71,7 +71,6 @@ export default function LoginScreen() {
                 label="Password"
                 value={value}
                 onChangeText={onChange}
-                placeholder="••••••••"
                 secureTextEntry
                 error={errors.password?.message}
               />

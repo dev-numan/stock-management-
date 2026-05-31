@@ -8,6 +8,7 @@ import CreditListItem from '../../components/credits/CreditListItem';
 import { SaleListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import ScreenContainer from '../../components/common/ScreenContainer';
 
 export default function CreditsScreen({ navigation }) {
@@ -25,7 +26,7 @@ export default function CreditsScreen({ navigation }) {
       setSales(data.data.sales || []);
       setTotalOutstanding(data.data.totalOutstanding || 0);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to load credit');
+      setError(getFriendlyErrorMessage(err, 'Could not load credit sales.'));
     } finally {
       setLoading(false);
     }

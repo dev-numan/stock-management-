@@ -6,6 +6,7 @@ import { getSettings, updateSettings } from '../../api/settings.api';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import { FormFieldsSkeleton } from '../../components/common/Skeleton';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { settingsSchema } from '../../utils/validation';
@@ -57,7 +58,7 @@ export default function SettingsScreen() {
       useDashboardStore.getState().invalidate();
       setSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save');
+      setError(getFriendlyErrorMessage(err, 'Could not save settings.'));
     } finally {
       setSaving(false);
     }

@@ -8,10 +8,9 @@ import ScreenContainer from '../../components/common/ScreenContainer';
 import { APP_NAME } from '../../constants/branding';
 
 const menuItems = [
+  { title: 'Profit', screen: 'Profit', icon: 'cash-plus', adminOnly: true },
   { title: 'Reports', screen: 'Reports', icon: 'chart-bar', adminOnly: true },
-  { title: 'Purchases', screen: 'Purchases', icon: 'truck-delivery' },
   { title: 'Customers', screen: 'Customers', icon: 'account-group' },
-  { title: 'Credit', screen: 'Credits', icon: 'credit-card-clock' },
   { title: 'Suppliers', screen: 'Suppliers', icon: 'store' },
   { title: 'Expenses', screen: 'Expenses', icon: 'cash-minus' },
   { title: 'Settings', screen: 'Settings', icon: 'cog', adminOnly: true },

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getCategories } from '../api/categories.api';
+import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getIsOnline } from './networkStore';
 import { zustandStorage, isStale } from './storage';
 
@@ -30,7 +31,7 @@ export const useCategoriesStore = create(
         } catch (err) {
           set({
             loading: false,
-            error: err.response?.data?.message || 'Failed to load categories',
+            error: getFriendlyErrorMessage(err, 'Could not load categories.'),
           });
           return categories;
         }

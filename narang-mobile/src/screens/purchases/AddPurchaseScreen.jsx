@@ -4,6 +4,7 @@ import { createPurchase } from '../../api/purchases.api';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import ProductSearchModal from '../../components/sales/ProductSearchModal';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { sanitizeAmountInput, validatePurchaseItems } from '../../utils/validation';
@@ -68,7 +69,7 @@ export default function AddPurchaseScreen({ navigation }) {
       });
       navigation.goBack();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create purchase');
+      setError(getFriendlyErrorMessage(err, 'Could not save purchase.'));
     } finally {
       setLoading(false);
     }

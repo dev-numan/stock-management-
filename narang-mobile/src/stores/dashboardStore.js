@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getDashboard, getSalesTrend } from '../api/reports.api';
+import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getIsOnline } from './networkStore';
 import { useSalesStore } from './salesStore';
 import { zustandStorage, isStale } from './storage';
@@ -14,6 +15,7 @@ export const useDashboardStore = create(
       lastFetched: null,
       trendByKey: {},
       trendLastFetched: {},
+      trendVersion: 0,
       loading: false,
       trendLoading: false,
       error: null,
@@ -38,7 +40,7 @@ export const useDashboardStore = create(
         } catch (err) {
           set({
             loading: false,
-            error: err.response?.data?.message || 'Failed to load dashboard',
+            error: getFriendlyErrorMessage(err, 'Could not load dashboard. Pull down to refresh.'),
           });
           return dashboard ? get().enrichDashboard(dashboard) : null;
         }
@@ -64,6 +66,41 @@ export const useDashboardStore = create(
           recentSales,
         };
       },
+
+      /** Optimistically apply a newly created sale to the cached dashboard. */
+      applySaleToDashboard: (sale) => {
+        if (!sale) return;
+        const current = get().dashboard;
+        if (!current) return;
+
+        const createdAt = new Date(sale.createdAt || Date.now());
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isToday = createdAt >= today;
+
+        set({
+          dashboard: {
+            ...current,
+            todaySalesTotal: isToday
+              ? Number(current.todaySalesTotal || 0) + Number(sale.totalAmount || 0)
+              : current.todaySalesTotal,
+            todaySalesCount: isToday
+              ? Number(current.todaySalesCount || 0) + 1
+              : current.todaySalesCount,
+            recentSales: [sale, ...(current.recentSales || [])].slice(0, 5),
+          },
+          // make sure it re-renders even if data is "fresh"
+          lastFetched: Date.now(),
+        });
+      },
+
+      /** Force the sales trend chart to refetch. */
+      invalidateTrends: () =>
+        set({
+          trendByKey: {},
+          trendLastFetched: {},
+          trendVersion: get().trendVersion + 1,
+        }),
 
       fetchSalesTrend: async (mode, year, force = false) => {
         const key = trendKey(mode, year);
