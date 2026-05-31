@@ -70,8 +70,8 @@ export default function SalesTrendChart() {
 
   const summaryText =
     mode === 'year'
-      ? `${year - 4}–${year} · Sales ${formatCurrency(trend?.total)} · Profit ${formatCurrency(trend?.profitTotal)}`
-      : `${year} · Sales ${formatCurrency(trend?.total)} · Profit ${formatCurrency(trend?.profitTotal)}`;
+      ? `${year - 4}–${year} · Sales ${formatCurrency(trend?.total)} · Gross profit ${formatCurrency(trend?.profitTotal)}`
+      : `${year} · Sales ${formatCurrency(trend?.total)} · Gross profit ${formatCurrency(trend?.profitTotal)}`;
 
   return (
     <AppCard>
@@ -117,7 +117,7 @@ export default function SalesTrendChart() {
               }}
             />
             <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              Profit
+              Gross profit
             </Text>
           </View>
         </View>

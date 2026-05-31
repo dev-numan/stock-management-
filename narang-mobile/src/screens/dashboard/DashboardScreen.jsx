@@ -24,18 +24,21 @@ export default function DashboardScreen({ navigation }) {
   const enrichDashboard = useDashboardStore((s) => s.enrichDashboard);
   const customers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const invalidateTrends = useDashboardStore((s) => s.invalidateTrends);
   const isOnline = useNetworkStore((s) => s.isOnline);
   const [inventoryCardHeight, setInventoryCardHeight] = useState(null);
 
   const load = useCallback(async (force = false) => {
+    if (force) invalidateTrends();
     await Promise.all([fetchDashboard(force), fetchCustomers(force)]);
-  }, [fetchDashboard, fetchCustomers]);
+  }, [fetchDashboard, fetchCustomers, invalidateTrends]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   const display = enrichDashboard(data);
+  const todayProfit = Number(display?.todayGrossProfit ?? 0);
 
   const showSkeleton = loading && !display;
 
@@ -66,7 +69,8 @@ export default function DashboardScreen({ navigation }) {
             style={{ flex: 1, minHeight: inventoryCardHeight ?? undefined }}
             title="Today's Sales"
             value={formatCurrency(display?.todaySalesTotal)}
-            subtitle={`${display?.todaySalesCount || 0} invoices`}
+            subtitle={`Today's profit: ${formatCurrency(todayProfit)}`}
+            subtitleColor={todayProfit < 0 ? theme.colors.error : '#2E7D32'}
             color="green"
           />
         </View>

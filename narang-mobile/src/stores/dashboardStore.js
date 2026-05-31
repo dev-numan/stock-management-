@@ -5,8 +5,18 @@ import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getIsOnline } from './networkStore';
 import { useSalesStore } from './salesStore';
 import { zustandStorage, isStale } from './storage';
+import { computeSaleGrossProfit } from '../utils/saleProfit';
 
 const trendKey = (mode, year) => `${mode}-${year}`;
+
+/** Cached trends from before profit line support lack profitValues. */
+const isCompleteTrend = (trend) =>
+  Boolean(
+    trend &&
+      Array.isArray(trend.profitValues) &&
+      trend.profitValues.length > 0 &&
+      typeof trend.profitTotal === 'number'
+  );
 
 export const useDashboardStore = create(
   persist(
@@ -58,11 +68,16 @@ export const useDashboardStore = create(
         );
         const pendingRecent = todayPending.slice(0, 5);
         const recentSales = [...pendingRecent, ...(data.recentSales || [])].slice(0, 5);
+        const pendingProfit = todayPending.reduce(
+          (sum, sale) => sum + computeSaleGrossProfit(sale),
+          0
+        );
 
         return {
           ...data,
           todaySalesTotal: Number(data.todaySalesTotal || 0) + pendingTotal,
           todaySalesCount: (data.todaySalesCount || 0) + todayPending.length,
+          todayGrossProfit: Number(data.todayGrossProfit || 0) + pendingProfit,
           recentSales,
         };
       },
@@ -78,6 +93,7 @@ export const useDashboardStore = create(
         today.setHours(0, 0, 0, 0);
         const isToday = createdAt >= today;
 
+        const saleProfit = computeSaleGrossProfit(sale);
         set({
           dashboard: {
             ...current,
@@ -87,11 +103,14 @@ export const useDashboardStore = create(
             todaySalesCount: isToday
               ? Number(current.todaySalesCount || 0) + 1
               : current.todaySalesCount,
+            todayGrossProfit: isToday
+              ? Number(current.todayGrossProfit || 0) + saleProfit
+              : current.todayGrossProfit,
             recentSales: [sale, ...(current.recentSales || [])].slice(0, 5),
           },
-          // make sure it re-renders even if data is "fresh"
           lastFetched: Date.now(),
         });
+        get().invalidateTrends();
       },
 
       /** Force the sales trend chart to refetch. */
@@ -108,7 +127,7 @@ export const useDashboardStore = create(
         const cached = trendByKey[key];
         const last = trendLastFetched[key];
 
-        if (!force && cached && !isStale(last)) {
+        if (!force && cached && !isStale(last) && isCompleteTrend(cached)) {
           return cached;
         }
         if (!getIsOnline()) {
@@ -142,6 +161,16 @@ export const useDashboardStore = create(
         trendByKey: state.trendByKey,
         trendLastFetched: state.trendLastFetched,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (!state?.trendByKey) return;
+        const hasLegacyTrend = Object.values(state.trendByKey).some(
+          (trend) => trend && !isCompleteTrend(trend)
+        );
+        if (hasLegacyTrend) {
+          state.trendByKey = {};
+          state.trendLastFetched = {};
+        }
+      },
     }
   )
 );

@@ -37,12 +37,16 @@ export const getDashboard = async () => {
   const showExpiryAlert = settings?.showExpiryAlert ?? true;
   const expiryAlertMonths = clampExpiryAlertMonths(settings?.expiryAlertMonths ?? 3);
 
-  const [todaySales, products, recentSales, lowStockProducts, lowStockCountRow, expiringProducts, expiringCount] =
+  const [todaySales, todaySalesDetailed, products, recentSales, lowStockProducts, lowStockCountRow, expiringProducts, expiringCount] =
     await Promise.all([
       db.sale.aggregate({
         where: { createdAt: today },
         _sum: { totalAmount: true },
         _count: { _all: true },
+      }),
+      db.sale.findMany({
+        where: { createdAt: today },
+        include: { items: { include: { product: true } } },
       }),
       db.product.count(),
       db.sale.findMany({
@@ -89,9 +93,20 @@ export const getDashboard = async () => {
         : Promise.resolve(0),
     ]);
 
+  const todayGrossProfit = todaySalesDetailed.reduce((sum, sale) => {
+    const cogs = sale.items.reduce((itemSum, item) => {
+      const product = item.product;
+      const soldUnit = item.soldUnit || product.unit;
+      const deduction = getStockDeduction(product, soldUnit, Number(item.quantity));
+      return itemSum + toNumber(product.costPrice) * deduction;
+    }, 0);
+    return sum + toNumber(sale.totalAmount) - cogs;
+  }, 0);
+
   return {
     todaySalesTotal: toNumber(todaySales._sum.totalAmount),
     todaySalesCount: todaySales._count._all ?? 0,
+    todayGrossProfit,
     totalProducts: products,
     lowStockCount: lowStockCountRow[0]?.count ?? 0,
     lowStockProducts: showLowStockAlert ? lowStockProducts : [],
@@ -335,12 +350,17 @@ export const getSalesTrend = async ({ mode = 'month', year }) => {
   }
 
   const values = keys.map((key) => (buckets.get(key) ?? emptyBucket()).revenue);
+  const grossProfitValues = keys.map((key) => {
+    const b = buckets.get(key) ?? emptyBucket();
+    return b.revenue - b.cogs;
+  });
   const profitValues = keys.map((key) => {
     const b = buckets.get(key) ?? emptyBucket();
     return b.revenue - b.cogs - b.expenses;
   });
 
   const total = values.reduce((sum, v) => sum + v, 0);
+  const grossProfitTotal = grossProfitValues.reduce((sum, v) => sum + v, 0);
   const profitTotal = profitValues.reduce((sum, v) => sum + v, 0);
 
   return {
@@ -348,9 +368,11 @@ export const getSalesTrend = async ({ mode = 'month', year }) => {
     year: y,
     labels,
     values,
-    profitValues,
-    total,
-    profitTotal,
+    /** Gross margin from sales (revenue − COGS); used for dashboard chart. */
+    profitValues: grossProfitValues,
+    profitTotal: grossProfitTotal,
+    netProfitValues: profitValues,
+    netProfitTotal: profitTotal,
   };
 };
 
