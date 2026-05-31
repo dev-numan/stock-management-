@@ -28,7 +28,7 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
       setSearch('');
       return;
     }
-    fetchProducts(true);
+    fetchProducts();
   }, [visible, fetchProducts]);
 
   const displayProducts = useMemo(
@@ -51,7 +51,10 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
       <Card
         mode="elevated"
         style={{ marginBottom: LIST_ROW_GAP, borderRadius: theme.roundness }}
-        onPress={() => onSelect(item)}
+        onPress={() => {
+          onSelect(item);
+          onClose();
+        }}
       >
         <Card.Content style={{ paddingVertical: 10 }}>
           <Text variant="titleSmall" style={{ fontWeight: '600' }} numberOfLines={1}>
@@ -60,7 +63,7 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={2}>
             {formatCurrency(item.salePrice)} / {item.unit}
             {hasAlternateSale(item)
-              ? ` · ${formatCurrency(getUnitPrice(item, item.alternateSaleUnit))} / ${item.alternateSaleUnit} · Tap to pick unit`
+              ? ` · ${formatCurrency(getUnitPrice(item, item.alternateSaleUnit))} / ${item.alternateSaleUnit}`
               : ''}
             {' · Stock: '}
             {formatStockDisplay(item)}
@@ -69,7 +72,7 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
         </Card.Content>
       </Card>
     ),
-    [theme.roundness, theme.colors.onSurfaceVariant, onSelect]
+    [theme.roundness, theme.colors.onSurfaceVariant, onSelect, onClose]
   );
 
   if (!visible) return null;

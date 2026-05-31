@@ -14,21 +14,16 @@ export const canHaveAlternateUnit = (primaryUnit, alternateUnit) => {
   return getAllowedAlternateUnits(primaryUnit).includes(alternateUnit);
 };
 
-export const parseUnitsPerStockUnit = (value) => {
-  if (value == null || value === '') return 0;
-  const n = Number(typeof value === 'object' && value !== null ? String(value) : value);
-  return Number.isFinite(n) ? n : 0;
-};
-
-export const hasAlternateSale = (product) => {
-  const alt = product?.alternateSaleUnit;
-  const perStock = parseUnitsPerStockUnit(product?.unitsPerStockUnit);
-  return Boolean(alt && canHaveAlternateUnit(product?.unit, alt) && perStock > 0);
-};
+export const hasAlternateSale = (product) =>
+  Boolean(
+    product?.alternateSaleUnit &&
+      product?.unitsPerStockUnit != null &&
+      Number(product.unitsPerStockUnit) > 0
+  );
 
 export const getUnitsPerStockUnit = (product) => {
   if (!hasAlternateSale(product)) return null;
-  return parseUnitsPerStockUnit(product.unitsPerStockUnit);
+  return Number(product.unitsPerStockUnit);
 };
 
 export const getUnitPrice = (product, soldUnit) => {
@@ -74,7 +69,7 @@ export const formatStockDisplay = (product) => {
 
   if (!hasAlternateSale(product)) return base;
 
-  const altQty = stock * parseUnitsPerStockUnit(product.unitsPerStockUnit);
+  const altQty = stock * Number(product.unitsPerStockUnit);
   const altUnit = product.alternateSaleUnit;
   const altFormatted = Number.isInteger(altQty) ? altQty : Math.round(altQty * 100) / 100;
 

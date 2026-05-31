@@ -11,15 +11,7 @@ import {
 } from '../../utils/productUnits';
 import { sanitizeAmountInput } from '../../utils/validation';
 
-export default function SaleUnitPickerModal({
-  visible,
-  product,
-  onClose,
-  onConfirm,
-  initialSoldUnit,
-  initialQuantity,
-  confirmLabel = 'Add to cart',
-}) {
+export default function SaleUnitPickerModal({ visible, product, onClose, onConfirm }) {
   const theme = useTheme();
   const [soldUnit, setSoldUnit] = useState(product?.unit || 'BAG');
   const [quantity, setQuantity] = useState('1');
@@ -27,10 +19,10 @@ export default function SaleUnitPickerModal({
 
   React.useEffect(() => {
     if (!visible || !product) return;
-    setSoldUnit(initialSoldUnit || product.unit);
-    setQuantity(initialQuantity != null ? String(initialQuantity) : '1');
+    setSoldUnit(product.unit);
+    setQuantity('1');
     setError(null);
-  }, [visible, product, initialSoldUnit, initialQuantity]);
+  }, [visible, product]);
 
   if (!visible || !product) return null;
 
@@ -77,19 +69,13 @@ export default function SaleUnitPickerModal({
           {product.name}
         </Text>
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-          {alternateEnabled ? 'Choose unit and quantity' : 'Enter quantity'}
-        </Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
           Available: {Math.round(maxQty * 100) / 100} {soldUnit}
         </Text>
 
         {alternateEnabled ? (
           <SegmentedButtons
             value={soldUnit}
-            onValueChange={(unit) => {
-              setSoldUnit(unit);
-              setError(null);
-            }}
+            onValueChange={setSoldUnit}
             buttons={unitOptions}
             style={{ marginBottom: 12 }}
           />
@@ -112,7 +98,7 @@ export default function SaleUnitPickerModal({
 
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <AppButton title="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
-          <AppButton title={confirmLabel} onPress={handleConfirm} style={{ flex: 1 }} />
+          <AppButton title="Add to cart" onPress={handleConfirm} style={{ flex: 1 }} />
         </View>
       </Modal>
     </Portal>

@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
-import { Card, Text, IconButton, Chip, useTheme } from 'react-native-paper';
+import { Card, Text, IconButton, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import AppInput from '../common/AppInput';
-import { hasAlternateSale, usesDecimalQuantity } from '../../utils/productUnits';
+import { usesDecimalQuantity } from '../../utils/productUnits';
 import { sanitizeAmountInput } from '../../utils/validation';
 
-export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) {
+export default function CartItem({ item, onUpdateQty, onRemove }) {
   const theme = useTheme();
   const [qtyText, setQtyText] = useState(String(item.quantity));
   const atMax = item.quantity >= item.maxQuantity - 0.0001;
   const decimalUnit = usesDecimalQuantity(item.soldUnit, item.product.unit);
-  const canChangeUnit = hasAlternateSale(item.product) && onChangeUnit;
 
   React.useEffect(() => {
     setQtyText(String(item.quantity));
@@ -37,16 +36,6 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
             <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
               {formatCurrency(item.unitPrice)} / {item.soldUnit}
             </Text>
-            {canChangeUnit ? (
-              <Chip
-                compact
-                icon="swap-horizontal"
-                onPress={() => onChangeUnit(item)}
-                style={{ alignSelf: 'flex-start', marginTop: 4 }}
-              >
-                Change unit
-              </Chip>
-            ) : null}
             <Text variant="labelSmall" style={{ color: theme.colors.outline }}>
               Available: {Math.round(item.maxQuantity * 100) / 100} {item.soldUnit}
             </Text>
