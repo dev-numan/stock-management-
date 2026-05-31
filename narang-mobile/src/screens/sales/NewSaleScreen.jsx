@@ -21,16 +21,18 @@ import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import CustomerContactPickerModal from '../../components/sales/CustomerContactPickerModal';
 import { resolveContactToCustomer } from '../../services/customerContactService';
 import { formatPhoneDisplay } from '../../utils/phone';
+import { hasAlternateSale } from '../../utils/productUnits';
 
 export default function NewSaleScreen({ navigation }) {
   const theme = useTheme();
   const cart = useCart();
   const isOnline = useNetworkStore((s) => s.isOnline);
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
+  const getProductById = useProductsStore((s) => s.getById);
   const customers = useCustomersStore((s) => s.customers);
   useSalesStore((s) => s.pendingSales);
   const [modalVisible, setModalVisible] = useState(false);
-  const [unitPickerProduct, setUnitPickerProduct] = useState(null);
+  const [unitPicker, setUnitPicker] = useState(null);
   const [customerPickerVisible, setCustomerPickerVisible] = useState(false);
   const [resolvingCustomer, setResolvingCustomer] = useState(false);
   const [error, setError] = useState(null);
@@ -38,8 +40,46 @@ export default function NewSaleScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
+    fetchProducts(true);
   }, [fetchProducts]);
+
+  const resolveProduct = (product) => getProductById(product?.id) ?? product;
+
+  const openUnitPicker = (product, options = {}) => {
+    const fresh = resolveProduct(product);
+    setUnitPicker({
+      product: fresh,
+      replaceLineKey: options.replaceLineKey ?? null,
+      initialSoldUnit: options.initialSoldUnit ?? fresh.unit,
+      initialQuantity: options.initialQuantity ?? '1',
+    });
+  };
+
+  const handleProductSelect = (product) => {
+    setModalVisible(false);
+    const fresh = resolveProduct(product);
+    if (hasAlternateSale(fresh)) {
+      openUnitPicker(fresh);
+      return;
+    }
+    const result = cart.addProduct(fresh);
+    if (result === 'out_of_stock') {
+      setError(`${fresh.name} is out of stock`);
+    } else {
+      setError(null);
+    }
+  };
+
+  const handleUnitPickerConfirm = (product, quantity, soldUnit) => {
+    if (unitPicker?.replaceLineKey) {
+      cart.removeItem(unitPicker.replaceLineKey);
+    }
+    const fresh = resolveProduct(product);
+    const added = cart.addItem(fresh, quantity, soldUnit);
+    if (!added) setError(`${fresh.name} is out of stock`);
+    else setError(null);
+    setUnitPicker(null);
+  };
 
   useEffect(() => {
     if (cart.discount > cart.subtotal) {
@@ -132,7 +172,10 @@ export default function NewSaleScreen({ navigation }) {
         icon="plus"
         buttonColor={theme.colors.secondary}
         style={{ marginBottom: 12, borderRadius: theme.roundness }}
-        onPress={() => setModalVisible(true)}
+        onPress={async () => {
+          await fetchProducts(true);
+          setModalVisible(true);
+        }}
       >
         Add Product
       </Button>
@@ -173,7 +216,19 @@ export default function NewSaleScreen({ navigation }) {
         </>
       ) : null}
       {cart.items.map((item) => (
-        <CartItem key={item.lineKey} item={item} onUpdateQty={cart.updateQuantity} onRemove={cart.removeItem} />
+        <CartItem
+          key={item.lineKey}
+          item={item}
+          onUpdateQty={cart.updateQuantity}
+          onRemove={cart.removeItem}
+          onChangeUnit={(line) =>
+            openUnitPicker(line.product, {
+              replaceLineKey: line.lineKey,
+              initialSoldUnit: line.soldUnit,
+              initialQuantity: String(line.quantity),
+            })
+          }
+        />
       ))}
       <AppInput
         label="Discount (PKR)"
@@ -269,28 +324,16 @@ export default function NewSaleScreen({ navigation }) {
     <ProductSearchModal
       visible={modalVisible}
       onClose={() => setModalVisible(false)}
-      onSelect={(p) => {
-        const result = cart.addProduct(p);
-        if (result === 'pick_unit') {
-          setUnitPickerProduct(p);
-          setModalVisible(false);
-        } else if (result === 'out_of_stock') {
-          setError(`${p.name} is out of stock`);
-        } else {
-          setError(null);
-        }
-      }}
+      onSelect={handleProductSelect}
     />
     <SaleUnitPickerModal
-      visible={Boolean(unitPickerProduct)}
-      product={unitPickerProduct}
-      onClose={() => setUnitPickerProduct(null)}
-      onConfirm={(product, quantity, soldUnit) => {
-        const added = cart.addItem(product, quantity, soldUnit);
-        if (!added) setError(`${product.name} is out of stock`);
-        else setError(null);
-        setUnitPickerProduct(null);
-      }}
+      visible={Boolean(unitPicker?.product)}
+      product={unitPicker?.product}
+      initialSoldUnit={unitPicker?.initialSoldUnit}
+      initialQuantity={unitPicker?.initialQuantity}
+      confirmLabel={unitPicker?.replaceLineKey ? 'Update' : 'Add to cart'}
+      onClose={() => setUnitPicker(null)}
+      onConfirm={handleUnitPickerConfirm}
     />
     </>
   );

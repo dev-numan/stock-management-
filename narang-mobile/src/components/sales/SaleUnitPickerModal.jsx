@@ -5,13 +5,23 @@ import AppInput from '../common/AppInput';
 import AppButton from '../common/AppButton';
 import { formatCurrency } from '../../utils/formatCurrency';
 import {
+  formatMaxQtyLabel,
   getMaxSaleQuantity,
   getUnitPrice,
   hasAlternateSale,
+  roundSaleQty,
 } from '../../utils/productUnits';
 import { sanitizeAmountInput } from '../../utils/validation';
 
-export default function SaleUnitPickerModal({ visible, product, onClose, onConfirm }) {
+export default function SaleUnitPickerModal({
+  visible,
+  product,
+  onClose,
+  onConfirm,
+  initialSoldUnit,
+  initialQuantity,
+  confirmLabel = 'Add to cart',
+}) {
   const theme = useTheme();
   const [soldUnit, setSoldUnit] = useState(product?.unit || 'BAG');
   const [quantity, setQuantity] = useState('1');
@@ -19,10 +29,10 @@ export default function SaleUnitPickerModal({ visible, product, onClose, onConfi
 
   React.useEffect(() => {
     if (!visible || !product) return;
-    setSoldUnit(product.unit);
-    setQuantity('1');
+    setSoldUnit(initialSoldUnit || product.unit);
+    setQuantity(initialQuantity != null ? String(initialQuantity) : '1');
     setError(null);
-  }, [visible, product]);
+  }, [visible, product, initialSoldUnit, initialQuantity]);
 
   if (!visible || !product) return null;
 
@@ -39,14 +49,26 @@ export default function SaleUnitPickerModal({ visible, product, onClose, onConfi
   const qtyNum = Number(quantity);
   const total = qtyNum > 0 ? qtyNum * unitPrice : 0;
 
-  const handleConfirm = () => {
-    const qty = Number(quantity);
-    if (!qty || qty <= 0) {
-      setError('Enter a valid quantity');
-      return;
+  const validateQuantity = (text, unit = soldUnit) => {
+    const qty = Number(text);
+    const limit = getMaxSaleQuantity(product, unit);
+    if (!text?.trim() || Number.isNaN(qty) || qty <= 0) {
+      return { qty: null, error: 'Enter a valid quantity' };
     }
-    if (qty > maxQty + 0.0001) {
-      setError(`Only ${Math.round(maxQty * 100) / 100} ${soldUnit} available`);
+    if (qty > limit + 0.0001) {
+      return {
+        qty: roundSaleQty(Math.min(qty, limit)),
+        error: `Only ${formatMaxQtyLabel(limit, unit)} available`,
+      };
+    }
+    return { qty: roundSaleQty(qty), error: null };
+  };
+
+  const handleConfirm = () => {
+    const { qty, error: qtyError } = validateQuantity(quantity);
+    if (qtyError) {
+      setError(qtyError);
+      if (qty != null) setQuantity(String(qty));
       return;
     }
     onConfirm(product, qty, soldUnit);
@@ -69,13 +91,20 @@ export default function SaleUnitPickerModal({ visible, product, onClose, onConfi
           {product.name}
         </Text>
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+          {alternateEnabled ? 'Choose unit and quantity' : 'Enter quantity'}
+        </Text>
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
           Available: {Math.round(maxQty * 100) / 100} {soldUnit}
         </Text>
 
         {alternateEnabled ? (
           <SegmentedButtons
             value={soldUnit}
-            onValueChange={setSoldUnit}
+            onValueChange={(unit) => {
+              setSoldUnit(unit);
+              const { error: qtyError } = validateQuantity(quantity, unit);
+              setError(qtyError);
+            }}
             buttons={unitOptions}
             style={{ marginBottom: 12 }}
           />
@@ -85,8 +114,19 @@ export default function SaleUnitPickerModal({ visible, product, onClose, onConfi
           label={`Quantity (${soldUnit}) *`}
           value={quantity}
           onChangeText={(t) => {
-            setError(null);
-            setQuantity(sanitizeAmountInput(t));
+            const cleaned = sanitizeAmountInput(t);
+            setQuantity(cleaned);
+            if (!cleaned.trim()) {
+              setError(null);
+              return;
+            }
+            const { error: qtyError } = validateQuantity(cleaned);
+            setError(qtyError);
+          }}
+          onBlur={() => {
+            const { qty, error: qtyError } = validateQuantity(quantity);
+            if (qty != null) setQuantity(String(qty));
+            setError(qtyError);
           }}
           keyboardType="decimal-pad"
           error={error}
@@ -98,7 +138,7 @@ export default function SaleUnitPickerModal({ visible, product, onClose, onConfi
 
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <AppButton title="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
-          <AppButton title="Add to cart" onPress={handleConfirm} style={{ flex: 1 }} />
+          <AppButton title={confirmLabel} onPress={handleConfirm} style={{ flex: 1 }} />
         </View>
       </Modal>
     </Portal>

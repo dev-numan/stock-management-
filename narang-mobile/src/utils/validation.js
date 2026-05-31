@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { canHaveAlternateUnit } from './productUnits';
+import {
+  canHaveAlternateUnit,
+  getRemainingSaleQuantity,
+  getStockDeduction,
+} from './productUnits';
 
 export const PRODUCT_UNITS = ['BAG', 'KG', 'LITRE', 'PIECE', 'BOTTLE'];
 
@@ -180,14 +184,16 @@ export const validateSaleCheckout = ({
 
   items.forEach((item) => {
     const soldUnit = item.soldUnit || item.product.unit;
-    const stockDeduction = item.stockDeduction ?? item.quantity;
-    const maxQty = item.maxQuantity ?? Number(item.product.currentStock);
+    const stockDeduction = getStockDeduction(item.product, soldUnit, item.quantity);
+    const maxQty = getRemainingSaleQuantity(item.product, soldUnit, items, item.lineKey);
 
     if (item.quantity <= 0) {
       errors.push(`${item.product.name}: quantity must be greater than 0`);
     }
     if (item.quantity > maxQty + 0.0001) {
-      errors.push(`${item.product.name}: only ${Math.round(maxQty * 100) / 100} ${soldUnit} available`);
+      errors.push(
+        `${item.product.name}: only ${Math.round(maxQty * 100) / 100} ${soldUnit} available`
+      );
     }
 
     const prev = deductionByProduct.get(item.product.id) ?? 0;

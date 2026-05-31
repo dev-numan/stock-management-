@@ -62,7 +62,7 @@ export const getMaxSaleQuantity = (product, soldUnit) => {
   if (soldUnit === product.unit) return stock;
 
   const perStock = getUnitsPerStockUnit(product);
-  if (!perStock || soldUnit !== product.alternateSaleUnit) return stock;
+  if (!perStock || soldUnit !== product.alternateSaleUnit) return 0;
 
   return stock * perStock;
 };

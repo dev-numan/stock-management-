@@ -10,7 +10,9 @@ import SalesTrendChart from '../../components/dashboard/SalesTrendChart';
 import { DashboardSkeleton } from '../../components/common/Skeleton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import AppCard from '../../components/common/AppCard';
+import CustomerLedgerSummary from '../../components/customers/CustomerLedgerSummary';
 import { useDashboardStore } from '../../stores/dashboardStore';
+import { useCustomersStore } from '../../stores/customersStore';
 import { useNetworkStore } from '../../stores/networkStore';
 
 export default function DashboardScreen({ navigation }) {
@@ -20,12 +22,14 @@ export default function DashboardScreen({ navigation }) {
   const error = useDashboardStore((s) => s.error);
   const fetchDashboard = useDashboardStore((s) => s.fetchDashboard);
   const enrichDashboard = useDashboardStore((s) => s.enrichDashboard);
+  const customers = useCustomersStore((s) => s.customers);
+  const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const isOnline = useNetworkStore((s) => s.isOnline);
   const [inventoryCardHeight, setInventoryCardHeight] = useState(null);
 
   const load = useCallback(async (force = false) => {
-    await fetchDashboard(force);
-  }, [fetchDashboard]);
+    await Promise.all([fetchDashboard(force), fetchCustomers(force)]);
+  }, [fetchDashboard, fetchCustomers]);
 
   useEffect(() => {
     load();
@@ -80,6 +84,7 @@ export default function DashboardScreen({ navigation }) {
           />
         </View>
       </View>
+      <CustomerLedgerSummary customers={customers} />
       <SalesTrendChart />
       {display?.showLowStockAlert !== false && display?.lowStockProducts?.length > 0 ? (
         <AppCard>

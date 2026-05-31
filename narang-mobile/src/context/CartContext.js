@@ -1,23 +1,24 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import {
   cartLineKey,
-  getMaxSaleQuantity,
+  getRemainingSaleQuantity,
   getStockDeduction,
   getUnitPrice,
   hasAlternateSale,
+  roundSaleQty,
 } from '../utils/productUnits';
 
 const CartContext = createContext(null);
 
-const buildLine = (product, quantity, soldUnit) => {
+const buildLine = (product, quantity, soldUnit, cartItems, lineKey) => {
   const unit = soldUnit || product.unit;
-  const qty = Number(quantity);
+  const qty = roundSaleQty(quantity);
   const unitPrice = getUnitPrice(product, unit);
   const stockDeduction = getStockDeduction(product, unit, qty);
-  const maxQuantity = getMaxSaleQuantity(product, unit);
+  const maxQuantity = getRemainingSaleQuantity(product, unit, cartItems, lineKey);
 
   return {
-    lineKey: cartLineKey(product.id, unit),
+    lineKey: lineKey ?? cartLineKey(product.id, unit),
     product,
     soldUnit: unit,
     quantity: qty,
@@ -35,32 +36,41 @@ export const CartProvider = ({ children }) => {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [notes, setNotes] = useState('');
 
-  const capQuantity = (product, soldUnit, qty) => {
-    const maxQty = getMaxSaleQuantity(product, soldUnit);
+  const capQuantity = (product, soldUnit, qty, cartItems, lineKey) => {
+    const maxQty = getRemainingSaleQuantity(product, soldUnit, cartItems, lineKey);
     if (maxQty <= 0) return 0;
-    return Math.min(Math.max(0.01, qty), maxQty);
+    return roundSaleQty(Math.min(Math.max(0.01, qty), maxQty));
   };
 
   const addItem = (product, quantity = 1, soldUnit = product.unit) => {
-    const maxQty = getMaxSaleQuantity(product, soldUnit);
-    if (maxQty <= 0) return false;
-
     const lineKey = cartLineKey(product.id, soldUnit);
+    let added = false;
 
     setItems((prev) => {
+      const maxQty = getRemainingSaleQuantity(product, soldUnit, prev, lineKey);
+      if (maxQty <= 0) return prev;
+
       const existing = prev.find((i) => i.lineKey === lineKey);
       if (existing) {
-        const newQty = capQuantity(product, soldUnit, existing.quantity + quantity);
+        const newQty = capQuantity(
+          product,
+          soldUnit,
+          existing.quantity + quantity,
+          prev,
+          lineKey
+        );
         if (newQty <= 0) return prev;
+        added = true;
         return prev.map((i) =>
-          i.lineKey === lineKey ? buildLine(product, newQty, soldUnit) : i
+          i.lineKey === lineKey ? buildLine(product, newQty, soldUnit, prev, lineKey) : i
         );
       }
-      const qty = capQuantity(product, soldUnit, quantity);
+      const qty = capQuantity(product, soldUnit, quantity, prev, lineKey);
       if (qty <= 0) return prev;
-      return [...prev, buildLine(product, qty, soldUnit)];
+      added = true;
+      return [...prev, buildLine(product, qty, soldUnit, prev, lineKey)];
     });
-    return true;
+    return added;
   };
 
   const addProduct = (product) => {
@@ -75,15 +85,20 @@ export const CartProvider = ({ children }) => {
   const updateQuantity = (lineKey, quantity) => {
     if (quantity <= 0) {
       removeItem(lineKey);
-      return;
+      return { ok: true, capped: false, maxQty: 0 };
     }
+    let result = { ok: true, capped: false, maxQty: 0 };
     setItems((prev) =>
       prev.map((i) => {
         if (i.lineKey !== lineKey) return i;
-        const qty = capQuantity(i.product, i.soldUnit, quantity);
-        return buildLine(i.product, qty, i.soldUnit);
+        const maxQty = getRemainingSaleQuantity(i.product, i.soldUnit, prev, lineKey);
+        const requested = Number(quantity);
+        const qty = capQuantity(i.product, i.soldUnit, requested, prev, lineKey);
+        result = { ok: true, capped: requested > maxQty + 0.0001, maxQty };
+        return buildLine(i.product, qty, i.soldUnit, prev, lineKey);
       })
     );
+    return result;
   };
 
   const clearCart = () => {
