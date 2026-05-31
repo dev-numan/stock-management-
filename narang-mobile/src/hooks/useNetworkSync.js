@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import { useNetworkStore } from '../stores/networkStore';
+import { useSyncStore } from '../stores/syncStore';
 import { processSyncQueue } from '../services/syncService';
 import { useProductsStore } from '../stores/productsStore';
 import { useCustomersStore } from '../stores/customersStore';
 import { getToken } from '../utils/storage';
+import { pingHealth } from '../api/health.api';
 
 const computeOnline = (state) =>
   Boolean(state.isConnected && state.isInternetReachable !== false);
@@ -13,6 +15,8 @@ export function useNetworkSync() {
   const setOnline = useNetworkStore((s) => s.setOnline);
 
   useEffect(() => {
+    useSyncStore.getState().hydrate();
+
     const refreshCaches = async () => {
       const token = await getToken();
       if (!token) return;
@@ -22,12 +26,18 @@ export function useNetworkSync() {
       ]);
     };
 
-    const handleOnline = async (online) => {
-      setOnline(online);
-      if (online) {
-        await processSyncQueue();
-        await refreshCaches();
+    const handleOnline = async (netOnline) => {
+      setOnline(netOnline);
+      if (!netOnline) return;
+
+      try {
+        await pingHealth();
+      } catch {
+        return;
       }
+
+      await processSyncQueue();
+      await refreshCaches();
     };
 
     const unsub = NetInfo.addEventListener((state) => {

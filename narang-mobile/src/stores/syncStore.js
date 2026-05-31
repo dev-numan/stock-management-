@@ -1,53 +1,77 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { zustandStorage } from './storage';
+import { localDataService } from '../services/localDataService';
 
-export const useSyncStore = create(
-  persist(
-    (set, get) => ({
-      queue: [],
-      syncing: false,
-      lastSyncError: null,
-      lastSyncAt: null,
+export const useSyncStore = create((set, get) => ({
+  queue: [],
+  syncing: false,
+  lastSyncError: null,
+  lastSyncAt: null,
+  hydrated: false,
 
-      enqueue: (item) => {
-        const entry = {
-          id: item.id || `sync-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          type: item.type,
-          payload: item.payload,
-          localId: item.localId ?? null,
-          createdAt: new Date().toISOString(),
-          retries: 0,
-          error: null,
-        };
-        set({ queue: [...get().queue, entry], lastSyncError: null });
-        return entry.id;
-      },
+  hydrate: async () => {
+    const writes = await localDataService.init();
+    const meta = await localDataService.getMeta();
+    set({
+      queue: writes,
+      lastSyncAt: meta.lastSyncAt ?? null,
+      hydrated: true,
+    });
+    return writes;
+  },
 
-      remove: (id) => set({ queue: get().queue.filter((q) => q.id !== id) }),
+  setQueue: (queue) => {
+    set({ queue });
+    localDataService.savePendingWrites(queue).catch(() => {});
+  },
 
-      updateItem: (id, patch) =>
-        set({
-          queue: get().queue.map((q) => (q.id === id ? { ...q, ...patch } : q)),
-        }),
+  enqueue: (item) => {
+    const { queue } = get();
 
-      setSyncing: (syncing) => set({ syncing }),
-
-      setLastSyncError: (lastSyncError) => set({ lastSyncError }),
-
-      setLastSyncAt: (lastSyncAt) => set({ lastSyncAt }),
-
-      clearQueue: () => set({ queue: [] }),
-
-      pendingCount: () => get().queue.length,
-    }),
-    {
-      name: 'narang-sync-queue',
-      storage: createJSONStorage(() => zustandStorage),
-      partialize: (state) => ({
-        queue: state.queue,
-        lastSyncAt: state.lastSyncAt,
-      }),
+    if (item.type === 'CREATE_SALE' && item.payload?.localSaleId) {
+      const existing = queue.find(
+        (q) =>
+          q.type === 'CREATE_SALE' && q.payload?.localSaleId === item.payload.localSaleId
+      );
+      if (existing) return existing.id;
     }
-  )
-);
+
+    const entry = {
+      id: item.id || `sync-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      type: item.type,
+      payload: item.payload,
+      localId: item.localId ?? null,
+      createdAt: new Date().toISOString(),
+      retries: 0,
+      error: null,
+      synced: false,
+    };
+
+    const next = [...queue, entry];
+    get().setQueue(next);
+    set({ lastSyncError: null });
+    return entry.id;
+  },
+
+  remove: (id) => {
+    const next = get().queue.filter((q) => q.id !== id);
+    get().setQueue(next);
+  },
+
+  updateItem: (id, patch) => {
+    const next = get().queue.map((q) => (q.id === id ? { ...q, ...patch } : q));
+    get().setQueue(next);
+  },
+
+  setSyncing: (syncing) => set({ syncing }),
+
+  setLastSyncError: (lastSyncError) => set({ lastSyncError }),
+
+  setLastSyncAt: (lastSyncAt) => {
+    set({ lastSyncAt });
+    localDataService.setMeta({ lastSyncAt }).catch(() => {});
+  },
+
+  clearQueue: () => get().setQueue([]),
+
+  pendingCount: () => get().queue.length,
+}));

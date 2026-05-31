@@ -12,4 +12,9 @@ export const createSaleValidator = [
   body('discount').optional().isFloat({ min: 0 }),
   body('paymentMethod').optional().isIn(['CASH', 'CREDIT']),
   body('notes').optional().trim(),
+  body('clientRequestId')
+    .optional()
+    .trim()
+    .isLength({ min: 8, max: 128 })
+    .withMessage('clientRequestId must be 8–128 characters'),
 ];

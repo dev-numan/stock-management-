@@ -14,6 +14,8 @@ import CustomerLedgerSummary from '../../components/customers/CustomerLedgerSumm
 import { useDashboardStore } from '../../stores/dashboardStore';
 import { useCustomersStore } from '../../stores/customersStore';
 import { useNetworkStore } from '../../stores/networkStore';
+import { useSyncStore } from '../../stores/syncStore';
+import { refreshAllData } from '../../services/refreshService';
 
 export default function DashboardScreen({ navigation }) {
   const theme = useTheme();
@@ -26,12 +28,26 @@ export default function DashboardScreen({ navigation }) {
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const invalidateTrends = useDashboardStore((s) => s.invalidateTrends);
   const isOnline = useNetworkStore((s) => s.isOnline);
+  const pendingSync = useSyncStore((s) => s.queue.length);
   const [inventoryCardHeight, setInventoryCardHeight] = useState(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   const load = useCallback(async (force = false) => {
     if (force) invalidateTrends();
     await Promise.all([fetchDashboard(force), fetchCustomers(force)]);
   }, [fetchDashboard, fetchCustomers, invalidateTrends]);
+
+  const handleRefreshAll = useCallback(async () => {
+    setRefreshingAll(true);
+    try {
+      const result = await refreshAllData();
+      if (result.offline) {
+        await load(true);
+      }
+    } finally {
+      setRefreshingAll(false);
+    }
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -46,13 +62,44 @@ export default function DashboardScreen({ navigation }) {
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.colors.background }}
       contentContainerStyle={{ padding: 16, paddingTop: 16 }}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load(true)} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={loading || refreshingAll}
+          onRefresh={() => load(true)}
+        />
+      }
     >
-      {!isOnline ? (
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
-          Offline — showing last saved data
-        </Text>
-      ) : null}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 8,
+          gap: 8,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          {!isOnline ? (
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              Offline — showing last saved data
+            </Text>
+          ) : pendingSync > 0 ? (
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              {pendingSync} change(s) pending — use More → Backup data
+            </Text>
+          ) : null}
+        </View>
+        <Button
+          compact
+          mode="outlined"
+          icon="refresh"
+          loading={refreshingAll}
+          disabled={refreshingAll}
+          onPress={handleRefreshAll}
+        >
+          Refresh
+        </Button>
+      </View>
       <ErrorMessage message={error} />
       {showSkeleton ? (
         <DashboardSkeleton />

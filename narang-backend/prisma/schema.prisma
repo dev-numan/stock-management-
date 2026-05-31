@@ -102,6 +102,7 @@ model Product {
 
 model Sale {
   id            String        @id @default(uuid())
+  clientRequestId String?     @unique
   invoiceNumber String        @unique
   customerId    String?
   customer      Customer?     @relation(fields: [customerId], references: [id])

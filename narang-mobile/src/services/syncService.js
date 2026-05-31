@@ -82,11 +82,17 @@ const processItem = async (item) => {
 };
 
 export const processSyncQueue = async () => {
-  if (!getIsOnline()) return { synced: 0, failed: 0 };
+  if (!getIsOnline()) {
+    return { synced: 0, failed: 0, alreadySynced: false };
+  }
 
+  await useSyncStore.getState().hydrate();
   const sync = useSyncStore.getState();
   const { queue } = sync;
-  if (!queue.length) return { synced: 0, failed: 0 };
+
+  if (!queue.length) {
+    return { synced: 0, failed: 0, alreadySynced: true };
+  }
 
   sync.setSyncing(true);
   sync.setLastSyncError(null);
@@ -110,8 +116,7 @@ export const processSyncQueue = async () => {
     }
   }
 
-  useSyncStore.setState({ queue: remaining });
-
+  sync.setQueue(remaining);
   sync.setSyncing(false);
   sync.setLastSyncAt(new Date().toISOString());
 
@@ -128,5 +133,9 @@ export const processSyncQueue = async () => {
     sync.setLastSyncError(`${failed} item(s) could not sync`);
   }
 
-  return { synced, failed };
+  return {
+    synced,
+    failed,
+    alreadySynced: synced === 0 && failed === 0 && queue.length === 0,
+  };
 };

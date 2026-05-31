@@ -49,16 +49,47 @@ export const getSaleById = async (id) => {
   return sale;
 };
 
+const saleInclude = {
+  customer: true,
+  items: { include: { product: true } },
+  createdBy: { select: { id: true, name: true, email: true } },
+};
+
 export const createSale = async (saleData, userId) => {
-  const { items, customerId, discount = 0, paymentMethod = 'CASH', notes } = saleData;
+  const {
+    items,
+    customerId,
+    discount = 0,
+    paymentMethod = 'CASH',
+    notes,
+    clientRequestId: rawClientRequestId,
+  } = saleData;
 
   if (!items?.length) {
     throw new ApiError(400, 'Sale must have at least one item');
   }
 
+  const clientRequestId = rawClientRequestId?.trim() || null;
+
+  if (clientRequestId) {
+    const existing = await db.sale.findUnique({
+      where: { clientRequestId },
+      include: saleInclude,
+    });
+    if (existing) return existing;
+  }
+
   const productIds = [...new Set(items.map((i) => i.productId))];
 
-  return db.$transaction(async (tx) => {
+  try {
+    return await db.$transaction(async (tx) => {
+    if (clientRequestId) {
+      const race = await tx.sale.findUnique({
+        where: { clientRequestId },
+        include: saleInclude,
+      });
+      if (race) return race;
+    }
     const [invoiceNumber, products] = await Promise.all([
       generateInvoiceNumber(tx),
       tx.product.findMany({ where: { id: { in: productIds } } }),
@@ -109,6 +140,7 @@ export const createSale = async (saleData, userId) => {
 
     const sale = await tx.sale.create({
       data: {
+        clientRequestId,
         invoiceNumber,
         customerId: customerId || null,
         subtotal,
@@ -121,11 +153,7 @@ export const createSale = async (saleData, userId) => {
         createdById: userId,
         items: { create: saleItemsData },
       },
-      include: {
-        customer: true,
-        items: { include: { product: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
+      include: saleInclude,
     });
 
     await Promise.all(
@@ -155,5 +183,15 @@ export const createSale = async (saleData, userId) => {
     }
 
     return sale;
-  }, TRANSACTION_OPTS);
+    }, TRANSACTION_OPTS);
+  } catch (err) {
+    if (clientRequestId && err?.code === 'P2002') {
+      const existing = await db.sale.findUnique({
+        where: { clientRequestId },
+        include: saleInclude,
+      });
+      if (existing) return existing;
+    }
+    throw err;
+  }
 };
