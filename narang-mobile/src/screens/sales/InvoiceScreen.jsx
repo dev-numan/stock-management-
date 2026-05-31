@@ -104,7 +104,7 @@ export default function InvoiceScreen({ route }) {
             <View style={{ flex: 1 }}>
               <Text variant="titleSmall" style={{ fontWeight: '600' }}>{item.product?.name}</Text>
               <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                {Number(item.quantity)} × {formatCurrency(item.unitPrice)}
+                {Number(item.quantity)} {item.soldUnit || item.product?.unit} × {formatCurrency(item.unitPrice)}
               </Text>
             </View>
             <Text variant="titleSmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>

@@ -3,6 +3,7 @@ import { db } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { isValidProductCategory } from '../../constants/productCategories.js';
 import { parseExpiryDate } from '../../utils/parseExpiryDate.js';
+import { validateAlternateUnitFields, canHaveAlternateUnit } from '../../utils/productUnits.js';
 
 export const getAllProducts = async ({ search, category, lowStock }) => {
   const where = {};
@@ -58,15 +59,37 @@ const validateCategory = (category) => {
   }
 };
 
+const resolveAlternateFields = (data, existingUnit) => {
+  const unit = data.unit ?? existingUnit ?? 'BAG';
+  if (data.alternateSaleUnit === null || data.alternateSaleUnit === '') {
+    return { alternateSaleUnit: null, unitsPerStockUnit: null };
+  }
+  if (data.alternateSaleUnit === undefined && data.unitsPerStockUnit === undefined) {
+    return undefined;
+  }
+  try {
+    return validateAlternateUnitFields({
+      unit,
+      alternateSaleUnit: data.alternateSaleUnit ?? null,
+      unitsPerStockUnit: data.unitsPerStockUnit,
+    });
+  } catch (err) {
+    throw new ApiError(400, err.message);
+  }
+};
+
 export const createProduct = async (data) => {
   validateCategory(data.category);
   validateProductNumbers(data);
+
+  const alternate = resolveAlternateFields(data, data.unit ?? 'BAG');
 
   return db.product.create({
     data: {
       name: data.name,
       category: data.category.trim(),
       unit: data.unit ?? 'BAG',
+      ...(alternate ?? {}),
       costPrice: new Prisma.Decimal(data.costPrice),
       salePrice: new Prisma.Decimal(data.salePrice),
       currentStock: new Prisma.Decimal(data.currentStock ?? 0),
@@ -95,7 +118,35 @@ export const updateProduct = async (id, data) => {
     validateCategory(data.category);
     updateData.category = data.category.trim();
   }
-  if (data.unit !== undefined) updateData.unit = data.unit;
+  if (data.unit !== undefined) {
+    updateData.unit = data.unit;
+    if (
+      data.alternateSaleUnit === undefined &&
+      data.unitsPerStockUnit === undefined &&
+      existing.alternateSaleUnit &&
+      !canHaveAlternateUnit(data.unit, existing.alternateSaleUnit)
+    ) {
+      updateData.alternateSaleUnit = null;
+      updateData.unitsPerStockUnit = null;
+    }
+  }
+
+  const alternate = resolveAlternateFields(
+    {
+      unit: data.unit ?? existing.unit,
+      alternateSaleUnit: data.alternateSaleUnit,
+      unitsPerStockUnit: data.unitsPerStockUnit,
+    },
+    existing.unit
+  );
+  if (alternate !== undefined) {
+    updateData.alternateSaleUnit = alternate.alternateSaleUnit;
+    updateData.unitsPerStockUnit =
+      alternate.unitsPerStockUnit != null
+        ? new Prisma.Decimal(alternate.unitsPerStockUnit)
+        : null;
+  }
+
   if (data.costPrice !== undefined) updateData.costPrice = new Prisma.Decimal(data.costPrice);
   if (data.salePrice !== undefined) updateData.salePrice = new Prisma.Decimal(data.salePrice);
   if (data.currentStock !== undefined) updateData.currentStock = new Prisma.Decimal(data.currentStock);

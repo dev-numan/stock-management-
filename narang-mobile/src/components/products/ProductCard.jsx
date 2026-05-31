@@ -4,6 +4,7 @@ import { Card, Text, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatExpiryLabel, expiryTone } from '../../utils/expiry';
 import StockBadge from './StockBadge';
+import { formatStockDisplay } from '../../utils/productUnits';
 
 export default function ProductCard({ product, onPress }) {
   const theme = useTheme();
@@ -33,7 +34,7 @@ export default function ProductCard({ product, onPress }) {
             {formatCurrency(product.salePrice)}
           </Text>
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-            Stock: {Number(product.currentStock)} {product.unit}
+            Stock: {formatStockDisplay(product)}
           </Text>
           {expiryLabel ? (
             <Text variant="bodySmall" style={{ color: expiryColor, marginTop: 4 }}>

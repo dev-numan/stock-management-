@@ -10,6 +10,8 @@ export const createProductValidator = [
     .isIn(PRODUCT_CATEGORIES)
     .withMessage('Valid category is required'),
   body('unit').optional().isIn(units).withMessage('Invalid unit'),
+  body('alternateSaleUnit').optional({ nullable: true }).isIn(units).withMessage('Invalid alternate unit'),
+  body('unitsPerStockUnit').optional({ nullable: true }).isFloat({ min: 0.01 }),
   body('costPrice').isFloat({ min: 0 }).withMessage('Valid cost price is required'),
   body('salePrice').isFloat({ min: 0 }).withMessage('Valid sale price is required'),
   body('currentStock').optional().isFloat({ min: 0 }),
@@ -22,6 +24,8 @@ export const updateProductValidator = [
   body('name').optional().trim().notEmpty(),
   body('category').optional().trim().isIn(PRODUCT_CATEGORIES),
   body('unit').optional().isIn(units),
+  body('alternateSaleUnit').optional({ nullable: true }).isIn(units).withMessage('Invalid alternate unit'),
+  body('unitsPerStockUnit').optional({ nullable: true }).isFloat({ min: 0.01 }),
   body('costPrice').optional().isFloat({ min: 0 }),
   body('salePrice').optional().isFloat({ min: 0 }),
   body('currentStock').optional().isFloat({ min: 0 }),

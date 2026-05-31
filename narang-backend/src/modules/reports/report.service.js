@@ -1,5 +1,6 @@
 import { db } from '../../config/db.js';
 import { clampExpiryAlertMonths } from '../../utils/parseExpiryDate.js';
+import { getStockDeduction } from '../../utils/productUnits.js';
 
 const toNumber = (d) => Number(d ?? 0);
 
@@ -135,11 +136,14 @@ const formatYmd = (year, month, day) => `${year}-${pad2(month)}-${pad2(day)}`;
 
 const emptyBucket = () => ({ revenue: 0, cogs: 0, expenses: 0 });
 
-const saleCogs = (sale) =>
-  sale.items.reduce(
-    (sum, item) => sum + toNumber(item.product.costPrice) * toNumber(item.quantity),
-    0
-  );
+const itemCogs = (item) => {
+  const product = item.product;
+  const soldUnit = item.soldUnit || product.unit;
+  const deduction = getStockDeduction(product, soldUnit, Number(item.quantity));
+  return toNumber(product.costPrice) * deduction;
+};
+
+const saleCogs = (sale) => sale.items.reduce((sum, item) => sum + itemCogs(item), 0);
 
 const bucketFromSale = (date, breakdown) => {
   const d = new Date(date);
@@ -231,7 +235,9 @@ export const getProfitReport = async ({ mode = 'month', year, month, day }) => {
     const key = bucketFromSale(sale.createdAt, breakdown);
     const bucket = touch(key);
     bucket.revenue += toNumber(sale.totalAmount);
-    bucket.cogs += saleCogs(sale);
+    for (const item of sale.items) {
+      bucket.cogs += itemCogs(item);
+    }
   }
 
   for (const expense of expenses) {

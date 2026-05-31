@@ -82,20 +82,22 @@ model CustomerAdvanceEntry {
 }
 
 model Product {
-  id            String         @id @default(uuid())
-  name          String
-  category      String
-  unit          Unit           @default(BAG)
-  costPrice     Decimal
-  salePrice     Decimal
-  currentStock  Decimal        @default(0)
-  minStockAlert Decimal        @default(10)
-  expiryDate    DateTime?
-  supplierId    String?
-  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
-  createdAt     DateTime       @default(now())
-  saleItems     SaleItem[]
-  purchaseItems PurchaseItem[]
+  id                  String         @id @default(uuid())
+  name                String
+  category            String
+  unit                Unit           @default(BAG)
+  alternateSaleUnit   Unit?
+  unitsPerStockUnit   Decimal?
+  costPrice           Decimal
+  salePrice           Decimal
+  currentStock        Decimal        @default(0)
+  minStockAlert       Decimal        @default(10)
+  expiryDate          DateTime?
+  supplierId          String?
+  supplier            Supplier?      @relation(fields: [supplierId], references: [id])
+  createdAt           DateTime       @default(now())
+  saleItems           SaleItem[]
+  purchaseItems       PurchaseItem[]
 }
 
 model Sale {
@@ -124,6 +126,7 @@ model SaleItem {
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   productId String
   product   Product @relation(fields: [productId], references: [id])
+  soldUnit  Unit
   quantity  Decimal
   unitPrice Decimal
   total     Decimal

@@ -63,6 +63,7 @@ export const completeSale = async ({
     items: items.map((i) => ({
       productId: i.product.id,
       quantity: i.quantity,
+      soldUnit: i.soldUnit || i.product.unit,
       unitPrice: i.unitPrice,
     })),
   };
@@ -72,7 +73,7 @@ export const completeSale = async ({
     const sale = data.data;
 
     items.forEach((i) => {
-      useProductsStore.getState().applyStockDelta(i.product.id, i.quantity);
+      useProductsStore.getState().applyStockDelta(i.product.id, i.stockDeduction ?? i.quantity);
     });
     useSalesStore.getState().invalidateAll();
     // Instant UI updates (Dashboard + graph) without waiting for refetch.
@@ -89,10 +90,17 @@ export const completeSale = async ({
     return sale;
   }
 
+  const deductionByProduct = new Map();
   for (const item of items) {
     const product = useProductsStore.getState().getById(item.product.id);
+    const deduction = item.stockDeduction ?? item.quantity;
+    const prev = deductionByProduct.get(item.product.id) ?? 0;
+    deductionByProduct.set(item.product.id, prev + deduction);
+  }
+  for (const [productId, deduction] of deductionByProduct.entries()) {
+    const product = useProductsStore.getState().getById(productId);
     const stock = Number(product?.currentStock ?? 0);
-    if (stock < item.quantity) {
+    if (stock < deduction) {
       throw new Error(`Insufficient stock for ${product?.name || 'product'}`);
     }
   }
@@ -102,9 +110,10 @@ export const completeSale = async ({
     customer?.id && String(customer.id).startsWith('local-') ? customer.id : null;
 
   const saleItems = items.map((i) => ({
-    id: `li-${localId}-${i.product.id}`,
+    id: `li-${localId}-${i.lineKey || i.product.id}`,
     productId: i.product.id,
     quantity: i.quantity,
+    soldUnit: i.soldUnit || i.product.unit,
     unitPrice: i.unitPrice,
     total: i.total,
     product: i.product,
@@ -128,8 +137,13 @@ export const completeSale = async ({
     items: saleItems,
   };
 
+  const stockDeltas = new Map();
   items.forEach((i) => {
-    useProductsStore.getState().applyStockDelta(i.product.id, i.quantity);
+    const deduction = i.stockDeduction ?? i.quantity;
+    stockDeltas.set(i.product.id, (stockDeltas.get(i.product.id) ?? 0) + deduction);
+  });
+  stockDeltas.forEach((deduction, productId) => {
+    useProductsStore.getState().applyStockDelta(productId, deduction);
   });
 
   useSalesStore.getState().addPendingSale(localSale);

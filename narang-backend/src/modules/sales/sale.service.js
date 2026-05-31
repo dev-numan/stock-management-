@@ -2,6 +2,11 @@ import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { generateInvoiceNumber } from '../../utils/invoiceNumber.js';
+import {
+  getStockDeduction,
+  getUnitPrice,
+  resolveSoldUnit,
+} from '../../utils/productUnits.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
 
@@ -63,23 +68,36 @@ export const createSale = async (saleData, userId) => {
 
     let subtotal = decimal(0);
     const saleItemsData = [];
+    const stockDeductions = new Map();
 
     for (const item of items) {
       const product = productMap.get(item.productId);
       if (!product) {
         throw new ApiError(404, `Product not found: ${item.productId}`);
       }
-      if (Number(product.currentStock) < Number(item.quantity)) {
-        throw new ApiError(400, `Insufficient stock for ${product.name}`);
+
+      const soldUnit = resolveSoldUnit(product, item.soldUnit);
+      if (!soldUnit) {
+        throw new ApiError(400, `Invalid sale unit for ${product.name}`);
       }
 
-      const unitPrice = decimal(item.unitPrice ?? product.salePrice);
       const qty = decimal(item.quantity);
+      const deduction = decimal(getStockDeduction(product, soldUnit, Number(item.quantity)));
+      const prevDeduction = stockDeductions.get(item.productId) ?? decimal(0);
+      const totalDeduction = prevDeduction.add(deduction);
+
+      if (Number(product.currentStock) < Number(totalDeduction)) {
+        throw new ApiError(400, `Insufficient stock for ${product.name}`);
+      }
+      stockDeductions.set(item.productId, totalDeduction);
+
+      const unitPrice = decimal(item.unitPrice ?? getUnitPrice(product, soldUnit));
       const lineTotal = unitPrice.mul(qty);
       subtotal = subtotal.add(lineTotal);
 
       saleItemsData.push({
         productId: item.productId,
+        soldUnit,
         quantity: qty,
         unitPrice,
         total: lineTotal,
@@ -111,10 +129,10 @@ export const createSale = async (saleData, userId) => {
     });
 
     await Promise.all(
-      items.map((item) =>
+      [...stockDeductions.entries()].map(([productId, deduction]) =>
         tx.product.update({
-          where: { id: item.productId },
-          data: { currentStock: { decrement: decimal(item.quantity) } },
+          where: { id: productId },
+          data: { currentStock: { decrement: deduction } },
         })
       )
     );

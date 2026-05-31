@@ -13,7 +13,7 @@ export const buildInvoiceHTML = (sale, settings, logoDataUri = null) => {
     <tr>
       <td style="padding:8px;border-bottom:1px solid #eee;">${item.product?.name || ''}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(item.quantity)}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${item.product?.unit || ''}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${item.soldUnit || item.product?.unit || ''}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${formatCurrency(item.unitPrice)}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${formatCurrency(item.total)}</td>
     </tr>`

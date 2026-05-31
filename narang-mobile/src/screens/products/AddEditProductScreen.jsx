@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { Text, Chip, useTheme } from 'react-native-paper';
+import { Text, Chip, Switch, useTheme } from 'react-native-paper';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,8 +17,11 @@ import {
   PRODUCT_CATEGORIES,
   PRODUCT_UNITS,
   productFormSchema,
+  productFormToPayload,
   sanitizeAmountInput,
 } from '../../utils/validation';
+import { getAllowedAlternateUnits, getUnitPrice } from '../../utils/productUnits';
+import { formatCurrency } from '../../utils/formatCurrency';
 
 export default function AddEditProductScreen({ route, navigation }) {
   const theme = useTheme();
@@ -51,6 +54,11 @@ export default function AddEditProductScreen({ route, navigation }) {
         initialProduct?.category?.name ||
         PRODUCT_CATEGORIES[0],
       unit: initialProduct?.unit || 'BAG',
+      sellByAlternate: Boolean(initialProduct?.alternateSaleUnit),
+      alternateSaleUnit: initialProduct?.alternateSaleUnit || '',
+      unitsPerStockUnit: initialProduct?.unitsPerStockUnit
+        ? String(Number(initialProduct.unitsPerStockUnit))
+        : '',
       costPrice: initialProduct ? String(Number(initialProduct.costPrice)) : '',
       salePrice: initialProduct ? String(Number(initialProduct.salePrice)) : '',
       currentStock: initialProduct ? String(Number(initialProduct.currentStock)) : '',
@@ -74,6 +82,9 @@ export default function AddEditProductScreen({ route, navigation }) {
         setValue('name', p.name);
         setValue('category', p.category || p.category?.name || PRODUCT_CATEGORIES[0]);
         setValue('unit', p.unit);
+        setValue('sellByAlternate', Boolean(p.alternateSaleUnit));
+        setValue('alternateSaleUnit', p.alternateSaleUnit || '');
+        setValue('unitsPerStockUnit', p.unitsPerStockUnit ? String(Number(p.unitsPerStockUnit)) : '');
         setValue('costPrice', String(Number(p.costPrice)));
         setValue('salePrice', String(Number(p.salePrice)));
         setValue('currentStock', String(Number(p.currentStock)));
@@ -94,20 +105,52 @@ export default function AddEditProductScreen({ route, navigation }) {
 
   const selectedCategory = watch('category');
   const selectedUnit = watch('unit');
+  const sellByAlternate = watch('sellByAlternate');
+  const alternateSaleUnit = watch('alternateSaleUnit');
+  const unitsPerStockUnit = watch('unitsPerStockUnit');
+  const salePrice = watch('salePrice');
   const currentStock = watch('currentStock');
+  const allowedAlternateUnits = getAllowedAlternateUnits(selectedUnit);
+
+  useEffect(() => {
+    if (!allowedAlternateUnits.length) {
+      setValue('sellByAlternate', false);
+      setValue('alternateSaleUnit', '');
+      setValue('unitsPerStockUnit', '');
+      return;
+    }
+    if (alternateSaleUnit && !allowedAlternateUnits.includes(alternateSaleUnit)) {
+      setValue('alternateSaleUnit', allowedAlternateUnits[0] || '');
+    }
+  }, [selectedUnit, allowedAlternateUnits, alternateSaleUnit, setValue]);
+
   useEffect(() => {
     trigger('minStockAlert');
   }, [currentStock, trigger]);
+
+  const alternatePricePreview =
+    sellByAlternate && salePrice && unitsPerStockUnit && Number(unitsPerStockUnit) > 0
+      ? getUnitPrice(
+          {
+            unit: selectedUnit,
+            salePrice: Number(salePrice),
+            alternateSaleUnit,
+            unitsPerStockUnit: Number(unitsPerStockUnit),
+          },
+          alternateSaleUnit
+        )
+      : null;
 
   const onSubmit = async (data) => {
     try {
       setLoading(true);
       setError(null);
+      const payload = productFormToPayload(data);
       if (isEdit) {
-        const updated = await saveProduct(productId, data);
+        const updated = await saveProduct(productId, payload);
         setProductId(updated.id);
       } else {
-        await createProduct(data);
+        await createProduct(payload);
       }
       navigation.goBack();
     } catch (err) {
@@ -196,6 +239,81 @@ export default function AddEditProductScreen({ route, navigation }) {
       </View>
       {errors.unit ? (
         <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>{errors.unit.message}</Text>
+      ) : null}
+      {allowedAlternateUnits.length > 0 ? (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text variant="labelLarge">Also sell by alternate unit</Text>
+            <Controller
+              control={control}
+              name="sellByAlternate"
+              render={({ field: { onChange, value } }) => (
+                <Switch
+                  value={value}
+                  onValueChange={(enabled) => {
+                    onChange(enabled);
+                    if (enabled && allowedAlternateUnits.length > 0) {
+                      setValue('alternateSaleUnit', allowedAlternateUnits[0], {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
+                    } else if (!enabled) {
+                      setValue('alternateSaleUnit', '');
+                      setValue('unitsPerStockUnit', '');
+                    }
+                  }}
+                />
+              )}
+            />
+          </View>
+          {sellByAlternate ? (
+            <>
+              <Text variant="labelMedium" style={{ marginBottom: 8, color: theme.colors.onSurfaceVariant }}>
+                Alternate unit
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                {allowedAlternateUnits.map((u) => {
+                  const selected = alternateSaleUnit === u;
+                  return (
+                    <Chip
+                      key={u}
+                      selected={selected}
+                      onPress={() => setValue('alternateSaleUnit', u, { shouldValidate: true, shouldDirty: true })}
+                      style={{ marginBottom: 4 }}
+                    >
+                      {u}
+                    </Chip>
+                  );
+                })}
+              </View>
+              {errors.alternateSaleUnit ? (
+                <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>
+                  {errors.alternateSaleUnit.message}
+                </Text>
+              ) : null}
+              <Controller
+                control={control}
+                name="unitsPerStockUnit"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <AppInput
+                    label={`${alternateSaleUnit || 'Units'} per ${selectedUnit} *`}
+                    value={value}
+                    onChangeText={(t) => onChange(sanitizeAmountInput(t))}
+                    onBlur={onBlur}
+                    keyboardType="decimal-pad"
+                    placeholder="e.g. 50"
+                    error={errors.unitsPerStockUnit?.message}
+                  />
+                )}
+              />
+              {alternatePricePreview != null ? (
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+                  Sale price per {alternateSaleUnit}: {formatCurrency(alternatePricePreview)} (auto from bag price)
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+        </>
       ) : null}
       <Controller
         control={control}

@@ -32,9 +32,11 @@ export default function MoreScreen({ navigation }) {
           <Text variant="bodyLarge" style={{ marginTop: 4 }}>
             {user?.name}
           </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            {user?.role}
-          </Text>
+          {user?.email ? (
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+              {user.email}
+            </Text>
+          ) : null}
         </Card.Content>
       </Card>
 

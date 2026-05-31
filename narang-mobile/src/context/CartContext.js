@@ -1,68 +1,87 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
+import {
+  cartLineKey,
+  getMaxSaleQuantity,
+  getStockDeduction,
+  getUnitPrice,
+  hasAlternateSale,
+} from '../utils/productUnits';
 
 const CartContext = createContext(null);
 
+const buildLine = (product, quantity, soldUnit) => {
+  const unit = soldUnit || product.unit;
+  const qty = Number(quantity);
+  const unitPrice = getUnitPrice(product, unit);
+  const stockDeduction = getStockDeduction(product, unit, qty);
+  const maxQuantity = getMaxSaleQuantity(product, unit);
+
+  return {
+    lineKey: cartLineKey(product.id, unit),
+    product,
+    soldUnit: unit,
+    quantity: qty,
+    unitPrice,
+    total: qty * unitPrice,
+    stockDeduction,
+    maxQuantity,
+  };
+};
+
 export const CartProvider = ({ children }) => {
   const [items, setItems] = useState([]);
-  /** @type {null | { id?: string, name: string, phone: string, address?: string, isExisting?: boolean }} */
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [notes, setNotes] = useState('');
 
-  const capQuantity = (product, qty) => {
-    const stock = Number(product.currentStock);
-    if (Number.isNaN(stock) || stock <= 0) return 0;
-    return Math.min(Math.max(1, qty), stock);
+  const capQuantity = (product, soldUnit, qty) => {
+    const maxQty = getMaxSaleQuantity(product, soldUnit);
+    if (maxQty <= 0) return 0;
+    return Math.min(Math.max(0.01, qty), maxQty);
   };
 
-  const addItem = (product, quantity = 1) => {
-    const stock = Number(product.currentStock);
-    if (stock <= 0) return false;
+  const addItem = (product, quantity = 1, soldUnit = product.unit) => {
+    const maxQty = getMaxSaleQuantity(product, soldUnit);
+    if (maxQty <= 0) return false;
+
+    const lineKey = cartLineKey(product.id, soldUnit);
 
     setItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
+      const existing = prev.find((i) => i.lineKey === lineKey);
       if (existing) {
-        const newQty = capQuantity(product, existing.quantity + quantity);
+        const newQty = capQuantity(product, soldUnit, existing.quantity + quantity);
+        if (newQty <= 0) return prev;
         return prev.map((i) =>
-          i.product.id === product.id
-            ? {
-                ...i,
-                quantity: newQty,
-                total: newQty * Number(i.unitPrice),
-              }
-            : i
+          i.lineKey === lineKey ? buildLine(product, newQty, soldUnit) : i
         );
       }
-      const qty = capQuantity(product, quantity);
-      const unitPrice = Number(product.salePrice);
-      return [
-        ...prev,
-        {
-          product,
-          quantity: qty,
-          unitPrice,
-          total: qty * unitPrice,
-        },
-      ];
+      const qty = capQuantity(product, soldUnit, quantity);
+      if (qty <= 0) return prev;
+      return [...prev, buildLine(product, qty, soldUnit)];
     });
     return true;
   };
 
-  const removeItem = (productId) => {
-    setItems((prev) => prev.filter((i) => i.product.id !== productId));
+  const addProduct = (product) => {
+    if (hasAlternateSale(product)) return 'pick_unit';
+    return addItem(product, 1, product.unit) ? 'added' : 'out_of_stock';
   };
 
-  const updateQuantity = (productId, quantity) => {
+  const removeItem = (lineKey) => {
+    setItems((prev) => prev.filter((i) => i.lineKey !== lineKey));
+  };
+
+  const updateQuantity = (lineKey, quantity) => {
     if (quantity <= 0) {
-      removeItem(productId);
+      removeItem(lineKey);
       return;
     }
     setItems((prev) =>
       prev.map((i) => {
-        if (i.product.id !== productId) return i;
-        const qty = capQuantity(i.product, quantity);
-        return { ...i, quantity: qty, total: qty * Number(i.unitPrice) };
+        if (i.lineKey !== lineKey) return i;
+        const qty = capQuantity(i.product, i.soldUnit, quantity);
+        return buildLine(i.product, qty, i.soldUnit);
       })
     );
   };
@@ -93,6 +112,7 @@ export const CartProvider = ({ children }) => {
         subtotal,
         total,
         addItem,
+        addProduct,
         removeItem,
         updateQuantity,
         setSelectedCustomer,

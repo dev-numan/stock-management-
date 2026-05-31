@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { canHaveAlternateUnit } from './productUnits';
 
 export const PRODUCT_UNITS = ['BAG', 'KG', 'LITRE', 'PIECE', 'BOTTLE'];
 
@@ -66,6 +67,9 @@ export const productFormSchema = z
     name: requiredText('Product name'),
     category: z.enum(PRODUCT_CATEGORIES, { message: 'Please select a category' }),
     unit: z.enum(PRODUCT_UNITS, { message: 'Please select a unit' }),
+    sellByAlternate: z.boolean().default(false),
+    alternateSaleUnit: z.string().optional(),
+    unitsPerStockUnit: z.string().optional(),
     costPrice: amountField('Cost price', { min: 0.01 }),
     salePrice: amountField('Sale price', { min: 0.01 }),
     currentStock: amountFieldWithDefault('Current stock', '0', { min: 0 }),
@@ -87,7 +91,37 @@ export const productFormSchema = z
         path: ['salePrice'],
       });
     }
+    if (data.sellByAlternate) {
+      if (!data.alternateSaleUnit || !canHaveAlternateUnit(data.unit, data.alternateSaleUnit)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Select a valid alternate sale unit',
+          path: ['alternateSaleUnit'],
+        });
+      }
+      const perStock = Number(data.unitsPerStockUnit);
+      if (!data.unitsPerStockUnit?.trim() || Number.isNaN(perStock) || perStock <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter units per stock unit (e.g. 50 kg per bag)',
+          path: ['unitsPerStockUnit'],
+        });
+      }
+    }
   });
+
+export const productFormToPayload = (data) => ({
+  name: data.name,
+  category: data.category,
+  unit: data.unit,
+  alternateSaleUnit: data.sellByAlternate ? data.alternateSaleUnit : null,
+  unitsPerStockUnit: data.sellByAlternate ? Number(data.unitsPerStockUnit) : null,
+  costPrice: data.costPrice,
+  salePrice: data.salePrice,
+  currentStock: data.currentStock,
+  minStockAlert: data.minStockAlert,
+  expiryDate: data.expiryDate,
+});
 
 export const customerSchema = z.object({
   name: requiredText('Name'),
@@ -142,13 +176,29 @@ export const validateSaleCheckout = ({
   const name = selectedCustomer?.name?.trim() || '';
   const phone = selectedCustomer?.phone?.trim() || '';
 
+  const deductionByProduct = new Map();
+
   items.forEach((item) => {
-    const stock = Number(item.product.currentStock);
-    if (item.quantity > stock) {
-      errors.push(`${item.product.name}: only ${stock} in stock`);
-    }
+    const soldUnit = item.soldUnit || item.product.unit;
+    const stockDeduction = item.stockDeduction ?? item.quantity;
+    const maxQty = item.maxQuantity ?? Number(item.product.currentStock);
+
     if (item.quantity <= 0) {
-      errors.push(`${item.product.name}: quantity must be at least 1`);
+      errors.push(`${item.product.name}: quantity must be greater than 0`);
+    }
+    if (item.quantity > maxQty + 0.0001) {
+      errors.push(`${item.product.name}: only ${Math.round(maxQty * 100) / 100} ${soldUnit} available`);
+    }
+
+    const prev = deductionByProduct.get(item.product.id) ?? 0;
+    deductionByProduct.set(item.product.id, prev + stockDeduction);
+  });
+
+  deductionByProduct.forEach((deduction, productId) => {
+    const product = items.find((i) => i.product.id === productId)?.product;
+    if (!product) return;
+    if (deduction > Number(product.currentStock) + 0.0001) {
+      errors.push(`${product.name}: not enough stock for this sale`);
     }
   });
 

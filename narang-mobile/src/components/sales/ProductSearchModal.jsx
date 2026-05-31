@@ -7,6 +7,7 @@ import { formatExpiryLabel } from '../../utils/expiry';
 import { ProductSearchSkeleton } from '../common/Skeleton';
 import ErrorMessage from '../common/ErrorMessage';
 import { useProductsStore } from '../../stores/productsStore';
+import { formatStockDisplay, getUnitPrice, hasAlternateSale } from '../../utils/productUnits';
 
 const LIST_ROW_GAP = 8;
 
@@ -27,7 +28,7 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
       setSearch('');
       return;
     }
-    fetchProducts();
+    fetchProducts(true);
   }, [visible, fetchProducts]);
 
   const displayProducts = useMemo(
@@ -50,29 +51,33 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
       <Card
         mode="elevated"
         style={{ marginBottom: LIST_ROW_GAP, borderRadius: theme.roundness }}
-        onPress={() => {
-          onSelect(item);
-          onClose();
-        }}
+        onPress={() => onSelect(item)}
       >
         <Card.Content style={{ paddingVertical: 10 }}>
           <Text variant="titleSmall" style={{ fontWeight: '600' }} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
-            {formatCurrency(item.salePrice)} · Stock: {Number(item.currentStock)}
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={2}>
+            {formatCurrency(item.salePrice)} / {item.unit}
+            {hasAlternateSale(item)
+              ? ` · ${formatCurrency(getUnitPrice(item, item.alternateSaleUnit))} / ${item.alternateSaleUnit} · Tap to pick unit`
+              : ''}
+            {' · Stock: '}
+            {formatStockDisplay(item)}
             {item.expiryDate ? ` · ${formatExpiryLabel(item.expiryDate)}` : ''}
           </Text>
         </Card.Content>
       </Card>
     ),
-    [theme.roundness, theme.colors.onSurfaceVariant, onSelect, onClose]
+    [theme.roundness, theme.colors.onSurfaceVariant, onSelect]
   );
+
+  if (!visible) return null;
 
   return (
     <Portal>
       <Modal
-        visible={visible}
+        visible
         onDismiss={onClose}
         style={{ justifyContent: 'flex-end', margin: 0 }}
         contentContainerStyle={{

@@ -134,10 +134,12 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
     onSelect({ type: 'contact', contact: item.rawContact });
   };
 
+  if (!visible) return null;
+
   return (
     <Portal>
       <Modal
-        visible={visible}
+        visible
         onDismiss={onClose}
         dismissable={!resolving}
         style={{ justifyContent: 'flex-end', margin: 0 }}
