@@ -282,42 +282,76 @@ export const getProfitReport = async ({ mode = 'month', year, month, day }) => {
 
 export const getSalesTrend = async ({ mode = 'month', year }) => {
   const y = Number(year) || new Date().getFullYear();
+  const breakdown = mode === 'year' ? 'year' : 'month';
+
+  let from;
+  let to;
+  let labels;
+  let keys;
 
   if (mode === 'year') {
     const startYear = y - 4;
-    const rows = await db.$queryRaw`
-      SELECT EXTRACT(YEAR FROM "createdAt")::int AS period,
-             COALESCE(SUM("totalAmount"), 0) AS total
-      FROM "Sale"
-      WHERE EXTRACT(YEAR FROM "createdAt") >= ${startYear}
-        AND EXTRACT(YEAR FROM "createdAt") <= ${y}
-      GROUP BY period
-      ORDER BY period
-    `;
-    const byYear = new Map(rows.map((r) => [r.period, toNumber(r.total)]));
-    const labels = [];
-    const values = [];
-    for (let yr = startYear; yr <= y; yr += 1) {
-      labels.push(String(yr));
-      values.push(byYear.get(yr) ?? 0);
-    }
-    const total = values.reduce((sum, v) => sum + v, 0);
-    return { mode: 'year', year: y, labels, values, total };
+    from = `${startYear}-01-01`;
+    to = `${y}-12-31`;
+    keys = [];
+    for (let yr = startYear; yr <= y; yr += 1) keys.push(yr);
+    labels = keys.map(String);
+  } else {
+    from = `${y}-01-01`;
+    to = `${y}-12-31`;
+    labels = [...MONTH_LABELS];
+    keys = Array.from({ length: 12 }, (_, i) => i + 1);
   }
 
-  const rows = await db.$queryRaw`
-    SELECT EXTRACT(MONTH FROM "createdAt")::int AS period,
-           COALESCE(SUM("totalAmount"), 0) AS total
-    FROM "Sale"
-    WHERE EXTRACT(YEAR FROM "createdAt") = ${y}
-    GROUP BY period
-    ORDER BY period
-  `;
-  const byMonth = new Map(rows.map((r) => [r.period, toNumber(r.total)]));
-  const labels = [...MONTH_LABELS];
-  const values = labels.map((_, i) => byMonth.get(i + 1) ?? 0);
+  const createdAt = dateRange(from, to);
+  const expenseDate = dateRange(from, to);
+
+  const [sales, expenses] = await Promise.all([
+    db.sale.findMany({
+      where: { createdAt },
+      include: { items: { include: { product: true } } },
+    }),
+    db.expense.findMany({ where: { date: expenseDate } }),
+  ]);
+
+  const buckets = new Map();
+  const touch = (key) => {
+    if (!buckets.has(key)) buckets.set(key, emptyBucket());
+    return buckets.get(key);
+  };
+
+  for (const sale of sales) {
+    const key = bucketFromSale(sale.createdAt, breakdown);
+    const bucket = touch(key);
+    bucket.revenue += toNumber(sale.totalAmount);
+    for (const item of sale.items) {
+      bucket.cogs += itemCogs(item);
+    }
+  }
+
+  for (const expense of expenses) {
+    const key = bucketFromExpense(expense.date, breakdown);
+    touch(key).expenses += toNumber(expense.amount);
+  }
+
+  const values = keys.map((key) => (buckets.get(key) ?? emptyBucket()).revenue);
+  const profitValues = keys.map((key) => {
+    const b = buckets.get(key) ?? emptyBucket();
+    return b.revenue - b.cogs - b.expenses;
+  });
+
   const total = values.reduce((sum, v) => sum + v, 0);
-  return { mode: 'month', year: y, labels, values, total };
+  const profitTotal = profitValues.reduce((sum, v) => sum + v, 0);
+
+  return {
+    mode: mode === 'year' ? 'year' : 'month',
+    year: y,
+    labels,
+    values,
+    profitValues,
+    total,
+    profitTotal,
+  };
 };
 
 export const getStockValuation = async () => {

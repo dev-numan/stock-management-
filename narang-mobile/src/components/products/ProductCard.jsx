@@ -13,6 +13,10 @@ export default function ProductCard({ product, onPress }) {
   const expiryColor =
     tone === 'error' ? theme.colors.error : tone === 'warning' ? '#B45309' : theme.colors.onSurfaceVariant;
 
+  const stockQty = Number(product.currentStock) || 0;
+  const stockCostValue = stockQty * (Number(product.costPrice) || 0);
+  const stockSaleValue = stockQty * (Number(product.salePrice) || 0);
+
   return (
     <Pressable onPress={onPress}>
       <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
@@ -36,6 +40,36 @@ export default function ProductCard({ product, onPress }) {
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
             Stock: {formatStockDisplay(product)}
           </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              marginTop: 8,
+              paddingTop: 8,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.outlineVariant,
+            }}
+          >
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                Stock cost value
+              </Text>
+              <Text variant="bodyMedium" style={{ fontWeight: '600', marginTop: 2 }}>
+                {formatCurrency(stockCostValue)}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                Stock sale value
+              </Text>
+              <Text
+                variant="bodyMedium"
+                style={{ fontWeight: '600', marginTop: 2, color: theme.colors.primary }}
+              >
+                {formatCurrency(stockSaleValue)}
+              </Text>
+            </View>
+          </View>
           {expiryLabel ? (
             <Text variant="bodySmall" style={{ color: expiryColor, marginTop: 4 }}>
               {expiryLabel}

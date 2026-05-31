@@ -4,6 +4,7 @@ import { Searchbar, Switch, FAB, Text, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import ProductCard from '../../components/products/ProductCard';
+import StockValuationSummary from '../../components/products/StockValuationSummary';
 import { ProductListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -52,6 +53,7 @@ export default function ProductsScreen({ navigation, route }) {
           onChangeText={setSearch}
           style={{ marginBottom: 8, borderRadius: theme.roundness }}
         />
+        <StockValuationSummary products={products} />
         <View
           style={{
             flexDirection: 'row',
