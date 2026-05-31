@@ -368,6 +368,7 @@ export const getSalesTrend = async ({ mode = 'month', year }) => {
     year: y,
     labels,
     values,
+    total,
     /** Gross margin from sales (revenue − COGS); used for dashboard chart. */
     profitValues: grossProfitValues,
     profitTotal: grossProfitTotal,

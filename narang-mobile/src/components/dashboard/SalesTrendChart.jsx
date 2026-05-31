@@ -68,10 +68,15 @@ export default function SalesTrendChart() {
   const hasChartData =
     values.some((v) => v !== 0) || profitValues.some((v) => v !== 0);
 
+  const salesTotal =
+    trend?.total ?? (trend?.values ?? []).reduce((sum, v) => sum + Number(v || 0), 0);
+  const grossProfitTotal =
+    trend?.profitTotal ?? (trend?.profitValues ?? []).reduce((sum, v) => sum + Number(v || 0), 0);
+
   const summaryText =
     mode === 'year'
-      ? `${year - 4}–${year} · Sales ${formatCurrency(trend?.total)} · Gross profit ${formatCurrency(trend?.profitTotal)}`
-      : `${year} · Sales ${formatCurrency(trend?.total)} · Gross profit ${formatCurrency(trend?.profitTotal)}`;
+      ? `${year - 4}–${year} · Sales ${formatCurrency(salesTotal)} · Gross profit ${formatCurrency(grossProfitTotal)}`
+      : `${year} · Sales ${formatCurrency(salesTotal)} · Gross profit ${formatCurrency(grossProfitTotal)}`;
 
   return (
     <AppCard>

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
-import { Card, Text, useTheme } from 'react-native-paper';
+import { Card, Text, Button, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import { useSalesStore } from '../../stores/salesStore';
@@ -21,7 +21,7 @@ export function computeCustomerLedgerTotals(customers) {
   return { youWillGet, youWillGive };
 }
 
-export default function CustomerLedgerSummary({ customers }) {
+export default function CustomerLedgerSummary({ customers, onSeeMore }) {
   const theme = useTheme();
   const pendingSales = useSalesStore((s) => s.pendingSales);
   const { youWillGet, youWillGive } = useMemo(
@@ -31,7 +31,24 @@ export default function CustomerLedgerSummary({ customers }) {
 
   return (
     <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
-      <Card.Content>
+      <Card.Content style={{ paddingTop: 4, paddingBottom: 12 }}>
+        {onSeeMore ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 4,
+            }}
+          >
+            <Text variant="titleMedium" style={{ fontWeight: '600' }}>
+              Customer balance
+            </Text>
+            <Button compact mode="text" onPress={onSeeMore}>
+              See more
+            </Button>
+          </View>
+        ) : null}
         <View style={{ flexDirection: 'row' }}>
           <View style={{ flex: 1, alignItems: 'center', paddingVertical: 4 }}>
             <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.primary }}>

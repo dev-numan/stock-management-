@@ -8,7 +8,7 @@ const accentColors = {
   red: '#DC2626',
 };
 
-const SUBTITLE_LINE_HEIGHT = 18;
+const SUBTITLE_LINE_HEIGHT = 22;
 
 export default function StatCard({ title, value, subtitle, subtitleColor, color = 'green', style }) {
   const theme = useTheme();
@@ -39,7 +39,7 @@ export default function StatCard({ title, value, subtitle, subtitleColor, color 
           </View>
           <View style={{ minHeight: SUBTITLE_LINE_HEIGHT, marginTop: 4, justifyContent: 'flex-end' }}>
             {subtitle ? (
-              <Text variant="bodySmall" style={{ color: subtitleTextColor, fontWeight: subtitleColor ? '600' : '400' }}>
+              <Text variant="bodyMedium" style={{ color: subtitleTextColor, fontWeight: subtitleColor ? '600' : '400' }}>
                 {subtitle}
               </Text>
             ) : null}

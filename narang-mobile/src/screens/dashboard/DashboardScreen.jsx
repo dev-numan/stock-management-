@@ -135,22 +135,12 @@ export default function DashboardScreen({ navigation }) {
           />
         </View>
       </View>
-      <CustomerLedgerSummary customers={customers} />
-      <SalesTrendChart />
-      {display?.showLowStockAlert !== false && display?.lowStockProducts?.length > 0 ? (
-        <AppCard>
-          <Text variant="titleMedium" style={{ color: theme.colors.error, fontWeight: '600', marginBottom: 8 }}>
-            ⚠️ Low Stock Alert
-          </Text>
-          {display.lowStockProducts.map((p) => (
-            <Text key={p.id} variant="bodyMedium" style={{ color: theme.colors.onSurface, paddingVertical: 4 }}>
-              {p.name} — {Number(p.currentStock)} left
-            </Text>
-          ))}
-        </AppCard>
-      ) : null}
+      <CustomerLedgerSummary
+        customers={customers}
+        onSeeMore={() => navigation.navigate('More', { screen: 'Customers' })}
+      />
       {display?.showExpiryAlert !== false && display?.expiringProducts?.length > 0 ? (
-        <AppCard>
+        <AppCard style={{ marginBottom: 8 }}>
           <Text variant="titleMedium" style={{ color: '#B45309', fontWeight: '600', marginBottom: 4 }}>
             📅 Expiry Alert
           </Text>
@@ -172,6 +162,19 @@ export default function DashboardScreen({ navigation }) {
               </Text>
             );
           })}
+        </AppCard>
+      ) : null}
+      <SalesTrendChart />
+      {display?.showLowStockAlert !== false && display?.lowStockProducts?.length > 0 ? (
+        <AppCard>
+          <Text variant="titleMedium" style={{ color: theme.colors.error, fontWeight: '600', marginBottom: 8 }}>
+            ⚠️ Low Stock Alert
+          </Text>
+          {display.lowStockProducts.map((p) => (
+            <Text key={p.id} variant="bodyMedium" style={{ color: theme.colors.onSurface, paddingVertical: 4 }}>
+              {p.name} — {Number(p.currentStock)} left
+            </Text>
+          ))}
         </AppCard>
       ) : null}
         <AppCard>
