@@ -1,15 +1,10 @@
 import { format } from 'date-fns';
 import { APP_NAME, APP_NAME_URDU } from '../constants/branding';
 import { getLocale } from '../stores/languageStore';
+import { formatCurrency } from './formatCurrency';
 
-export const formatReminderAmount = (amount) => {
-  const num = Math.abs(Number(amount ?? 0));
-  const formatted = num.toLocaleString('en-PK', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
-  return `Rs ${formatted}`;
-};
+export const formatReminderAmount = (amount) =>
+  formatCurrency(Math.abs(Number(amount ?? 0)));
 
 /** @returns {'owes' | 'prepaid' | 'zero'} */
 export const getReminderBalanceType = (advanceBalance) => {

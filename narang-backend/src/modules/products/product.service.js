@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
-import { db } from '../../config/db.js';
+import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { resolveSupplierId } from '../../utils/supplierResolve.js';
 import { isValidProductCategory } from '../../constants/productCategories.js';
 import { parseExpiryDate } from '../../utils/parseExpiryDate.js';
 import { validateAlternateUnitFields, canHaveAlternateUnit } from '../../utils/productUnits.js';
@@ -48,10 +49,12 @@ const validateProductNumbers = (data) => {
   if (sale < cost) {
     throw new ApiError(400, 'Sale price cannot be less than cost price');
   }
-  if (minAlert > stock) {
+  if (stock > 0 && minAlert > stock) {
     throw new ApiError(400, `Low stock alert cannot exceed current stock (${stock})`);
   }
 };
+
+const decimal = (v) => new Prisma.Decimal(v);
 
 const validateCategory = (category) => {
   if (!isValidProductCategory(category)) {
@@ -92,7 +95,7 @@ export const createProduct = async (data) => {
       ...(alternate ?? {}),
       costPrice: new Prisma.Decimal(data.costPrice),
       salePrice: new Prisma.Decimal(data.salePrice),
-      currentStock: new Prisma.Decimal(data.currentStock ?? 0),
+      currentStock: new Prisma.Decimal(0),
       minStockAlert: new Prisma.Decimal(data.minStockAlert ?? 10),
       expiryDate: parseExpiryDate(data.expiryDate),
       supplierId: data.supplierId || null,
@@ -149,7 +152,7 @@ export const updateProduct = async (id, data) => {
 
   if (data.costPrice !== undefined) updateData.costPrice = new Prisma.Decimal(data.costPrice);
   if (data.salePrice !== undefined) updateData.salePrice = new Prisma.Decimal(data.salePrice);
-  if (data.currentStock !== undefined) updateData.currentStock = new Prisma.Decimal(data.currentStock);
+  // Stock changes only via addProductStock (creates supplier purchase).
   if (data.minStockAlert !== undefined) updateData.minStockAlert = new Prisma.Decimal(data.minStockAlert);
   if (data.expiryDate !== undefined) updateData.expiryDate = parseExpiryDate(data.expiryDate);
   if (data.supplierId !== undefined) updateData.supplierId = data.supplierId || null;
@@ -159,6 +162,65 @@ export const updateProduct = async (id, data) => {
     data: updateData,
     include: { supplier: true },
   });
+};
+
+export const addProductStock = async (
+  productId,
+  { quantity, supplierId, supplierName, notes }
+) => {
+  const qty = Number(quantity);
+  if (!qty || qty <= 0) {
+    throw new ApiError(400, 'Quantity must be greater than zero');
+  }
+  if (!supplierId && !supplierName?.trim()) {
+    throw new ApiError(400, 'Supplier is required');
+  }
+
+  return db.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({ where: { id: productId } });
+    if (!product) throw new ApiError(404, 'Product not found');
+
+    const resolvedSupplierId = await resolveSupplierId(tx, { supplierId, supplierName });
+    if (!resolvedSupplierId) {
+      throw new ApiError(400, 'Supplier is required');
+    }
+
+    const costPrice = product.costPrice;
+    const qtyDec = decimal(qty);
+    const totalAmount = costPrice.mul(qtyDec);
+
+    const purchase = await tx.purchase.create({
+      data: {
+        supplierId: resolvedSupplierId,
+        totalAmount,
+        notes: notes?.trim() || null,
+        items: {
+          create: [
+            {
+              productId,
+              quantity: qtyDec,
+              costPrice,
+            },
+          ],
+        },
+      },
+      include: {
+        supplier: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    const updated = await tx.product.update({
+      where: { id: productId },
+      data: {
+        currentStock: { increment: qtyDec },
+        supplierId: resolvedSupplierId,
+      },
+      include: { supplier: true },
+    });
+
+    return { product: updated, purchase };
+  }, TRANSACTION_OPTS);
 };
 
 export const deleteProduct = async (id) => {

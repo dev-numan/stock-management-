@@ -1,13 +1,12 @@
-/** Aggregate supplier balances for list summary (you owe / you're owed). */
+/** Sum purchase and payment totals across all suppliers for list summary. */
 export function computeSupplierLedgerTotals(suppliers) {
-  let youWillGive = 0;
-  let youWillGet = 0;
+  let totalPurchases = 0;
+  let totalPayments = 0;
   for (const s of suppliers) {
-    const balance = Number(s.payableBalance ?? 0);
-    if (balance > 0) youWillGive += balance;
-    else if (balance < 0) youWillGet += Math.abs(balance);
+    totalPurchases += Number(s.totalPurchases ?? 0);
+    totalPayments += Number(s.totalPayments ?? 0);
   }
-  return { youWillGive, youWillGet };
+  return { totalPurchases, totalPayments };
 }
 
 /** Unique product names from purchase ledger entries. */
@@ -29,6 +28,19 @@ export function filterSuppliersByName(suppliers, query, limit = 6) {
   return suppliers
     .filter((s) => s.name.toLowerCase().includes(q))
     .slice(0, limit);
+}
+
+/** Full list for picker modal — all suppliers when search empty, filtered when typing. */
+export function filterSuppliersForPicker(suppliers, query) {
+  const q = query.trim().toLowerCase();
+  const sorted = [...suppliers].sort((a, b) => a.name.localeCompare(b.name));
+  if (!q) return sorted;
+  const qDigits = q.replace(/\D/g, '');
+  return sorted.filter((s) => {
+    const name = s.name.toLowerCase();
+    const phone = (s.phone || '').replace(/\D/g, '');
+    return name.includes(q) || (qDigits.length > 0 && phone.includes(qDigits));
+  });
 }
 
 export function findSupplierByExactName(suppliers, name) {

@@ -66,7 +66,8 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-export const productFormSchema = z
+export const buildProductFormSchema = (stockOnHand = 0) =>
+  z
   .object({
     name: requiredText('Product name'),
     category: z.enum(PRODUCT_CATEGORIES, { message: 'Please select a category' }),
@@ -76,15 +77,14 @@ export const productFormSchema = z
     unitsPerStockUnit: z.string().optional(),
     costPrice: amountField('Cost price', { min: 0.01 }),
     salePrice: amountField('Sale price', { min: 0.01 }),
-    currentStock: amountFieldWithDefault('Current stock', '0', { min: 0 }),
     minStockAlert: amountFieldWithDefault('Low stock alert', '10', { min: 0 }),
     expiryDate: optionalDateField,
   })
   .superRefine((data, ctx) => {
-    if (data.minStockAlert > data.currentStock) {
+    if (stockOnHand > 0 && data.minStockAlert > stockOnHand) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Cannot exceed current stock (${data.currentStock})`,
+        message: `Cannot exceed current stock (${stockOnHand})`,
         path: ['minStockAlert'],
       });
     }
@@ -114,6 +114,9 @@ export const productFormSchema = z
     }
   });
 
+/** @deprecated use buildProductFormSchema */
+export const productFormSchema = buildProductFormSchema(0);
+
 export const productFormToPayload = (data) => ({
   name: data.name,
   category: data.category,
@@ -122,7 +125,6 @@ export const productFormToPayload = (data) => ({
   unitsPerStockUnit: data.sellByAlternate ? Number(data.unitsPerStockUnit) : null,
   costPrice: data.costPrice,
   salePrice: data.salePrice,
-  currentStock: data.currentStock,
   minStockAlert: data.minStockAlert,
   expiryDate: data.expiryDate,
 });

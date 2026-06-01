@@ -21,7 +21,7 @@ import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import { useTranslation } from '../../i18n/useTranslation';
 
-export default function SupplierDetailScreen({ route, navigation }) {
+export default function SupplierDetailScreen({ route }) {
   const theme = useTheme();
   const { supplierId, supplier: initialSupplier } = route.params;
   const { t, isRtl } = useTranslation();
@@ -130,7 +130,11 @@ export default function SupplierDetailScreen({ route, navigation }) {
               {formatCurrency(Math.abs(payableBalance))}
             </Text>
             <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
-              {payableBalance < 0 ? t('ledger.youWillGet') : t('supplier.youWillGive')}
+              {payableBalance < 0
+                ? t('supplier.col.payment')
+                : payableBalance > 0
+                  ? t('supplier.col.purchase')
+                  : t('supplier.balance')}
             </Text>
           </Card.Content>
         </Card>
@@ -224,8 +228,6 @@ export default function SupplierDetailScreen({ route, navigation }) {
           left: 0,
           right: 0,
           bottom: 0,
-          flexDirection: 'row',
-          gap: 8,
           padding: 12,
           paddingBottom: Platform.OS === 'ios' ? 24 : 12,
           backgroundColor: theme.colors.surface,
@@ -233,22 +235,12 @@ export default function SupplierDetailScreen({ route, navigation }) {
           borderTopColor: theme.colors.outlineVariant,
         }}
       >
-        <View style={{ flex: 1 }}>
-          <AppButton
-            title={t('supplier.paymentRs')}
-            onPress={() => setPaymentVisible(true)}
-            buttonColor={RECEIPT_GREEN}
-            icon="cash-minus"
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <AppButton
-            title={t('supplier.purchaseRs')}
-            onPress={() => navigation.navigate('AddPurchase', { supplierId, supplier })}
-            buttonColor={theme.colors.error}
-            icon="cart-plus"
-          />
-        </View>
+        <AppButton
+          title={t('supplier.paymentRs')}
+          onPress={() => setPaymentVisible(true)}
+          buttonColor={RECEIPT_GREEN}
+          icon="cash-minus"
+        />
       </View>
 
       <AddSupplierPaymentModal

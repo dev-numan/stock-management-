@@ -14,6 +14,10 @@
     "db:create-admin": "node scripts/create-admin.js",
     "db:import-parties": "node scripts/import-digi-khata-parties.js",
     "db:import-parties:dry": "node scripts/import-digi-khata-parties.js --dry-run",
+    "db:remove-products-no-supplier": "node scripts/remove-products-without-supplier.js",
+    "db:remove-products-no-supplier:dry": "node scripts/remove-products-without-supplier.js --dry-run",
+    "db:remove-products-no-supplier:force": "node scripts/remove-products-without-supplier.js --force",
+    "db:remove-products-no-supplier:force:dry": "node scripts/remove-products-without-supplier.js --force --dry-run",
     "db:reset": "prisma migrate reset --force",
     "db:generate": "prisma generate"
   },

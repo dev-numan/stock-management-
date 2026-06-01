@@ -86,7 +86,7 @@ export default function SuppliersScreen({ navigation }) {
                       {formatCurrency(Math.abs(balance))}
                     </Text>
                     <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, ...textDir }}>
-                      {balance < 0 ? t('ledger.youWillGetColon') : t('ledger.youWillGiveColon')}
+                      {t('supplier.balance')}
                     </Text>
                   </View>
                 </View>

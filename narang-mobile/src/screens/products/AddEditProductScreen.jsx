@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { Text, Chip, Switch, useTheme } from 'react-native-paper';
+import { Text, Chip, Switch, Card, useTheme } from 'react-native-paper';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getProduct } from '../../api/products.api';
+import { getProduct, addProductStock as addProductStockApi } from '../../api/products.api';
+import AddStockModal from '../../components/products/AddStockModal';
+import SupplierNameAutocomplete from '../../components/suppliers/SupplierNameAutocomplete';
+import { useSuppliersStore } from '../../stores/suppliersStore';
+import { findSupplierByExactName } from '../../utils/supplierLedger';
 import AppInput from '../../components/common/AppInput';
 import DatePickerField from '../../components/common/DatePickerField';
 import AppButton from '../../components/common/AppButton';
@@ -16,7 +20,7 @@ import { useProductsStore } from '../../stores/productsStore';
 import {
   PRODUCT_CATEGORIES,
   PRODUCT_UNITS,
-  productFormSchema,
+  buildProductFormSchema,
   productFormToPayload,
   sanitizeAmountInput,
 } from '../../utils/validation';
@@ -39,9 +43,13 @@ export default function AddEditProductScreen({ route, navigation }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const initialProduct = route.params?.product;
+  const readOnly = Boolean(route.params?.readOnly);
   const [productId, setProductId] = useState(initialProduct?.id ?? null);
   const isEdit = Boolean(productId);
   const { isAdmin } = useAuth();
+  const canEdit = isAdmin && !readOnly;
+  const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
+  const suppliers = useSuppliersStore((s) => s.suppliers);
   const saveProduct = useProductsStore((s) => s.saveProduct);
   const createProduct = useProductsStore((s) => s.createProduct);
   const deleteProduct = useProductsStore((s) => s.deleteProduct);
@@ -49,6 +57,17 @@ export default function AddEditProductScreen({ route, navigation }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [displayStock, setDisplayStock] = useState(
+    initialProduct ? Number(initialProduct.currentStock ?? 0) : 0
+  );
+  const [supplierName, setSupplierName] = useState(initialProduct?.supplier?.name || '');
+  const [selectedSupplier, setSelectedSupplier] = useState(initialProduct?.supplier || null);
+  const [initialQty, setInitialQty] = useState('');
+  const [addStockVisible, setAddStockVisible] = useState(false);
+  const [addStockLoading, setAddStockLoading] = useState(false);
+  const [loadedSupplier, setLoadedSupplier] = useState(initialProduct?.supplier || null);
+
+  const formSchema = useMemo(() => buildProductFormSchema(displayStock), [displayStock]);
 
   const {
     control,
@@ -58,7 +77,7 @@ export default function AddEditProductScreen({ route, navigation }) {
     trigger,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(productFormSchema),
+    resolver: zodResolver(formSchema),
     mode: 'onChange',
     defaultValues: {
       name: initialProduct?.name || '',
@@ -74,13 +93,16 @@ export default function AddEditProductScreen({ route, navigation }) {
         : '',
       costPrice: initialProduct ? String(Number(initialProduct.costPrice)) : '',
       salePrice: initialProduct ? String(Number(initialProduct.salePrice)) : '',
-      currentStock: initialProduct ? String(Number(initialProduct.currentStock)) : '',
       minStockAlert: initialProduct ? String(Number(initialProduct.minStockAlert)) : '',
       expiryDate: initialProduct?.expiryDate
         ? new Date(initialProduct.expiryDate).toISOString().slice(0, 10)
         : '',
     },
   });
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
 
   useEffect(() => {
     if (!initialProduct?.id) return undefined;
@@ -100,9 +122,12 @@ export default function AddEditProductScreen({ route, navigation }) {
         setValue('unitsPerStockUnit', p.unitsPerStockUnit ? String(Number(p.unitsPerStockUnit)) : '');
         setValue('costPrice', String(Number(p.costPrice)));
         setValue('salePrice', String(Number(p.salePrice)));
-        setValue('currentStock', String(Number(p.currentStock)));
+        setDisplayStock(Number(p.currentStock));
         setValue('minStockAlert', String(Number(p.minStockAlert)));
         setValue('expiryDate', p.expiryDate ? new Date(p.expiryDate).toISOString().slice(0, 10) : '');
+        setLoadedSupplier(p.supplier || null);
+        setSupplierName(p.supplier?.name || '');
+        setSelectedSupplier(p.supplier || null);
       })
       .catch(() => {
         if (!cancelled) setError(t('product.loadFailed'));
@@ -122,7 +147,6 @@ export default function AddEditProductScreen({ route, navigation }) {
   const alternateSaleUnit = watch('alternateSaleUnit');
   const unitsPerStockUnit = watch('unitsPerStockUnit');
   const salePrice = watch('salePrice');
-  const currentStock = watch('currentStock');
   const allowedAlternateUnits = getAllowedAlternateUnits(selectedUnit);
 
   useEffect(() => {
@@ -139,7 +163,7 @@ export default function AddEditProductScreen({ route, navigation }) {
 
   useEffect(() => {
     trigger('minStockAlert');
-  }, [currentStock, trigger]);
+  }, [displayStock, trigger]);
 
   const alternatePricePreview =
     sellByAlternate && salePrice && unitsPerStockUnit && Number(unitsPerStockUnit) > 0
@@ -159,17 +183,62 @@ export default function AddEditProductScreen({ route, navigation }) {
       setLoading(true);
       setError(null);
       const payload = productFormToPayload(data);
-      if (isEdit) {
+
+      if (!isEdit) {
+        const trimmedSupplier = supplierName.trim();
+        const match = selectedSupplier || findSupplierByExactName(suppliers, trimmedSupplier);
+        if (!match && !trimmedSupplier) {
+          setError(t('product.supplierRequired'));
+          return;
+        }
+        const qty = Number(String(initialQty).trim());
+        if (!qty || qty <= 0) {
+          setError(t('product.addStockQtyRequired'));
+          return;
+        }
+        const created = await createProduct(payload);
+        await addProductStockApi(created.id, {
+          quantity: qty,
+          supplierId: match?.id,
+          supplierName: match ? undefined : trimmedSupplier,
+        });
+        await fetchSuppliers(true);
+      } else {
         const updated = await saveProduct(productId, payload);
         setProductId(updated.id);
-      } else {
-        await createProduct(payload);
       }
       navigation.goBack();
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('product.saveFailed')));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddStock = async ({ quantity, supplierId, supplierName: name }) => {
+    if (!productId) return;
+    try {
+      setAddStockLoading(true);
+      setError(null);
+      const { data } = await addProductStockApi(productId, {
+        quantity,
+        supplierId,
+        supplierName: name,
+      });
+      const updated = data.data?.product;
+      if (updated) {
+        setDisplayStock(Number(updated.currentStock));
+        setLoadedSupplier(updated.supplier || null);
+        setSupplierName(updated.supplier?.name || '');
+        setSelectedSupplier(updated.supplier || null);
+        useProductsStore.getState().patchProduct(productId, updated);
+      }
+      await fetchSuppliers(true);
+      setAddStockVisible(false);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('product.addStockFailed')));
+    } finally {
+      setAddStockLoading(false);
     }
   };
 
@@ -192,9 +261,8 @@ export default function AddEditProductScreen({ route, navigation }) {
     }
   };
 
-  const stockHint = currentStock !== '' && !Number.isNaN(Number(currentStock))
-    ? ` (max ${Number(currentStock)} based on current stock)`
-    : '';
+  const stockHint =
+    displayStock > 0 ? ` (max ${displayStock} based on current stock)` : '';
 
   if (productLoading) {
     return (
@@ -356,21 +424,48 @@ export default function AddEditProductScreen({ route, navigation }) {
           />
         )}
       />
-      <Controller
-        control={control}
-        name="currentStock"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <AppInput
-            label={t('product.currentStock')}
-            value={value}
-            onChangeText={(t) => onChange(sanitizeAmountInput(t))}
-            onBlur={onBlur}
-            keyboardType="decimal-pad"
-            placeholder="0"
-            error={errors.currentStock?.message}
+      {isEdit ? (
+        <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
+          <Card.Content>
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              {t('product.currentStock')}
+            </Text>
+            <Text variant="headlineSmall" style={{ fontWeight: '700', marginTop: 4 }}>
+              {displayStock} {selectedUnit}
+            </Text>
+            {loadedSupplier?.name ? (
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 6 }}>
+                {t('supplier.selectSupplier')}: {loadedSupplier.name}
+              </Text>
+            ) : null}
+            {canEdit ? (
+              <AppButton
+                title={t('product.addStock')}
+                onPress={() => setAddStockVisible(true)}
+                style={{ marginTop: 12 }}
+                icon="package-variant-plus"
+              />
+            ) : null}
+          </Card.Content>
+        </Card>
+      ) : (
+        <>
+          <SupplierNameAutocomplete
+            value={supplierName}
+            onChangeText={setSupplierName}
+            onSelectSupplier={setSelectedSupplier}
+            selectedSupplierId={selectedSupplier?.id}
+            disabled={!canEdit}
           />
-        )}
-      />
+          <AppInput
+            label={t('product.initialStock')}
+            value={initialQty}
+            onChangeText={(v) => setInitialQty(sanitizeAmountInput(v))}
+            keyboardType="decimal-pad"
+            placeholder="1"
+          />
+        </>
+      )}
       <Controller
         control={control}
         name="minStockAlert"
@@ -401,13 +496,15 @@ export default function AddEditProductScreen({ route, navigation }) {
           />
         )}
       />
-      <AppButton
-        title={isEdit ? t('product.update') : t('product.add')}
-        onPress={handleSubmit(onSubmit, () => setError(t('common.fixErrors')))}
-        loading={loading}
-      />
+      {canEdit ? (
+        <AppButton
+          title={isEdit ? t('product.update') : t('product.add')}
+          onPress={handleSubmit(onSubmit, () => setError(t('common.fixErrors')))}
+          loading={loading}
+        />
+      ) : null}
       <ErrorMessage message={error} />
-      {isEdit && isAdmin && (
+      {isEdit && canEdit && (
         <AppButton title={t('product.delete')} variant="danger" onPress={() => setShowDelete(true)} style={{ marginTop: 8 }} />
       )}
       <ConfirmModal
@@ -417,6 +514,15 @@ export default function AddEditProductScreen({ route, navigation }) {
         onConfirm={onDelete}
         onCancel={() => setShowDelete(false)}
         loading={loading}
+      />
+      <AddStockModal
+        visible={addStockVisible}
+        productName={watch('name')}
+        defaultSupplierName={loadedSupplier?.name || supplierName}
+        defaultSupplierId={loadedSupplier?.id || selectedSupplier?.id}
+        onSubmit={handleAddStock}
+        onClose={() => setAddStockVisible(false)}
+        loading={addStockLoading}
       />
     </KeyboardFormView>
   );

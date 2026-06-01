@@ -10,7 +10,7 @@ export function formatReminderAmount(amount) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
-  return `Rs ${formatted}`;
+  return formatted;
 }
 
 export function formatReminderDate(date = new Date()) {

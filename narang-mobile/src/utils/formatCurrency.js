@@ -5,7 +5,7 @@ export const formatCurrency = (amount) => {
     minimumFractionDigits: hasDecimals ? 2 : 0,
     maximumFractionDigits: 2,
   });
-  return `PKR ${formatted}`;
+  return formatted;
 };
 
 /** Short label for chart axes (e.g. 1.2M, 45K) */

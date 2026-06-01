@@ -6,13 +6,11 @@ import { computeSupplierLedgerTotals } from '../../utils/supplierLedger';
 import { useTranslation } from '../../i18n/useTranslation';
 import { RECEIPT_GREEN } from '../invoice/thermalReceiptShared';
 
-export { RECEIPT_GREEN as PAYMENT_GREEN };
-
 export default function SupplierLedgerSummary({ suppliers }) {
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
-  const { youWillGive, youWillGet } = useMemo(
+  const { totalPurchases, totalPayments } = useMemo(
     () => computeSupplierLedgerTotals(suppliers),
     [suppliers]
   );
@@ -22,11 +20,11 @@ export default function SupplierLedgerSummary({ suppliers }) {
       <Card.Content style={{ paddingTop: 4, paddingBottom: 12 }}>
         <View style={{ flexDirection: 'row' }}>
           <View style={{ flex: 1, alignItems: 'center', paddingVertical: 4 }}>
-            <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.primary }}>
-              {formatCurrency(youWillGive)}
+            <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.error }}>
+              {formatCurrency(totalPurchases)}
             </Text>
             <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
-              {t('ledger.youWillGive')}
+              {t('supplier.col.purchase')}
             </Text>
           </View>
           <View
@@ -38,10 +36,10 @@ export default function SupplierLedgerSummary({ suppliers }) {
           />
           <View style={{ flex: 1, alignItems: 'center', paddingVertical: 4 }}>
             <Text variant="headlineSmall" style={{ fontWeight: '700', color: RECEIPT_GREEN }}>
-              {formatCurrency(youWillGet)}
+              {formatCurrency(totalPayments)}
             </Text>
             <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
-              {t('ledger.youWillGet')}
+              {t('supplier.col.payment')}
             </Text>
           </View>
         </View>
