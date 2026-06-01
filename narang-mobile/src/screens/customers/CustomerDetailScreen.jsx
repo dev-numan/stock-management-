@@ -26,6 +26,8 @@ import {
 } from '../../utils/sharePaymentReminder';
 import { useSalesStore } from '../../stores/salesStore';
 import { getIsOnline } from '../../stores/networkStore';
+import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const now = new Date();
 
@@ -57,6 +59,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [shopSettings, setShopSettings] = useState(null);
   const [reminderLoading, setReminderLoading] = useState(null);
   const reminderCaptureRef = useRef(null);
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
 
   const load = useCallback(async () => {
     try {
@@ -88,20 +92,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
       }
       setAdvanceEntries(entries);
 
-      const pending = useSalesStore
+      const merged = useSalesStore
         .getState()
-        .pendingSales.filter(
-          (s) =>
-            (s.customerId === customerId || s.customer?.id === customerId) &&
-            isDateInPeriod(s.createdAt, mode, year, month, day)
-        );
-
-      const merged = [...pending, ...apiSales].sort(
-        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-      );
+        .mergePendingForCustomer(apiSales, customerId)
+        .filter((s) => isDateInPeriod(s.createdAt, mode, year, month, day));
       setSales(merged);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not load customer.'));
+      setError(getFriendlyErrorMessage(err, t('customer.loadFailed')));
     } finally {
       setLoading(false);
     }
@@ -116,17 +113,15 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const totalSpent = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
   const creditSales = sales.filter((s) => s.paymentMethod === 'CREDIT');
   const creditTotal = creditSales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-  const advanceBalance = Number(customer?.advanceBalance || 0);
+  const advanceBalance = customer ? getEffectiveAdvanceBalance(customer) : 0;
   const isLocalCustomer = String(customerId).startsWith('local-');
-  const amountDue = Math.abs(advanceBalance);
-  const showPaymentReminders = advanceBalance < 0 && !isLocalCustomer;
-  const canSmsReminder = Boolean(customer?.phone?.trim());
+  const canSendMessages = !isLocalCustomer && Boolean(customer?.phone?.trim());
 
   useEffect(() => {
-    if (showPaymentReminders) {
+    if (canSendMessages) {
       getPaymentReminderShopSettings().then(setShopSettings);
     }
-  }, [showPaymentReminders]);
+  }, [canSendMessages]);
 
   const handleSendReminderSms = async () => {
     try {
@@ -134,11 +129,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setError(null);
       await sendPaymentReminderSms({
         customerPhone: customer.phone,
-        amountDue,
+        advanceBalance,
         shopSettings: { ...shopSettings, shopNameUrdu: APP_NAME_URDU },
       });
     } catch (err) {
-      setError(err.message || 'Could not open SMS');
+      setError(err.message || t('customer.smsFailed'));
     } finally {
       setReminderLoading(null);
     }
@@ -151,11 +146,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
       await sharePaymentReminderWhatsApp({
         captureViewRef: reminderCaptureRef,
         customerPhone: customer.phone,
-        amountDue,
+        advanceBalance,
         shopSettings: { ...shopSettings, shopNameUrdu: APP_NAME_URDU },
       });
     } catch (err) {
-      setError(err.message || 'Could not share reminder');
+      setError(err.message || t('customer.reminderFailed'));
     } finally {
       setReminderLoading(null);
     }
@@ -170,7 +165,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setAdvanceModalVisible(false);
       await load();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not record advance.'));
+      setError(getFriendlyErrorMessage(err, t('customer.advanceFailed')));
     } finally {
       setAdvanceSaving(false);
     }
@@ -222,7 +217,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       >
         <Card.Content>
         <Text variant="titleMedium" style={{ fontWeight: '700', color: advanceBalance < 0 ? theme.colors.error : theme.colors.primary }}>
-          Balance
+          {t('customer.balance')}
         </Text>
         <Text
           variant="headlineMedium"
@@ -236,28 +231,28 @@ export default function CustomerDetailScreen({ route, navigation }) {
         </Text>
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
           {advanceBalance >= 0
-            ? 'Prepaid by client, or zero. Credit sales reduce this amount.'
-            : 'Customer owes this amount (credit sales exceeded prepaid).'}
+            ? t('customer.balancePrepaidHint')
+            : t('customer.balanceOwesHint')}
         </Text>
         {!isLocalCustomer && getIsOnline() ? (
           <View style={{ marginTop: 12 }}>
             <AppButton
-              title="Add Credit Balance"
+              title={t('customer.addCreditBalance')}
               variant="outline"
               onPress={() => setAdvanceModalVisible(true)}
             />
           </View>
         ) : isLocalCustomer ? (
           <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 8 }}>
-            Sync customer before adding advance
+            {t('customer.syncBeforeAdvance')}
           </Text>
         ) : null}
-        {showPaymentReminders && canSmsReminder ? (
+        {canSendMessages ? (
           <View style={{ marginTop: 12 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ flex: 1 }}>
                 <AppButton
-                  title="Send SMS reminder"
+                  title={t('customer.sms')}
                   variant="outline"
                   loading={reminderLoading === 'sms'}
                   disabled={reminderLoading === 'whatsapp'}
@@ -266,7 +261,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
               </View>
               <View style={{ flex: 1 }}>
                 <AppButton
-                  title="WhatsApp reminder"
+                  title={t('customer.whatsapp')}
                   loading={reminderLoading === 'whatsapp'}
                   disabled={reminderLoading === 'sms'}
                   onPress={handleShareReminderWhatsApp}
@@ -274,19 +269,19 @@ export default function CustomerDetailScreen({ route, navigation }) {
               </View>
             </View>
           </View>
-        ) : showPaymentReminders ? (
+        ) : !isLocalCustomer ? (
           <Text variant="labelSmall" style={{ color: theme.colors.outline, marginTop: 8 }}>
-            Add customer phone to send reminders
+            {t('customer.addPhoneForReminders')}
           </Text>
         ) : null}
         </Card.Content>
       </Card>
 
-      {showPaymentReminders ? (
+      {canSendMessages ? (
         <View style={{ position: 'absolute', left: -2000, top: 0, opacity: 0 }} pointerEvents="none">
           <ViewShot ref={reminderCaptureRef} options={{ format: 'png', quality: 1 }}>
             <PaymentReminderCard
-              amountDue={amountDue}
+              advanceBalance={advanceBalance}
               shopNameUrdu={APP_NAME_URDU}
               shopPhone={shopSettings?.phone}
             />
@@ -296,26 +291,26 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
       <AppCard>
         <Text variant="headlineSmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>
-          {customer?.name || 'Customer'}
+          {customer?.name || t('customer.fallbackName')}
         </Text>
         {customer?._local ? (
           <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 4 }}>
-            Pending sync
+            {t('common.pendingSync')}
           </Text>
         ) : null}
         <View style={{ marginTop: 16 }}>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>Phone</Text>
+          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>{t('common.phone')}</Text>
           <Text variant="bodyLarge" style={{ fontWeight: '500' }}>
             {customer?.phone ? formatPhoneDisplay(customer.phone) : '—'}
           </Text>
         </View>
         <View style={{ marginTop: 12 }}>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>Address</Text>
+          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>{t('common.address')}</Text>
           <Text variant="bodyLarge">{customer?.address?.trim() || '—'}</Text>
         </View>
         {customer?.createdAt ? (
           <View style={{ marginTop: 12 }}>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>Customer since</Text>
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>{t('customer.since')}</Text>
             <Text variant="bodyLarge">{formatDate(customer.createdAt)}</Text>
           </View>
         ) : null}
@@ -324,7 +319,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
      
       {advanceEntries.length > 0 ? (
         <View style={{ marginTop: 16 }}>
-          <Text variant="titleLarge" style={{ fontWeight: '700', marginBottom: 8 }}>Advance payments</Text>
+          <Text variant="titleLarge" style={{ fontWeight: '700', marginBottom: 8, ...textDir }}>{t('customer.payments')}</Text>
           {advanceEntries.map((entry) => {
             const amt = Number(entry.amount);
             const isCharge = amt < 0;
@@ -356,7 +351,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
       {showSalesSkeleton ? (
         <>
-          <Text variant="titleLarge" style={{ fontWeight: '700', marginTop: 8, marginBottom: 8 }}>Sales history</Text>
+          <Text variant="titleLarge" style={{ fontWeight: '700', marginTop: 8, marginBottom: 8, ...textDir }}>{t('customer.salesHistory')}</Text>
           <PeriodFilter
             mode={mode}
             year={year}
@@ -366,15 +361,14 @@ export default function CustomerDetailScreen({ route, navigation }) {
             onYearChange={setYear}
             onMonthChange={setMonth}
             onDayChange={setDay}
-            summaryText="Loading sales..."
-            title="Filter by period"
+            summaryText={t('customer.loadingSales')}
           />
           <SummarySkeleton />
           <SaleListSkeleton count={4} />
         </>
       ) : (
         <>
-          <Text variant="titleLarge" style={{ fontWeight: '700', marginTop: 8, marginBottom: 8 }}>Sales history</Text>
+          <Text variant="titleLarge" style={{ fontWeight: '700', marginTop: 8, marginBottom: 8, ...textDir }}>{t('customer.salesHistory')}</Text>
           <PeriodFilter
             mode={mode}
             year={year}
@@ -384,22 +378,21 @@ export default function CustomerDetailScreen({ route, navigation }) {
             onYearChange={setYear}
             onMonthChange={setMonth}
             onDayChange={setDay}
-            summaryText={loading ? 'Loading sales...' : salesSummaryText}
-            title="Filter by period"
+            summaryText={loading ? t('customer.loadingSales') : salesSummaryText}
           />
 
           <AppCard>
-            <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>Summary</Text>
-            <Text variant="bodyLarge">Total sales: {sales.length}</Text>
-            <Text variant="bodyLarge">Total spent: {formatCurrency(totalSpent)}</Text>
-            <Text variant="bodyLarge" style={{ marginTop: 4 }}>
-              Credit: {creditSales.length} · {formatCurrency(creditTotal)}
+            <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8, ...textDir }}>{t('common.summary')}</Text>
+            <Text variant="bodyLarge" style={textDir}>{t('customer.totalSales')} {sales.length}</Text>
+            <Text variant="bodyLarge" style={textDir}>{t('customer.totalSpent')} {formatCurrency(totalSpent)}</Text>
+            <Text variant="bodyLarge" style={{ marginTop: 4, ...textDir }}>
+              {t('customer.creditSalesPeriod', { count: creditSales.length, total: formatCurrency(creditTotal) })}
             </Text>
             <Text
               variant="bodyLarge"
-              style={{ marginTop: 4, color: advanceBalance < 0 ? theme.colors.error : theme.colors.onSurface }}
+              style={{ marginTop: 4, color: advanceBalance < 0 ? theme.colors.error : theme.colors.onSurface, ...textDir }}
             >
-              Balance: {formatCurrency(advanceBalance)}
+              {t('customer.accountBalance')} {formatCurrency(advanceBalance)}
             </Text>
           </AppCard>
 
@@ -407,8 +400,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
             <EmptyState
               message={
                 mode === 'all'
-                  ? 'No sales for this customer yet'
-                  : 'No sales for this period'
+                  ? t('customer.noSales')
+                  : t('customer.noSalesPeriod')
               }
             />
           ) : (

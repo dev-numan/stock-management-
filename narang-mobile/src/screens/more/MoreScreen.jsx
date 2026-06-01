@@ -5,57 +5,76 @@ import { useAuth } from '../../context/AuthContext';
 import AppButton from '../../components/common/AppButton';
 import AppLogo from '../../components/common/AppLogo';
 import ScreenContainer from '../../components/common/ScreenContainer';
+import LanguageSettingsSection from '../../components/settings/LanguageSettingsSection';
 import { APP_NAME } from '../../constants/branding';
 import { backupPendingData } from '../../services/backupService';
 import { useSyncStore } from '../../stores/syncStore';
 import { useNetworkStore } from '../../stores/networkStore';
+import { useLanguageStore } from '../../stores/languageStore';
 
 const menuItems = [
-  { title: 'Profit', screen: 'Profit', icon: 'cash-plus', adminOnly: true },
-  { title: 'Reports', screen: 'Reports', icon: 'chart-bar', adminOnly: true },
-  { title: 'Customers', screen: 'Customers', icon: 'account-group' },
-  { title: 'Suppliers', screen: 'Suppliers', icon: 'store' },
-  { title: 'Expenses', screen: 'Expenses', icon: 'cash-minus' },
-  { title: 'Settings', screen: 'Settings', icon: 'cog', adminOnly: true },
+  { titleKey: 'more.profit', screen: 'Profit', icon: 'cash-plus', adminOnly: true },
+  { titleKey: 'more.reports', screen: 'Reports', icon: 'chart-bar', adminOnly: true },
+  { titleKey: 'more.customers', screen: 'Customers', icon: 'account-group' },
+  { titleKey: 'more.suppliers', screen: 'Suppliers', icon: 'store' },
+  { titleKey: 'more.expenses', screen: 'Expenses', icon: 'cash-minus' },
+  { titleKey: 'more.settings', screen: 'Settings', icon: 'cog', adminOnly: true },
 ];
 
 export default function MoreScreen({ navigation }) {
   const theme = useTheme();
   const { user, logout, isAdmin } = useAuth();
+  const t = useLanguageStore((s) => s.t);
+  const isRtl = useLanguageStore((s) => s.locale) === 'ur';
   const items = menuItems.filter((item) => !item.adminOnly || isAdmin);
   const pendingCount = useSyncStore((s) => s.queue.length);
   const isOnline = useNetworkStore((s) => s.isOnline);
   const [backingUp, setBackingUp] = useState(false);
+  const [showLanguage, setShowLanguage] = useState(false);
 
   const handleBackup = async () => {
     if (backingUp) return;
     if (!isOnline) {
-      Alert.alert('Offline', 'Connect to the internet to back up pending data.');
+      Alert.alert(t('backup.offlineTitle'), t('backup.offlineMessage'));
       return;
     }
     setBackingUp(true);
     try {
       const result = await backupPendingData();
       if (result.offline) {
-        Alert.alert('Offline', 'Connect to the internet to back up pending data.');
+        Alert.alert(t('backup.offlineTitle'), t('backup.offlineMessage'));
         return;
       }
       if (result.alreadySynced) {
-        Alert.alert('Already synced', 'All local changes are on the server.');
+        Alert.alert(t('backup.alreadySyncedTitle'), t('backup.alreadySyncedMessage'));
         return;
       }
       if (result.failed > 0) {
         Alert.alert(
-          'Backup incomplete',
-          `Uploaded ${result.synced} item(s). ${result.failed} could not sync — check stock or try again.`
+          t('backup.incompleteTitle'),
+          t('backup.incompleteMessage', { synced: result.synced, failed: result.failed })
         );
         return;
       }
-      Alert.alert('Backup complete', `Uploaded ${result.synced} pending change(s).`);
+      Alert.alert(t('backup.completeTitle'), t('backup.completeMessage', { count: result.synced }));
     } finally {
       setBackingUp(false);
     }
   };
+
+  if (showLanguage) {
+    return (
+      <ScreenContainer>
+        <List.Item
+          title={t('tabs.more')}
+          left={(props) => <List.Icon {...props} icon="arrow-left" />}
+          onPress={() => setShowLanguage(false)}
+          style={{ paddingVertical: 4, marginBottom: 8 }}
+        />
+        <LanguageSettingsSection />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -78,15 +97,25 @@ export default function MoreScreen({ navigation }) {
 
       <Card mode="elevated" style={{ borderRadius: theme.roundness }}>
         <List.Section>
+          <List.Item
+            title={t('more.language')}
+            left={(props) => <List.Icon {...props} icon="translate" color={theme.colors.primary} />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => setShowLanguage(true)}
+            style={{ paddingVertical: 4 }}
+            titleStyle={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}
+          />
+          <Divider />
           {items.map((item, index) => (
             <React.Fragment key={item.screen}>
               {index > 0 ? <Divider /> : null}
               <List.Item
-                title={item.title}
+                title={t(item.titleKey)}
                 left={(props) => <List.Icon {...props} icon={item.icon} color={theme.colors.primary} />}
                 right={(props) => <List.Icon {...props} icon="chevron-right" />}
                 onPress={() => navigation.navigate(item.screen)}
                 style={{ paddingVertical: 4 }}
+                titleStyle={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}
               />
             </React.Fragment>
           ))}
@@ -95,11 +124,11 @@ export default function MoreScreen({ navigation }) {
 
       <Card mode="elevated" style={{ marginTop: 16, borderRadius: theme.roundness }}>
         <List.Item
-          title="Backup data"
+          title={t('more.backupData')}
           description={
             pendingCount > 0
-              ? `${pendingCount} change(s) waiting to upload`
-              : 'Upload pending offline changes to the server'
+              ? t('more.backupPending', { count: pendingCount })
+              : t('more.backupDesc')
           }
           left={(props) => <List.Icon {...props} icon="cloud-upload" color={theme.colors.primary} />}
           right={() =>
@@ -108,11 +137,13 @@ export default function MoreScreen({ navigation }) {
           onPress={handleBackup}
           disabled={backingUp}
           style={{ paddingVertical: 4 }}
+          titleStyle={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}
+          descriptionStyle={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}
         />
       </Card>
 
       <View style={{ marginTop: 24, marginBottom: 16 }}>
-        <AppButton title="Logout" variant="danger" onPress={logout} icon="logout" />
+        <AppButton title={t('more.logout')} variant="danger" onPress={logout} icon="logout" />
       </View>
     </ScreenContainer>
   );

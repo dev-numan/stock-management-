@@ -68,7 +68,33 @@ export const useSalesStore = create(
       mergeWithPending: (apiSales, params) => {
         const pending = get().getPendingForRange(params.from, params.to);
         const apiIds = new Set(apiSales.map((s) => s.id));
-        const uniquePending = pending.filter((p) => !apiIds.has(p.id));
+        const apiClientRequestIds = new Set(
+          apiSales.map((s) => s.clientRequestId).filter(Boolean)
+        );
+        const uniquePending = pending.filter((p) => {
+          if (apiIds.has(p.id)) return false;
+          if (p.clientRequestId && apiClientRequestIds.has(p.clientRequestId)) return false;
+          return true;
+        });
+        return [...uniquePending, ...apiSales].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+      },
+
+      /** Merge API sales with pending for a customer (detail/history). */
+      mergePendingForCustomer: (apiSales, customerId) => {
+        const pending = get().pendingSales.filter(
+          (s) => s.customerId === customerId || s.customer?.id === customerId
+        );
+        const apiIds = new Set(apiSales.map((s) => s.id));
+        const apiClientRequestIds = new Set(
+          apiSales.map((s) => s.clientRequestId).filter(Boolean)
+        );
+        const uniquePending = pending.filter((p) => {
+          if (apiIds.has(p.id)) return false;
+          if (p.clientRequestId && apiClientRequestIds.has(p.clientRequestId)) return false;
+          return true;
+        });
         return [...uniquePending, ...apiSales].sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );

@@ -14,7 +14,14 @@ const supplierBody = [
   body('address').optional().trim(),
 ];
 
+const paymentBody = [
+  body('amount').isFloat({ min: 0.01 }).withMessage('Valid amount is required'),
+  body('notes').optional().trim(),
+];
+
 router.get('/', supplierController.getAllSuppliers);
+router.get('/:id/ledger', supplierController.getSupplierLedger);
+router.post('/:id/payments', paymentBody, validate, supplierController.addSupplierPayment);
 router.get('/:id', supplierController.getSupplierById);
 router.post('/', supplierBody, validate, supplierController.createSupplier);
 router.put('/:id', supplierBody, validate, supplierController.updateSupplier);

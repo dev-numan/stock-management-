@@ -22,9 +22,12 @@ import CustomerContactPickerModal from '../../components/sales/CustomerContactPi
 import { resolveContactToCustomer } from '../../services/customerContactService';
 import { formatPhoneDisplay } from '../../utils/phone';
 import { hasAlternateSale } from '../../utils/productUnits';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function NewSaleScreen({ navigation }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const cart = useCart();
   const isOnline = useNetworkStore((s) => s.isOnline);
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
@@ -64,7 +67,7 @@ export default function NewSaleScreen({ navigation }) {
     }
     const result = cart.addProduct(fresh);
     if (result === 'out_of_stock') {
-      setError(`${fresh.name} is out of stock`);
+      setError(t('sale.productOutOfStock', { name: fresh.name }));
     } else {
       setError(null);
     }
@@ -76,16 +79,16 @@ export default function NewSaleScreen({ navigation }) {
     }
     const fresh = resolveProduct(product);
     const added = cart.addItem(fresh, quantity, soldUnit);
-    if (!added) setError(`${fresh.name} is out of stock`);
+    if (!added) setError(t('sale.productOutOfStock', { name: fresh.name }));
     else setError(null);
     setUnitPicker(null);
   };
 
   useEffect(() => {
     if (cart.discount > cart.subtotal) {
-      setDiscountError('Discount cannot exceed subtotal');
+      setDiscountError(t('sale.discountExceedsSubtotal'));
     } else if (cart.discount < 0) {
-      setDiscountError('Discount cannot be negative');
+      setDiscountError(t('sale.discountNegative'));
     } else {
       setDiscountError(null);
     }
@@ -96,9 +99,9 @@ export default function NewSaleScreen({ navigation }) {
     const num = cleaned === '' ? 0 : Number(cleaned);
     cart.setDiscount(num);
     if (num > cart.subtotal) {
-      setDiscountError('Discount cannot exceed subtotal');
+      setDiscountError(t('sale.discountExceedsSubtotal'));
     } else if (num < 0) {
-      setDiscountError('Discount cannot be negative');
+      setDiscountError(t('sale.discountNegative'));
     } else {
       setDiscountError(null);
     }
@@ -145,7 +148,7 @@ export default function NewSaleScreen({ navigation }) {
       cart.clearCart();
       navigation.navigate('Invoice', { sale });
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not complete sale. Try again.'));
+      setError(getFriendlyErrorMessage(err, t('sale.completeFailed')));
     } finally {
       setLoading(false);
     }
@@ -157,14 +160,14 @@ export default function NewSaleScreen({ navigation }) {
       insideTab
       footer={
         <View style={{ paddingHorizontal: 16, paddingTop: 8, backgroundColor: theme.colors.background }}>
-          <AppButton title="Complete Sale" onPress={handleCheckout} loading={loading} />
+          <AppButton title={t('sale.completeSale')} onPress={handleCheckout} loading={loading} />
           <ErrorMessage message={error} />
         </View>
       }
     >
       {!isOnline ? (
         <Text variant="bodySmall" style={{ color: theme.colors.secondary, marginBottom: 8, textAlign: 'center' }}>
-          Offline — sale will sync when internet is back
+          {t('sale.offlineHint')}
         </Text>
       ) : null}
       <Button
@@ -177,10 +180,10 @@ export default function NewSaleScreen({ navigation }) {
           setModalVisible(true);
         }}
       >
-        Add Product
+        {t('sale.addProduct')}
       </Button>
-      <Text variant="labelLarge" style={{ marginBottom: 4 }}>
-        Customer {cart.paymentMethod === 'CREDIT' ? '*' : '(optional)'}
+      <Text variant="labelLarge" style={{ marginBottom: 4, ...textDir }}>
+        {cart.paymentMethod === 'CREDIT' ? t('sale.customerRequired') : t('sale.customerOptional')}
       </Text>
       <Card
         mode="outlined"
@@ -192,26 +195,26 @@ export default function NewSaleScreen({ navigation }) {
             variant="bodyLarge"
             style={{ color: cart.selectedCustomer ? theme.colors.onSurface : theme.colors.outline }}
           >
-            {cart.selectedCustomer ? cart.selectedCustomer.name : 'Tap to search customers'}
+            {cart.selectedCustomer ? cart.selectedCustomer.name : t('sale.tapSearchCustomers')}
           </Text>
         </Card.Content>
       </Card>
       {cart.selectedCustomer ? (
         <>
           <AppInput
-            label="Phone"
+            label={t('common.phone')}
             value={formatPhoneDisplay(cart.selectedCustomer.phone)}
             editable={false}
           />
           <AppInput
-            label="Address"
+            label={t('common.address')}
             value={cart.selectedCustomer.address || ''}
             onChangeText={cart.updateSelectedCustomerAddress}
-            placeholder="Add or edit address"
+            placeholder={t('sale.addressPlaceholder')}
             multiline
           />
           <Button compact mode="text" textColor={theme.colors.error} onPress={cart.clearSelectedCustomer} style={{ marginBottom: 12 }}>
-            Clear customer
+            {t('sale.clearCustomer')}
           </Button>
         </>
       ) : null}
@@ -231,7 +234,7 @@ export default function NewSaleScreen({ navigation }) {
         />
       ))}
       <AppInput
-        label="Discount (PKR)"
+        label={t('sale.discountLabel')}
         value={cart.discount === 0 ? '' : String(cart.discount)}
         onChangeText={handleDiscountChange}
         keyboardType="decimal-pad"
@@ -242,8 +245,8 @@ export default function NewSaleScreen({ navigation }) {
         value={cart.paymentMethod}
         onValueChange={cart.setPaymentMethod}
         buttons={[
-          { value: 'CASH', label: 'Cash', icon: 'cash' },
-          { value: 'CREDIT', label: 'Credit', icon: 'credit-card-outline' },
+          { value: 'CASH', label: t('payment.cash'), icon: 'cash' },
+          { value: 'CREDIT', label: t('payment.credit'), icon: 'credit-card-outline' },
         ]}
         style={{ marginBottom: 12 }}
       />
@@ -251,7 +254,7 @@ export default function NewSaleScreen({ navigation }) {
         <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness, backgroundColor: theme.colors.primaryContainer }}>
           <Card.Content>
             <Text variant="titleSmall" style={{ fontWeight: '600' }}>
-              Customer account balance
+              {t('sale.accountBalance')}
             </Text>
             <Text
               variant="headlineSmall"
@@ -264,7 +267,7 @@ export default function NewSaleScreen({ navigation }) {
               {formatCurrency(accountBalance)}
             </Text>
             <Text variant="bodySmall" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-              After this sale:{' '}
+              {t('sale.afterThisSale')}{' '}
               <Text
                 style={{
                   fontWeight: '600',
@@ -280,16 +283,16 @@ export default function NewSaleScreen({ navigation }) {
       <Card mode="elevated" style={{ marginBottom: 16, borderRadius: theme.roundness }}>
         <Card.Content>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text variant="bodyLarge">Subtotal</Text>
+            <Text variant="bodyLarge">{t('invoice.subtotal')}</Text>
             <Text variant="bodyLarge">{formatCurrency(cart.subtotal)}</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-            <Text variant="bodyLarge">Discount</Text>
+            <Text variant="bodyLarge">{t('invoice.discount')}</Text>
             <Text variant="bodyLarge">-{formatCurrency(cart.discount)}</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
             <Text variant="titleLarge" style={{ fontWeight: '700' }}>
-              Total
+              {t('invoice.total')}
             </Text>
             <Text variant="titleLarge" style={{ fontWeight: '700', color: theme.colors.primary }}>
               {formatCurrency(cart.total)}
@@ -315,7 +318,7 @@ export default function NewSaleScreen({ navigation }) {
           cart.setSelectedCustomer(customer);
           setCustomerPickerVisible(false);
         } catch (err) {
-          setError(getFriendlyErrorMessage(err, 'Could not add customer.'));
+          setError(getFriendlyErrorMessage(err, t('customer.addFailed')));
         } finally {
           setResolvingCustomer(false);
         }
@@ -331,7 +334,7 @@ export default function NewSaleScreen({ navigation }) {
       product={unitPicker?.product}
       initialSoldUnit={unitPicker?.initialSoldUnit}
       initialQuantity={unitPicker?.initialQuantity}
-      confirmLabel={unitPicker?.replaceLineKey ? 'Update' : 'Add to cart'}
+      confirmLabel={unitPicker?.replaceLineKey ? t('unitPicker.update') : t('unitPicker.addToCart')}
       onClose={() => setUnitPicker(null)}
       onConfirm={handleUnitPickerConfirm}
     />

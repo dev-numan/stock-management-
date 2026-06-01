@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
 import { Card, Text, Divider, useTheme } from 'react-native-paper';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function InventoryStatCard({
   lowStockCount,
@@ -9,6 +10,8 @@ export default function InventoryStatCard({
   onProductsPress,
 }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
 
   return (
     <View style={{ flex: 1, alignSelf: 'stretch', height: '100%' }}>
@@ -25,8 +28,8 @@ export default function InventoryStatCard({
       >
         <Card.Content style={{ flex: 1, justifyContent: 'space-between', paddingVertical: 12 }}>
           <Pressable onPress={onLowStockPress} style={{ flex: 1, justifyContent: 'center', paddingVertical: 2 }}>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-              Low Stock
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('inventory.lowStock')}
             </Text>
             <Text variant="titleLarge" style={{ fontWeight: '700', marginTop: 2, color: theme.colors.error }}>
               {String(lowStockCount ?? 0)}
@@ -34,11 +37,11 @@ export default function InventoryStatCard({
           </Pressable>
           <Divider />
           <Pressable onPress={onProductsPress} style={{ flex: 1, justifyContent: 'center', paddingVertical: 2 }}>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-              Products
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('inventory.products')}
             </Text>
-            <Text variant="titleMedium" style={{ fontWeight: '700', marginTop: 2 }}>
-              {String(totalProducts ?? 0)} total
+            <Text variant="titleMedium" style={{ fontWeight: '700', marginTop: 2, ...textDir }}>
+              {t('inventory.productsTotal', { count: totalProducts ?? 0 })}
             </Text>
           </Pressable>
         </Card.Content>

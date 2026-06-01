@@ -6,6 +6,7 @@ export const getAllPurchases = asyncHandler(async (req, res) => {
   const purchases = await purchaseService.getAllPurchases({
     from: req.query.from,
     to: req.query.to,
+    supplierId: req.query.supplierId,
   });
   return res.json(new ApiResponse(200, purchases, 'Purchases fetched'));
 });

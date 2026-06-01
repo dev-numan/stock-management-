@@ -4,6 +4,7 @@ import { TextInput, HelperText, Button, useTheme } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { formatDate } from '../../utils/formatDate';
+import { useTranslation } from '../../i18n/useTranslation';
 
 function parseDateValue(value) {
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -25,15 +26,17 @@ export default function DatePickerField({
   onChange,
   onBlur,
   error,
-  placeholder = 'Tap to select date',
+  placeholder,
   minimumDate,
   maximumDate,
   clearable = false,
   editable = true,
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [showPicker, setShowPicker] = useState(false);
   const pickerDate = parseDateValue(value);
+  const resolvedPlaceholder = placeholder ?? t('date.tapToSelect');
 
   const closePicker = () => {
     setShowPicker(false);
@@ -69,7 +72,7 @@ export default function DatePickerField({
             mode="outlined"
             label={label}
             value={value ? formatDate(value) : ''}
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             editable={false}
             error={!!error}
             right={<TextInput.Icon icon="calendar-month" onPress={openPicker} />}

@@ -12,9 +12,11 @@ import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function LoginScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { login } = useAuth();
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +33,7 @@ export default function LoginScreen() {
       setError(null);
       await login(data.email, data.password);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not sign in. Check your email and password.'));
+      setError(getFriendlyErrorMessage(err, t('login.failed')));
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,7 @@ export default function LoginScreen() {
             name="email"
             render={({ field: { onChange, value } }) => (
               <AppInput
-                label="Email"
+                label={t('login.email')}
                 value={value}
                 onChangeText={onChange}
                 error={errors.email?.message}
@@ -68,7 +70,7 @@ export default function LoginScreen() {
             name="password"
             render={({ field: { onChange, value } }) => (
               <AppInput
-                label="Password"
+                label={t('login.password')}
                 value={value}
                 onChangeText={onChange}
                 secureTextEntry
@@ -77,8 +79,8 @@ export default function LoginScreen() {
             )}
           />
           <AppButton
-            title="Login"
-            onPress={handleSubmit(onSubmit, () => setError('Please fix the errors above'))}
+            title={t('login.submit')}
+            onPress={handleSubmit(onSubmit, () => setError(t('common.fixErrors')))}
             loading={loading}
             icon="login"
           />

@@ -49,13 +49,26 @@ model Settings {
 }
 
 model Supplier {
-  id        String     @id @default(uuid())
+  id        String            @id @default(uuid())
   name      String
   phone     String?
   address   String?
-  createdAt DateTime   @default(now())
+  createdAt DateTime          @default(now())
   products  Product[]
   purchases Purchase[]
+  payments  SupplierPayment[]
+}
+
+/** Cash paid to supplier (reduces payable balance). */
+model SupplierPayment {
+  id         String   @id @default(uuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  amount     Decimal
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([supplierId])
 }
 
 model Customer {

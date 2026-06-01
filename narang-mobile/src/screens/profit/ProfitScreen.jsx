@@ -11,20 +11,23 @@ import AppCard from '../../components/common/AppCard';
 import { ReportCardsSkeleton } from '../../components/common/Skeleton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import PeriodFilter from '../../components/common/PeriodFilter';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const now = new Date();
 const CHART_HEIGHT = 180;
 const H_PADDING = 48;
 
-const breakdownTitle = (mode) => {
-  if (mode === 'month') return 'Day by day';
-  if (mode === 'year') return 'Month by month';
-  if (mode === 'all') return 'Year by year';
-  return null;
-};
-
 export default function ProfitScreen() {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+
+  const breakdownTitle = (mode) => {
+    if (mode === 'month') return t('profit.breakdownDay');
+    if (mode === 'year') return t('profit.breakdownMonth');
+    if (mode === 'all') return t('profit.breakdownYear');
+    return null;
+  };
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,11 +44,11 @@ export default function ProfitScreen() {
       setReport(data.data);
     } catch (err) {
       setReport(null);
-      setError(getFriendlyErrorMessage(err, 'Could not load profit report.'));
+      setError(getFriendlyErrorMessage(err, t('profit.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [mode, year, month, day]);
+  }, [mode, year, month, day, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,8 +72,8 @@ export default function ProfitScreen() {
   }));
 
   const summaryText = showSkeleton
-    ? 'Loading profit...'
-    : `${periodLabel} · Net ${formatCurrency(summary?.netProfit)}`;
+    ? t('profit.loading')
+    : t('profit.summary', { period: periodLabel, amount: formatCurrency(summary?.netProfit) });
 
   return (
     <ScrollView
@@ -97,15 +100,15 @@ export default function ProfitScreen() {
         <>
           <AppCard>
             <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4 }}>
-              Profit summary
+              {t('profit.summaryTitle')}
             </Text>
             <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
               {periodLabel}
             </Text>
-            <Text variant="bodyLarge">Revenue: {formatCurrency(summary?.revenue)}</Text>
-            <Text variant="bodyLarge">COGS: {formatCurrency(summary?.cogs)}</Text>
-            <Text variant="bodyLarge">Gross profit: {formatCurrency(summary?.grossProfit)}</Text>
-            <Text variant="bodyLarge">Expenses: {formatCurrency(summary?.expenses)}</Text>
+            <Text variant="bodyLarge" style={textDir}>{t('profit.revenue')} {formatCurrency(summary?.revenue)}</Text>
+            <Text variant="bodyLarge" style={textDir}>{t('profit.cogs')} {formatCurrency(summary?.cogs)}</Text>
+            <Text variant="bodyLarge" style={textDir}>{t('profit.grossProfit')} {formatCurrency(summary?.grossProfit)}</Text>
+            <Text variant="bodyLarge" style={textDir}>{t('profit.expenses')} {formatCurrency(summary?.expenses)}</Text>
             <Divider style={{ marginVertical: 12 }} />
             <Text
               variant="titleLarge"
@@ -114,7 +117,7 @@ export default function ProfitScreen() {
                 fontWeight: '700',
               }}
             >
-              Net profit: {formatCurrency(summary?.netProfit)}
+              {t('profit.netProfit')} {formatCurrency(summary?.netProfit)}
             </Text>
           </AppCard>
 
@@ -133,7 +136,7 @@ export default function ProfitScreen() {
                 </View>
               ) : values.every((v) => v === 0) ? (
                 <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', paddingVertical: 16 }}>
-                  No profit data in this period
+                  {t('profit.emptyChart')}
                 </Text>
               ) : (
                 <View style={{ alignItems: 'center', marginBottom: 16, overflow: 'hidden' }}>
@@ -185,7 +188,10 @@ export default function ProfitScreen() {
                     </Text>
                   </View>
                   <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                    Revenue {formatCurrency(row.revenue)} · Expenses {formatCurrency(row.expenses)}
+                    {t('profit.breakdownRow', {
+                      revenue: formatCurrency(row.revenue),
+                      expenses: formatCurrency(row.expenses),
+                    })}
                   </Text>
                 </View>
               ))}

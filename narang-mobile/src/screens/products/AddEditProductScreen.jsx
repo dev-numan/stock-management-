@@ -22,9 +22,22 @@ import {
 } from '../../utils/validation';
 import { getAllowedAlternateUnits, getUnitPrice } from '../../utils/productUnits';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { useTranslation } from '../../i18n/useTranslation';
+
+const categoryKey = (cat) => {
+  const slug = String(cat).toLowerCase().replace(/\s+/g, '');
+  const map = {
+    fertilizers: 'product.category.fertilizers',
+    pesticides: 'product.category.pesticides',
+    seeds: 'product.category.seeds',
+    other: 'product.category.other',
+  };
+  return map[slug] || null;
+};
 
 export default function AddEditProductScreen({ route, navigation }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const initialProduct = route.params?.product;
   const [productId, setProductId] = useState(initialProduct?.id ?? null);
   const isEdit = Boolean(productId);
@@ -92,7 +105,7 @@ export default function AddEditProductScreen({ route, navigation }) {
         setValue('expiryDate', p.expiryDate ? new Date(p.expiryDate).toISOString().slice(0, 10) : '');
       })
       .catch(() => {
-        if (!cancelled) setError('Could not load product');
+        if (!cancelled) setError(t('product.loadFailed'));
       })
       .finally(() => {
         if (!cancelled) setProductLoading(false);
@@ -154,7 +167,7 @@ export default function AddEditProductScreen({ route, navigation }) {
       }
       navigation.goBack();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not save product.'));
+      setError(getFriendlyErrorMessage(err, t('product.saveFailed')));
     } finally {
       setLoading(false);
     }
@@ -162,7 +175,7 @@ export default function AddEditProductScreen({ route, navigation }) {
 
   const onDelete = async () => {
     if (!productId) {
-      setError('Product ID is missing. Go back and open the product again.');
+      setError(t('product.missingId'));
       setShowDelete(false);
       return;
     }
@@ -172,7 +185,7 @@ export default function AddEditProductScreen({ route, navigation }) {
       await deleteProduct(productId);
       navigation.goBack();
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not delete product.'));
+      setError(getFriendlyErrorMessage(err, t('product.deleteFailed')));
     } finally {
       setLoading(false);
       setShowDelete(false);
@@ -187,7 +200,7 @@ export default function AddEditProductScreen({ route, navigation }) {
     return (
       <KeyboardFormView insideTab>
         <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', paddingVertical: 32 }}>
-          Loading product...
+          {t('product.loading')}
         </Text>
       </KeyboardFormView>
     );
@@ -199,10 +212,10 @@ export default function AddEditProductScreen({ route, navigation }) {
         control={control}
         name="name"
         render={({ field: { onChange, onBlur, value } }) => (
-          <AppInput label="Product Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.name?.message} />
+          <AppInput label={t('product.nameLabel')} value={value} onChangeText={onChange} onBlur={onBlur} error={errors.name?.message} />
         )}
       />
-      <Text variant="labelLarge" style={{ marginBottom: 8 }}>Category *</Text>
+      <Text variant="labelLarge" style={{ marginBottom: 8 }}>{t('product.categoryLabel')}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
         {PRODUCT_CATEGORIES.map((cat) => {
           const selected = selectedCategory === cat;
@@ -221,7 +234,7 @@ export default function AddEditProductScreen({ route, navigation }) {
       {errors.category ? (
         <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>{errors.category.message}</Text>
       ) : null}
-      <Text variant="labelLarge" style={{ marginBottom: 8 }}>Unit *</Text>
+      <Text variant="labelLarge" style={{ marginBottom: 8 }}>{t('product.unitLabel')}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
         {PRODUCT_UNITS.map((u) => {
           const selected = selectedUnit === u;
@@ -243,7 +256,7 @@ export default function AddEditProductScreen({ route, navigation }) {
       {allowedAlternateUnits.length > 0 ? (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text variant="labelLarge">Also sell by alternate unit</Text>
+            <Text variant="labelLarge">{t('product.alternateUnitToggle')}</Text>
             <Controller
               control={control}
               name="sellByAlternate"
@@ -320,7 +333,7 @@ export default function AddEditProductScreen({ route, navigation }) {
         name="costPrice"
         render={({ field: { onChange, onBlur, value } }) => (
           <AppInput
-            label="Cost Price (PKR) *"
+            label={t('product.costPrice')}
             value={value}
             onChangeText={(t) => onChange(sanitizeAmountInput(t))}
             onBlur={onBlur}
@@ -334,7 +347,7 @@ export default function AddEditProductScreen({ route, navigation }) {
         name="salePrice"
         render={({ field: { onChange, onBlur, value } }) => (
           <AppInput
-            label="Sale Price (PKR) *"
+            label={t('product.salePrice')}
             value={value}
             onChangeText={(t) => onChange(sanitizeAmountInput(t))}
             onBlur={onBlur}
@@ -348,7 +361,7 @@ export default function AddEditProductScreen({ route, navigation }) {
         name="currentStock"
         render={({ field: { onChange, onBlur, value } }) => (
           <AppInput
-            label="Current Stock *"
+            label={t('product.currentStock')}
             value={value}
             onChangeText={(t) => onChange(sanitizeAmountInput(t))}
             onBlur={onBlur}
@@ -378,29 +391,29 @@ export default function AddEditProductScreen({ route, navigation }) {
         name="expiryDate"
         render={({ field: { onChange, onBlur, value } }) => (
           <DatePickerField
-            label="Expiry Date (optional)"
+            label={t('product.expiryLabel')}
             value={value || ''}
             onChange={onChange}
             onBlur={onBlur}
-            placeholder="Tap to pick expiry date"
+            placeholder={t('product.expiryPlaceholder')}
             error={errors.expiryDate?.message}
             clearable
           />
         )}
       />
       <AppButton
-        title={isEdit ? 'Update Product' : 'Add Product'}
-        onPress={handleSubmit(onSubmit, () => setError('Please fix the errors above'))}
+        title={isEdit ? t('product.update') : t('product.add')}
+        onPress={handleSubmit(onSubmit, () => setError(t('common.fixErrors')))}
         loading={loading}
       />
       <ErrorMessage message={error} />
       {isEdit && isAdmin && (
-        <AppButton title="Delete Product" variant="danger" onPress={() => setShowDelete(true)} style={{ marginTop: 8 }} />
+        <AppButton title={t('product.delete')} variant="danger" onPress={() => setShowDelete(true)} style={{ marginTop: 8 }} />
       )}
       <ConfirmModal
         visible={showDelete}
-        title="Delete Product"
-        message="This cannot be undone. The product will be removed from stock."
+        title={t('product.deleteConfirmTitle')}
+        message={t('product.deleteConfirmMessage')}
         onConfirm={onDelete}
         onCancel={() => setShowDelete(false)}
         loading={loading}

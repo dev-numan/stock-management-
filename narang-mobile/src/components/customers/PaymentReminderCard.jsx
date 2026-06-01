@@ -1,11 +1,39 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { APP_NAME_URDU } from '../../constants/branding';
-import { formatReminderAmount, formatReminderDate } from '../../utils/paymentReminder';
+import {
+  formatReminderAmount,
+  formatReminderDate,
+  getReminderBalanceType,
+  getReminderDisplayAmount,
+} from '../../utils/paymentReminder';
 import { formatPhoneDisplay } from '../../utils/phone';
 
-export default function PaymentReminderCard({ amountDue, shopNameUrdu, shopPhone, date }) {
-  const amount = formatReminderAmount(amountDue);
+const CARD_COPY = {
+  owes: {
+    title: 'پیمنٹ ریمائنڈر',
+    amountColor: '#DC2626',
+    body: (amount) =>
+      `جناب،\nبیلنس ${amount} آپ کے لیجر میں واجب الادا ہے۔\nبراہِ کرم جلد از جلد ادائیگی کر دیں۔\nآپ کے تعاون کا شکریہ۔`,
+  },
+  prepaid: {
+    title: 'اکاؤنٹ بیلنس',
+    amountColor: '#2E7D32',
+    body: (amount) =>
+      `جناب،\nبیلنس ${amount} آپ کے لیجر میں جمع (ایڈوانس) ہے۔\nیہ رقم آپ کی اگلی خریداری پر استعمال ہو سکتی ہے۔\nآپ کے اعتماد کا شکریہ۔`,
+  },
+  zero: {
+    title: 'اکاؤنٹ سٹیٹمنٹ',
+    amountColor: '#6B7280',
+    body: () =>
+      `جناب،\nآپ کا لیجر بیلنس فی الحال صفر ہے۔\nآپ کے تعاون کا شکریہ۔`,
+  },
+};
+
+export default function PaymentReminderCard({ advanceBalance, shopNameUrdu, shopPhone, date }) {
+  const type = getReminderBalanceType(advanceBalance);
+  const copy = CARD_COPY[type];
+  const amount = formatReminderAmount(getReminderDisplayAmount(advanceBalance));
   const shop = shopNameUrdu || APP_NAME_URDU;
   const phone = shopPhone ? formatPhoneDisplay(shopPhone) : '';
   const displayDate = formatReminderDate(date);
@@ -30,22 +58,24 @@ export default function PaymentReminderCard({ amountDue, shopNameUrdu, shopPhone
           writingDirection: 'rtl',
         }}
       >
-        پیمنٹ ریمائنڈر
+        {copy.title}
       </Text>
 
-      <Text
-        style={{
-          fontSize: 34,
-          fontWeight: '800',
-          color: '#DC2626',
-          marginTop: 20,
-          textAlign: 'center',
-        }}
-      >
-        {amount}
-      </Text>
+      {type !== 'zero' ? (
+        <Text
+          style={{
+            fontSize: 34,
+            fontWeight: '800',
+            color: copy.amountColor,
+            marginTop: 20,
+            textAlign: 'center',
+          }}
+        >
+          {amount}
+        </Text>
+      ) : null}
 
-      <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 8, textAlign: 'center' }}>
+      <Text style={{ fontSize: 15, color: '#6B7280', marginTop: type === 'zero' ? 20 : 8, textAlign: 'center' }}>
         {displayDate}
       </Text>
 
@@ -78,9 +108,7 @@ export default function PaymentReminderCard({ amountDue, shopNameUrdu, shopPhone
             writingDirection: 'rtl',
           }}
         >
-          جناب،{'\n'}
-          بیلنس {amount} آپ کے لیجر میں واجب الادا ہیں۔۔{'\n'}
-          آپ کے تعاون کا شکریہ۔
+          {copy.body(amount)}
         </Text>
       </View>
     </View>

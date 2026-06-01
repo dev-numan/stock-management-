@@ -12,11 +12,14 @@ import { ReportCardsSkeleton } from '../../components/common/Skeleton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import PeriodFilter from '../../components/common/PeriodFilter';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const now = new Date();
 
 export default function ReportsScreen() {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [summary, setSummary] = useState(null);
   const [profitLoss, setProfitLoss] = useState(null);
   const [stock, setStock] = useState(null);
@@ -32,6 +35,9 @@ export default function ReportsScreen() {
     try {
       setLoading(true);
       setError(null);
+      setSummary(null);
+      setProfitLoss(null);
+      setStock(null);
       const params = getPeriodQueryParams(mode, year, month, day);
       const [s, p, st] = await Promise.all([
         getSalesSummary(params),
@@ -42,11 +48,11 @@ export default function ReportsScreen() {
       setProfitLoss(p.data.data);
       setStock(st.data.data);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not load reports.'));
+      setError(getFriendlyErrorMessage(err, t('reports.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [mode, year, month, day]);
+  }, [mode, year, month, day, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -63,7 +69,7 @@ export default function ReportsScreen() {
       setError(null);
       await exportReportPdf({ summary, profitLoss, stock, periodLabel });
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not export PDF.'));
+      setError(getFriendlyErrorMessage(err, t('reports.exportFailed')));
     } finally {
       setExporting(false);
     }
@@ -78,7 +84,7 @@ export default function ReportsScreen() {
       refreshControl={<RefreshControl refreshing={loading} onRefresh={loadReports} />}
     >
       <Text variant="headlineSmall" style={{ fontWeight: '700', marginBottom: 12 }}>
-        Reports
+        {t('reports.title')}
       </Text>
       <PeriodFilter
         mode={mode}
@@ -89,7 +95,7 @@ export default function ReportsScreen() {
         onYearChange={setYear}
         onMonthChange={setMonth}
         onDayChange={setDay}
-        summaryText={showSkeleton ? 'Loading reports...' : `Showing: ${periodLabel}`}
+        summaryText={showSkeleton ? t('reports.loading') : t('reports.showing', { period: periodLabel })}
       />
       <ErrorMessage message={error} />
       {showSkeleton ? (
@@ -97,32 +103,32 @@ export default function ReportsScreen() {
       ) : (
         <>
       <AppCard>
-        <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4 }}>Sales Summary</Text>
+        <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4, ...textDir }}>{t('reports.salesSummary')}</Text>
         <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>{periodLabel}</Text>
-        <Text variant="bodyLarge">Total Sales: {formatCurrency(summary?.totalSales)}</Text>
-        <Text variant="bodyLarge">Count: {summary?.salesCount ?? 0}</Text>
-        <Text variant="bodyLarge">Cash: {formatCurrency(summary?.cashSales)}</Text>
-        <Text variant="bodyLarge">Credit: {formatCurrency(summary?.creditSales)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.totalSales')} {formatCurrency(summary?.totalSales)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.count')} {summary?.salesCount ?? 0}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.cash')} {formatCurrency(summary?.cashSales)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.credit')} {formatCurrency(summary?.creditSales)}</Text>
       </AppCard>
       <AppCard>
-        <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4 }}>Profit & Loss</Text>
+        <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4, ...textDir }}>{t('reports.profitLoss')}</Text>
         <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>{periodLabel}</Text>
-        <Text variant="bodyLarge">Revenue: {formatCurrency(profitLoss?.revenue)}</Text>
-        <Text variant="bodyLarge">COGS: {formatCurrency(profitLoss?.cogs)}</Text>
-        <Text variant="bodyLarge">Gross Profit: {formatCurrency(profitLoss?.grossProfit)}</Text>
-        <Text variant="bodyLarge">Expenses: {formatCurrency(profitLoss?.expenses)}</Text>
-        <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginTop: 4 }}>
-          Net Profit: {formatCurrency(profitLoss?.netProfit)}
+        <Text variant="bodyLarge" style={textDir}>{t('reports.revenue')} {formatCurrency(profitLoss?.revenue)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('profit.cogs')} {formatCurrency(profitLoss?.cogs)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.grossProfit')} {formatCurrency(profitLoss?.grossProfit)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('profit.expenses')} {formatCurrency(profitLoss?.expenses)}</Text>
+        <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700', marginTop: 4, ...textDir }}>
+          {t('reports.netProfit')} {formatCurrency(profitLoss?.netProfit)}
         </Text>
       </AppCard>
       <AppCard>
-        <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4 }}>Stock Valuation</Text>
-        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>Current stock (not filtered by date)</Text>
-        <Text variant="bodyLarge">Cost Value: {formatCurrency(stock?.totalCostValue)}</Text>
-        <Text variant="bodyLarge">Sale Value: {formatCurrency(stock?.totalSaleValue)}</Text>
+        <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4, ...textDir }}>{t('reports.stockValuation')}</Text>
+        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8, ...textDir }}>{t('reports.stockNote')}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.costValue')} {formatCurrency(stock?.totalCostValue)}</Text>
+        <Text variant="bodyLarge" style={textDir}>{t('reports.saleValue')} {formatCurrency(stock?.totalSaleValue)}</Text>
       </AppCard>
       <AppButton
-        title="Save & export PDF"
+        title={t('reports.exportPdf')}
         onPress={handleExportPdf}
         loading={exporting}
         disabled={!summary || loading}

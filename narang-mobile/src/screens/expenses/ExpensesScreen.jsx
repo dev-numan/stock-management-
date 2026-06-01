@@ -15,9 +15,11 @@ import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate } from '../../utils/formatDate';
 import { expenseSchema, sanitizeAmountInput } from '../../utils/validation';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function ExpensesScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,9 +34,17 @@ export default function ExpensesScreen() {
   });
 
   const fetch = async () => {
-    const { data } = await getExpenses({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
-    setExpenses(data.data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      setApiError(null);
+      const { data } = await getExpenses({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+      setExpenses(data.data || []);
+    } catch (err) {
+      setApiError(getFriendlyErrorMessage(err, t('expense.loadFailed')));
+      setExpenses([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useFocusEffect(useCallback(() => { fetch(); }, []));
@@ -47,7 +57,7 @@ export default function ExpensesScreen() {
       reset({ title: '', amount: '', category: '', date: '', notes: '' });
       fetch();
     } catch (err) {
-      setApiError(getFriendlyErrorMessage(err, 'Could not add expense.'));
+      setApiError(getFriendlyErrorMessage(err, t('expense.addFailed')));
     } finally {
       setSaving(false);
     }
@@ -58,24 +68,24 @@ export default function ExpensesScreen() {
   return (
     <KeyboardFormView insideTab>
       <Controller control={control} name="title" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Title *" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.title?.message} />
+        <AppInput label={t('expense.title')} value={value} onChangeText={onChange} onBlur={onBlur} error={errors.title?.message} />
       )} />
       <Controller control={control} name="amount" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Amount (PKR) *" value={value} onChangeText={(t) => onChange(sanitizeAmountInput(t))} onBlur={onBlur} keyboardType="decimal-pad" error={errors.amount?.message} />
+        <AppInput label={t('expense.amount')} value={value} onChangeText={(text) => onChange(sanitizeAmountInput(text))} onBlur={onBlur} keyboardType="decimal-pad" error={errors.amount?.message} />
       )} />
       <Controller control={control} name="category" render={({ field: { onChange, onBlur, value } }) => (
         <AppInput
-          label="Category *"
+          label={t('expense.category')}
           value={value}
           onChangeText={onChange}
           onBlur={onBlur}
-          placeholder="General"
+          placeholder={t('expense.categoryPlaceholder')}
           error={errors.category?.message}
         />
       )} />
       <Controller control={control} name="date" render={({ field: { onChange, onBlur, value } }) => (
         <AppInput
-          label="Date (YYYY-MM-DD) *"
+          label={t('expense.date')}
           value={value}
           onChangeText={onChange}
           onBlur={onBlur}
@@ -84,16 +94,16 @@ export default function ExpensesScreen() {
         />
       )} />
       <Controller control={control} name="notes" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Notes" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.notes?.message} />
+        <AppInput label={t('common.notes')} value={value} onChangeText={onChange} onBlur={onBlur} error={errors.notes?.message} />
       )} />
       <AppButton
-        title="Add Expense"
-        onPress={handleSubmit(onSubmit, () => setApiError('Please fix the errors above'))}
+        title={t('expense.add')}
+        onPress={handleSubmit(onSubmit, () => setApiError(t('common.fixErrors')))}
         loading={saving}
       />
       <ErrorMessage message={apiError} />
       {expenses.length === 0 ? (
-        <EmptyState message="No expenses this month" />
+        <EmptyState message={t('expense.empty')} />
       ) : (
         expenses.map((item) => (
           <Card key={item.id} mode="elevated" style={{ marginBottom: 8, marginTop: 8, borderRadius: theme.roundness }}>

@@ -9,7 +9,15 @@ export const getCreditSales = async () => {
     orderBy: { createdAt: 'desc' },
   });
 
-  const totalOutstanding = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
+  /** Net amount customers owe (negative advanceBalance), not sum of all credit sales. */
+  const owingCustomers = await db.customer.findMany({
+    where: { advanceBalance: { lt: 0 } },
+    select: { advanceBalance: true },
+  });
+  const totalOutstanding = owingCustomers.reduce(
+    (sum, c) => sum + Math.abs(Number(c.advanceBalance)),
+    0
+  );
 
   return {
     totalOutstanding,

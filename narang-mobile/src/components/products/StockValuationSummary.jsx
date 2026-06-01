@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export function computeStockTotals(products) {
   let totalCostValue = 0;
@@ -18,12 +19,13 @@ export function computeStockTotals(products) {
 
 function ValueColumn({ label, value, valueColor }) {
   const theme = useTheme();
+  const { isRtl } = useTranslation();
 
   return (
     <View style={{ flex: 1, minWidth: 0 }}>
       <Text
         variant="labelMedium"
-        style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
+        style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6, writingDirection: isRtl ? 'rtl' : 'ltr' }}
       >
         {label}
       </Text>
@@ -42,6 +44,7 @@ function ValueColumn({ label, value, valueColor }) {
 
 export default function StockValuationSummary({ products }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
   const { totalCostValue, totalSaleValue } = useMemo(
     () => computeStockTotals(products),
     [products]
@@ -52,14 +55,14 @@ export default function StockValuationSummary({ products }) {
       <Card.Content style={{ paddingVertical: 12 }}>
         <Text
           variant="titleSmall"
-          style={{ fontWeight: '600', marginBottom: 12, color: theme.colors.onSurface }}
+          style={{ fontWeight: '600', marginBottom: 12, color: theme.colors.onSurface, writingDirection: isRtl ? 'rtl' : 'ltr' }}
         >
-          Inventory value
+          {t('inventory.valueTitle')}
         </Text>
         <View style={{ flexDirection: 'row', gap: 16 }}>
-          <ValueColumn label="Total stock cost value" value={formatCurrency(totalCostValue)} />
+          <ValueColumn label={t('inventory.totalCost')} value={formatCurrency(totalCostValue)} />
           <ValueColumn
-            label="Total stock sale value"
+            label={t('inventory.totalSale')}
             value={formatCurrency(totalSaleValue)}
             valueColor={theme.colors.primary}
           />

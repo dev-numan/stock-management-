@@ -8,11 +8,13 @@ import { ProductSearchSkeleton } from '../common/Skeleton';
 import ErrorMessage from '../common/ErrorMessage';
 import { useProductsStore } from '../../stores/productsStore';
 import { formatStockDisplay, getUnitPrice, hasAlternateSale } from '../../utils/productUnits';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const LIST_ROW_GAP = 8;
 
 export default function ProductSearchModal({ visible, onClose, onSelect }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
@@ -37,10 +39,10 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
   );
 
   const emptyLabel = search.trim()
-    ? `No products match "${search.trim()}"`
+    ? t('products.noMatch', { query: search.trim() })
     : error
-      ? 'Could not load products'
-      : 'No products found';
+      ? t('products.loadFailed')
+      : t('products.empty');
 
   const topOffset = insets.top + 12;
   const sheetHeight = windowHeight - topOffset;
@@ -60,16 +62,16 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={2}>
             {formatCurrency(item.salePrice)} / {item.unit}
             {hasAlternateSale(item)
-              ? ` · ${formatCurrency(getUnitPrice(item, item.alternateSaleUnit))} / ${item.alternateSaleUnit} · Tap to pick unit`
+              ? ` · ${formatCurrency(getUnitPrice(item, item.alternateSaleUnit))} / ${item.alternateSaleUnit} · ${t('products.tapPickUnit')}`
               : ''}
-            {' · Stock: '}
+            {` · ${t('products.stockPrefix')} `}
             {formatStockDisplay(item)}
             {item.expiryDate ? ` · ${formatExpiryLabel(item.expiryDate)}` : ''}
           </Text>
         </Card.Content>
       </Card>
     ),
-    [theme.roundness, theme.colors.onSurfaceVariant, onSelect]
+    [theme.roundness, theme.colors.onSurfaceVariant, onSelect, t]
   );
 
   if (!visible) return null;
@@ -98,13 +100,13 @@ export default function ProductSearchModal({ visible, onClose, onSelect }) {
           }}
         >
           <Text variant="headlineSmall" style={{ fontWeight: '700' }}>
-            Add Product
+            {t('sale.addProduct')}
           </Text>
           <IconButton icon="close" onPress={onClose} style={{ margin: 0 }} />
         </View>
 
         <Searchbar
-          placeholder="Search products..."
+          placeholder={t('products.searchPlaceholder')}
           value={search}
           onChangeText={setSearch}
           loading={loading && products.length === 0}

@@ -50,6 +50,16 @@
         {
           "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts to select customers for sales."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "abiFilters": ["arm64-v8a"]
+          }
+        }
       ]
     ],
     "extra": {

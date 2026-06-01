@@ -9,9 +9,12 @@ import { useCustomersStore } from '../../stores/customersStore';
 import { useSalesStore } from '../../stores/salesStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CustomersScreen({ navigation }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const customers = useCustomersStore((s) => s.customers);
   const loading = useCustomersStore((s) => s.loading);
   const error = useCustomersStore((s) => s.error);
@@ -51,7 +54,7 @@ export default function CustomersScreen({ navigation }) {
           showSkeleton ? (
             <CustomerListSkeleton count={6} />
           ) : (
-            <EmptyState message="No customers yet. Tap + to add one." />
+            <EmptyState message={t('customers.empty')} />
           )
         }
         renderItem={({ item }) => {
@@ -86,13 +89,13 @@ export default function CustomersScreen({ navigation }) {
                         color: balance < 0 ? theme.colors.error : theme.colors.primary,
                       }}
                     >
-                      {balance < 0 ? 'You will get: ' : 'You will give: '}
+                      {balance < 0 ? t('ledger.youWillGetColon') : t('ledger.youWillGiveColon')}{' '}
                       {formatCurrency(Math.abs(balance))}
                     </Text>
                   ) : null}
                   {item._local ? (
-                    <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 4 }}>
-                      Pending sync
+                    <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 4, ...textDir }}>
+                      {t('common.pendingSync')}
                     </Text>
                   ) : null}
                 </View>

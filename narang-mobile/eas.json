@@ -13,6 +13,15 @@
         "EXPO_PUBLIC_API_URL": "https://stock-management-production-313d.up.railway.app"
       }
     },
+    "release-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://stock-management-production-313d.up.railway.app"
+      }
+    },
     "production": {
       "android": {
         "buildType": "apk"

@@ -9,9 +9,12 @@ import {
   usesDecimalQuantity,
 } from '../../utils/productUnits';
 import { sanitizeAmountInput } from '../../utils/validation';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [qtyText, setQtyText] = useState(String(item.quantity));
   const [qtyError, setQtyError] = useState(null);
   const atMax = item.quantity >= item.maxQuantity - 0.0001;
@@ -31,9 +34,9 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
     }
     const result = onUpdateQty(item.lineKey, qty);
     if (result?.capped) {
-      setQtyError(`Only ${formatMaxQtyLabel(result.maxQty, item.soldUnit)} available`);
+      setQtyError(t('cart.onlyAvailable', { qty: formatMaxQtyLabel(result.maxQty, item.soldUnit) }));
     } else if (qty > item.maxQuantity + 0.0001) {
-      setQtyError(`Only ${formatMaxQtyLabel(item.maxQuantity, item.soldUnit)} available`);
+      setQtyError(t('cart.onlyAvailable', { qty: formatMaxQtyLabel(item.maxQuantity, item.soldUnit) }));
     } else {
       setQtyError(null);
     }
@@ -53,8 +56,11 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
             >
               {formatCurrency(item.unitPrice)} / {item.soldUnit}
             </Text>
-            <Text variant="labelSmall" style={{ color: theme.colors.outline, marginTop: 2 }}>
-              Available: {Math.round(item.maxQuantity * 100) / 100} {item.soldUnit}
+            <Text variant="labelSmall" style={{ color: theme.colors.outline, marginTop: 2, ...textDir }}>
+              {t('cart.available', {
+                qty: Math.round(item.maxQuantity * 100) / 100,
+                unit: item.soldUnit,
+              })}
             </Text>
             {canChangeUnit ? (
               <Chip
@@ -63,7 +69,7 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
                 onPress={() => onChangeUnit(item)}
                 style={{ alignSelf: 'flex-start', marginTop: 6 }}
               >
-                Change unit
+                {t('cart.changeUnit')}
               </Chip>
             ) : null}
           </View>
@@ -76,18 +82,18 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
               style={{ color: theme.colors.error, marginTop: 4 }}
               onPress={() => onRemove(item.lineKey)}
             >
-              Remove
+              {t('cart.remove')}
             </Text>
           </View>
         </View>
 
         {decimalUnit ? (
           <AppInput
-            label={`Quantity (${item.soldUnit})`}
+            label={t('cart.quantity', { unit: item.soldUnit })}
             value={qtyText}
-            onChangeText={(t) => {
+            onChangeText={(text) => {
               setQtyError(null);
-              setQtyText(sanitizeAmountInput(t));
+              setQtyText(sanitizeAmountInput(text));
             }}
             onBlur={() => commitQty(qtyText)}
             onSubmitEditing={() => commitQty(qtyText)}
@@ -96,7 +102,7 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
           />
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text variant="labelLarge">Quantity</Text>
+            <Text variant="labelLarge" style={textDir}>{t('cart.quantityPlain')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <IconButton
                 icon="minus"
@@ -124,8 +130,8 @@ export default function CartItem({ item, onUpdateQty, onRemove, onChangeUnit }) 
         )}
 
         {atMax ? (
-          <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 8 }}>
-            Maximum stock reached
+          <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 8, ...textDir }}>
+            {t('cart.maxStock')}
           </Text>
         ) : null}
       </Card.Content>

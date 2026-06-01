@@ -3,9 +3,11 @@ import { Pressable, View } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function RecentSaleItem({ sale, onPress, isLast }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
 
   return (
     <Pressable
@@ -21,8 +23,12 @@ export default function RecentSaleItem({ sale, onPress, isLast }) {
           <Text variant="titleSmall" style={{ fontWeight: '600' }}>
             {sale.invoiceNumber}
           </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }} numberOfLines={2}>
-            {sale.customer?.name || 'Walk-in'} · {formatDateTime(sale.createdAt)}
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, writingDirection: isRtl ? 'rtl' : 'ltr' }}
+            numberOfLines={2}
+          >
+            {sale.customer?.name || t('sale.walkIn')} · {formatDateTime(sale.createdAt)}
           </Text>
         </View>
         <Text variant="titleSmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>

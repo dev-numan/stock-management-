@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import {
   Card,
@@ -8,14 +8,8 @@ import {
   Chip,
   useTheme,
 } from 'react-native-paper';
-import { MONTH_NAMES, daysInMonth, shiftCalendarDay } from '../../utils/formatDate';
-
-const ALL_MODES = [
-  { value: 'all', label: 'All' },
-  { value: 'day', label: 'Day' },
-  { value: 'month', label: 'Month' },
-  { value: 'year', label: 'Year' },
-];
+import { daysInMonth, shiftCalendarDay, getMonthName } from '../../utils/formatDate';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function PeriodFilter({
   mode,
@@ -29,11 +23,24 @@ export default function PeriodFilter({
   summaryText,
   modes = ['all', 'day', 'month', 'year'],
   showMonthPicker = true,
-  title = 'Filter by period',
+  title,
   compact = false,
 }) {
   const theme = useTheme();
-  const visibleModes = ALL_MODES.filter((m) => modes.includes(m.value));
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+
+  const allModes = useMemo(
+    () => [
+      { value: 'all', label: t('period.all') },
+      { value: 'day', label: t('period.day') },
+      { value: 'month', label: t('period.month') },
+      { value: 'year', label: t('period.year') },
+    ],
+    [t]
+  );
+  const visibleModes = allModes.filter((m) => modes.includes(m.value));
+  const resolvedTitle = title === undefined ? t('period.filterTitle') : title;
 
   const clampDay = (y, m, d) => Math.min(d, daysInMonth(y, m));
 
@@ -57,9 +64,9 @@ export default function PeriodFilter({
 
   const content = (
     <>
-      {title ? (
-        <Text variant="titleSmall" style={{ marginBottom: 8, color: theme.colors.onSurface }}>
-          {title}
+      {resolvedTitle ? (
+        <Text variant="titleSmall" style={{ marginBottom: 8, color: theme.colors.onSurface, ...textDir }}>
+          {resolvedTitle}
         </Text>
       ) : null}
       <SegmentedButtons
@@ -78,7 +85,7 @@ export default function PeriodFilter({
           }}
         >
           <IconButton icon="chevron-left" mode="contained-tonal" onPress={() => handleYearChange(year - 1)} />
-          <Text variant="titleLarge" style={{ color: theme.colors.primary, fontWeight: '700' }}>
+          <Text variant="titleLarge" style={{ color: theme.colors.primary, fontWeight: '700', ...textDir }}>
             {year}
           </Text>
           <IconButton icon="chevron-right" mode="contained-tonal" onPress={() => handleYearChange(year + 1)} />
@@ -86,9 +93,10 @@ export default function PeriodFilter({
       ) : null}
       {(mode === 'month' || mode === 'day') && showMonthPicker ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-          {MONTH_NAMES.map((name, index) => {
+          {Array.from({ length: 12 }, (_, index) => {
             const m = index + 1;
             const selected = month === m;
+            const name = getMonthName(index);
             return (
               <Chip
                 key={name}
@@ -114,14 +122,14 @@ export default function PeriodFilter({
           }}
         >
           <IconButton icon="chevron-left" mode="contained-tonal" onPress={() => shiftDay(-1)} />
-          <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700' }}>
-            {day} {MONTH_NAMES[month - 1]}
+          <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700', ...textDir }}>
+            {day} {getMonthName(month - 1)}
           </Text>
           <IconButton icon="chevron-right" mode="contained-tonal" onPress={() => shiftDay(1)} />
         </View>
       ) : null}
       {summaryText ? (
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}>
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', ...textDir }}>
           {summaryText}
         </Text>
       ) : null}

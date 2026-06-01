@@ -8,8 +8,10 @@ import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { customerSchema } from '../../utils/validation';
 import { useCustomersStore } from '../../stores/customersStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function AddCustomerScreen({ navigation }) {
+  const { t } = useTranslation();
   const createCustomer = useCustomersStore((s) => s.createCustomer);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState(null);
@@ -31,7 +33,7 @@ export default function AddCustomerScreen({ navigation }) {
       });
       navigation.goBack();
     } catch (err) {
-      setApiError(getFriendlyErrorMessage(err, 'Could not add customer.'));
+      setApiError(getFriendlyErrorMessage(err, t('customer.addFailed')));
     } finally {
       setSaving(false);
     }
@@ -43,7 +45,7 @@ export default function AddCustomerScreen({ navigation }) {
         control={control}
         name="name"
         render={({ field: { onChange, onBlur, value } }) => (
-          <AppInput label="Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.name?.message} />
+          <AppInput label={t('customer.name')} value={value} onChangeText={onChange} onBlur={onBlur} error={errors.name?.message} />
         )}
       />
       <Controller
@@ -51,7 +53,7 @@ export default function AddCustomerScreen({ navigation }) {
         name="phone"
         render={({ field: { onChange, onBlur, value } }) => (
           <AppInput
-            label="Phone"
+            label={t('customer.phone')}
             value={value}
             onChangeText={onChange}
             onBlur={onBlur}
@@ -64,12 +66,12 @@ export default function AddCustomerScreen({ navigation }) {
         control={control}
         name="address"
         render={({ field: { onChange, onBlur, value } }) => (
-          <AppInput label="Address" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.address?.message} />
+          <AppInput label={t('common.address')} value={value} onChangeText={onChange} onBlur={onBlur} error={errors.address?.message} />
         )}
       />
       <AppButton
-        title="Save Customer"
-        onPress={handleSubmit(onSubmit, () => setApiError('Please fix the errors above'))}
+        title={t('customer.save')}
+        onPress={handleSubmit(onSubmit, () => setApiError(t('common.fixErrors')))}
         loading={saving}
       />
       <ErrorMessage message={apiError} />

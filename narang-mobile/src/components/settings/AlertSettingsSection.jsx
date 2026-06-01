@@ -2,20 +2,23 @@ import React from 'react';
 import { View } from 'react-native';
 import { Card, Text, Switch, Chip, useTheme } from 'react-native-paper';
 import { Controller } from 'react-hook-form';
+import { useLanguageStore } from '../../stores/languageStore';
 
 const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 export default function AlertSettingsSection({ control }) {
   const theme = useTheme();
+  const t = useLanguageStore((s) => s.t);
+  const isRtl = useLanguageStore((s) => s.locale) === 'ur';
 
   return (
     <Card mode="elevated" style={{ marginBottom: 16, borderRadius: theme.roundness }}>
       <Card.Content>
-        <Text variant="titleLarge" style={{ fontWeight: '700', marginBottom: 4 }}>
-          Dashboard alerts
+        <Text variant="titleLarge" style={{ fontWeight: '700', marginBottom: 4, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+          {t('alerts.title')}
         </Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}>
-          Choose which alerts appear on the home screen and how far ahead to warn about expiry.
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+          {t('alerts.subtitle')}
         </Text>
 
         <Controller
@@ -31,11 +34,11 @@ export default function AlertSettingsSection({ control }) {
               }}
             >
               <View style={{ flex: 1, marginRight: 12 }}>
-                <Text variant="bodyLarge" style={{ fontWeight: '600' }}>
-                  Low stock alert
+                <Text variant="bodyLarge" style={{ fontWeight: '600', writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+                  {t('alerts.lowStock')}
                 </Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Show products at or below low stock level
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+                  {t('alerts.lowStockDesc')}
                 </Text>
               </View>
               <Switch value={value} onValueChange={onChange} />
@@ -56,11 +59,11 @@ export default function AlertSettingsSection({ control }) {
               }}
             >
               <View style={{ flex: 1, marginRight: 12 }}>
-                <Text variant="bodyLarge" style={{ fontWeight: '600' }}>
-                  Expiry alert
+                <Text variant="bodyLarge" style={{ fontWeight: '600', writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+                  {t('alerts.expiry')}
                 </Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                  Show products expiring within the period below
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+                  {t('alerts.expiryDesc')}
                 </Text>
               </View>
               <Switch value={value} onValueChange={onChange} />
@@ -68,8 +71,8 @@ export default function AlertSettingsSection({ control }) {
           )}
         />
 
-        <Text variant="labelLarge" style={{ marginBottom: 8 }}>
-          Expiry warning period (months)
+        <Text variant="labelLarge" style={{ marginBottom: 8, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+          {t('alerts.expiryMonths')}
         </Text>
         <Controller
           control={control}

@@ -2,27 +2,16 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { Card, Text, Button, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
+import { computeCustomerLedgerTotals } from '../../utils/creditData';
 import { useSalesStore } from '../../stores/salesStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
-export function computeCustomerLedgerTotals(customers) {
-  let youWillGet = 0;
-  let youWillGive = 0;
-
-  for (const customer of customers) {
-    const balance = getEffectiveAdvanceBalance(customer);
-    if (balance < 0) {
-      youWillGet += Math.abs(balance);
-    } else if (balance > 0) {
-      youWillGive += balance;
-    }
-  }
-
-  return { youWillGet, youWillGive };
-}
+export { computeCustomerLedgerTotals };
 
 export default function CustomerLedgerSummary({ customers, onSeeMore }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const pendingSales = useSalesStore((s) => s.pendingSales);
   const { youWillGet, youWillGive } = useMemo(
     () => computeCustomerLedgerTotals(customers),
@@ -41,11 +30,11 @@ export default function CustomerLedgerSummary({ customers, onSeeMore }) {
               marginBottom: 4,
             }}
           >
-            <Text variant="titleMedium" style={{ fontWeight: '600' }}>
-              Customer balance
+            <Text variant="titleMedium" style={{ fontWeight: '600', ...textDir }}>
+              {t('ledger.title')}
             </Text>
             <Button compact mode="text" onPress={onSeeMore}>
-              See more
+              {t('common.seeMore')}
             </Button>
           </View>
         ) : null}
@@ -54,8 +43,8 @@ export default function CustomerLedgerSummary({ customers, onSeeMore }) {
             <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.primary }}>
               {formatCurrency(youWillGive)}
             </Text>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-              You will give
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
+              {t('ledger.youWillGive')}
             </Text>
           </View>
           <View
@@ -69,8 +58,8 @@ export default function CustomerLedgerSummary({ customers, onSeeMore }) {
             <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.error }}>
               {formatCurrency(youWillGet)}
             </Text>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-              You will get
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
+              {t('ledger.youWillGet')}
             </Text>
           </View>
         </View>

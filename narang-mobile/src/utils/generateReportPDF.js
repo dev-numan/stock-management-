@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { buildReportHTML } from '../components/reports/ReportPDFTemplate';
 import { getInvoiceLogoDataUri } from './invoiceLogo';
 import { getSettings } from '../api/settings.api';
+import { getT } from '../stores/languageStore';
 
 const REPORTS_DIR = `${FileSystem.documentDirectory}reports/`;
 
@@ -23,6 +24,7 @@ export const saveReportPdf = async (tempUri, periodLabel) => {
 };
 
 export const exportReportPdf = async ({ summary, profitLoss, stock, periodLabel }) => {
+  const t = getT();
   let settings = null;
   try {
     const { data } = await getSettings();
@@ -53,17 +55,15 @@ export const exportReportPdf = async ({ summary, profitLoss, stock, periodLabel 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(savedUri, {
       mimeType: 'application/pdf',
-      dialogTitle: `Report — ${periodLabel}`,
+      dialogTitle: `${t('reports.title')} — ${periodLabel}`,
       UTI: 'com.adobe.pdf',
     });
   }
 
   const folderHint =
-    Platform.OS === 'ios'
-      ? 'Saved in the app Documents/reports folder.'
-      : 'Saved in app storage under reports/.';
+    Platform.OS === 'ios' ? t('reports.savedIos') : t('reports.savedAndroid');
 
-  Alert.alert('Report saved', `${folderHint}\n\nYou can also share or save to Files from the share sheet.`);
+  Alert.alert(t('reports.savedTitle'), `${folderHint}\n\n${t('reports.savedMessage')}`);
 
   return savedUri;
 };

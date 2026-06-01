@@ -12,12 +12,16 @@ import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { settingsSchema } from '../../utils/validation';
 import { SHOP_NAME, INVOICE_PREFIX } from '../../constants/branding';
 import AlertSettingsSection from '../../components/settings/AlertSettingsSection';
+import LanguageSettingsSection from '../../components/settings/LanguageSettingsSection';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardStore } from '../../stores/dashboardStore';
+import { useLanguageStore } from '../../stores/languageStore';
 
 export default function SettingsScreen() {
   const theme = useTheme();
   const { isAdmin } = useAuth();
+  const t = useLanguageStore((s) => s.t);
+  const isRtl = useLanguageStore((s) => s.locale) === 'ur';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -36,18 +40,23 @@ export default function SettingsScreen() {
   });
 
   useEffect(() => {
-    getSettings().then(({ data }) => {
-      const s = data.data;
-      reset({
-        address: s.address,
-        phone: s.phone,
-        showLowStockAlert: s.showLowStockAlert !== false,
-        showExpiryAlert: s.showExpiryAlert !== false,
-        expiryAlertMonths: Math.min(12, Math.max(1, Number(s.expiryAlertMonths) || 3)),
-      });
+    if (!isAdmin) {
       setLoading(false);
-    });
-  }, [reset]);
+      return;
+    }
+    getSettings()
+      .then(({ data }) => {
+        const s = data.data;
+        reset({
+          address: s.address,
+          phone: s.phone,
+          showLowStockAlert: s.showLowStockAlert !== false,
+          showExpiryAlert: s.showExpiryAlert !== false,
+          expiryAlertMonths: Math.min(12, Math.max(1, Number(s.expiryAlertMonths) || 3)),
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [reset, isAdmin]);
 
   const onSubmit = async (formData) => {
     try {
@@ -58,7 +67,7 @@ export default function SettingsScreen() {
       useDashboardStore.getState().invalidate();
       setSuccess(true);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not save settings.'));
+      setError(getFriendlyErrorMessage(err, t('settings.saveFailed')));
     } finally {
       setSaving(false);
     }
@@ -70,32 +79,39 @@ export default function SettingsScreen() {
         <FormFieldsSkeleton rows={2} />
       ) : (
         <>
-      {isAdmin ? <AlertSettingsSection control={control} /> : null}
-      <Card mode="elevated" style={{ marginBottom: 16, borderRadius: theme.roundness }}>
-        <Card.Content>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>Shop name</Text>
-          <Text variant="titleLarge" style={{ color: theme.colors.primary, fontWeight: '600' }}>{SHOP_NAME}</Text>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}>Invoice prefix</Text>
-          <Text variant="titleMedium" style={{ fontWeight: '600' }}>{INVOICE_PREFIX}</Text>
-        </Card.Content>
-      </Card>
-      <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Address *" value={value} onChangeText={onChange} onBlur={onBlur} multiline error={errors.address?.message} />
-      )} />
-      <Controller control={control} name="phone" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Phone *" value={value} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" error={errors.phone?.message} />
-      )} />
+      <LanguageSettingsSection />
       {isAdmin ? (
-        <AppButton
-          title="Save Settings"
-          onPress={handleSubmit(onSubmit, () => setError('Please fix the errors above'))}
-          loading={saving}
-        />
+        <>
+          <AlertSettingsSection control={control} />
+          <Card mode="elevated" style={{ marginBottom: 16, borderRadius: theme.roundness }}>
+            <Card.Content>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+                {t('settings.shopName')}
+              </Text>
+              <Text variant="titleLarge" style={{ color: theme.colors.primary, fontWeight: '600' }}>{SHOP_NAME}</Text>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12, writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+                {t('settings.invoicePrefix')}
+              </Text>
+              <Text variant="titleMedium" style={{ fontWeight: '600' }}>{INVOICE_PREFIX}</Text>
+            </Card.Content>
+          </Card>
+          <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (
+            <AppInput label={t('settings.address')} value={value} onChangeText={onChange} onBlur={onBlur} multiline error={errors.address?.message} />
+          )} />
+          <Controller control={control} name="phone" render={({ field: { onChange, onBlur, value } }) => (
+            <AppInput label={t('settings.phone')} value={value} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" error={errors.phone?.message} />
+          )} />
+          <AppButton
+            title={t('settings.save')}
+            onPress={handleSubmit(onSubmit, () => setError(t('settings.fixErrors')))}
+            loading={saving}
+          />
+        </>
       ) : null}
       <ErrorMessage message={error} />
       {success ? (
-        <Text variant="bodyMedium" style={{ color: theme.colors.primary, marginTop: 8, textAlign: 'center' }}>
-          Settings saved successfully
+        <Text variant="bodyMedium" style={{ color: theme.colors.primary, marginTop: 8, textAlign: 'center', writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+          {t('settings.saved')}
         </Text>
       ) : null}
         </>

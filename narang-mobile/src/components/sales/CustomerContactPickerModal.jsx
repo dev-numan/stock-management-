@@ -6,6 +6,7 @@ import * as Contacts from 'expo-contacts';
 import { formatContactAddress, getContactDisplayName, getContactPrimaryPhone } from '../../utils/contactFormat';
 import { formatPhoneDisplay, normalizePhone } from '../../utils/phone';
 import { useCustomersStore } from '../../stores/customersStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
 function buildPickerItems(appCustomers, contacts) {
   const items = [];
@@ -55,6 +56,8 @@ function filterPickerItems(items, query) {
 
 export default function CustomerContactPickerModal({ visible, onClose, onSelect, resolving }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
@@ -91,11 +94,11 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
 
       setContacts(data.filter((c) => getContactPrimaryPhone(c)));
     } catch (err) {
-      setContactsError(err.message || 'Could not load contacts');
+      setContactsError(err.message || t('customer.contactsLoadFailed'));
     } finally {
       setContactsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!visible) {
@@ -120,10 +123,10 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
   const showContactsSpinner = contactsLoading && contacts.length === 0 && appCustomers.length === 0;
 
   const emptyLabel = search.trim()
-    ? `No customers match "${search.trim()}"`
+    ? t('customer.noMatch', { query: search.trim() })
     : permissionDenied
-      ? 'No app customers yet. Allow contacts in Settings or add customers from More.'
-      : 'No customers or contacts found';
+      ? t('customer.noContactsPermission')
+      : t('customer.emptyPicker');
 
   const handleSelect = (item) => {
     if (resolving) return;
@@ -161,16 +164,16 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
           }}
         >
           <Text variant="headlineSmall" style={{ fontWeight: '700' }}>
-            Select customer
+            {t('customer.selectTitle')}
           </Text>
           <IconButton icon="close" onPress={onClose} disabled={resolving} style={{ margin: 0 }} />
         </View>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-          Search saved customers or phone contacts.
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12, ...textDir }}>
+          {t('customer.selectHint')}
         </Text>
 
         <Searchbar
-          placeholder="Search name or phone..."
+          placeholder={t('customer.searchPlaceholder')}
           value={search}
           onChangeText={setSearch}
           editable={!resolving}
@@ -236,7 +239,7 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
                             item.source === 'app' ? theme.colors.primaryContainer : theme.colors.secondaryContainer,
                         }}
                       >
-                        {item.source === 'app' ? 'Saved' : 'Contact'}
+                        {item.source === 'app' ? t('customer.saved') : t('customer.contact')}
                       </Chip>
                     </View>
                   </Card.Content>
@@ -262,7 +265,7 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
             <Card style={{ padding: 24, borderRadius: theme.roundness }}>
               <ActivityIndicator animating color={theme.colors.primary} />
               <Text variant="bodyMedium" style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-                Saving customer...
+                {t('customer.saving')}
               </Text>
             </Card>
           </View>

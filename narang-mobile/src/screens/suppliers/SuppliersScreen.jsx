@@ -1,90 +1,110 @@
-import React, { useState, useCallback } from 'react';
-import { Card, Text, useTheme } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { getSuppliers, createSupplier } from '../../api/suppliers.api';
-import AppInput from '../../components/common/AppInput';
-import AppButton from '../../components/common/AppButton';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import React, { useEffect, useMemo } from 'react';
+import { View, FlatList, RefreshControl, Keyboard, Platform } from 'react-native';
+import { Card, Text, FAB, useTheme } from 'react-native-paper';
+import { CustomerListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
-import { getFriendlyErrorMessage } from '../../utils/apiErrors';
-import KeyboardFormView from '../../components/common/KeyboardFormView';
-import { supplierSchema } from '../../utils/validation';
+import { useSuppliersStore } from '../../stores/suppliersStore';
+import { formatCurrency } from '../../utils/formatCurrency';
+import { useTranslation } from '../../i18n/useTranslation';
 
-export default function SuppliersScreen() {
+export default function SuppliersScreen({ navigation }) {
   const theme = useTheme();
-  const [suppliers, setSuppliers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [apiError, setApiError] = useState(null);
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+  const suppliers = useSuppliersStore((s) => s.suppliers);
+  const loading = useSuppliersStore((s) => s.loading);
+  const error = useSuppliersStore((s) => s.error);
+  const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm({
-    resolver: zodResolver(supplierSchema),
-    mode: 'onChange',
-    defaultValues: { name: '', phone: '', address: '' },
-  });
+  useEffect(() => {
+    fetchSuppliers(true);
+  }, [fetchSuppliers]);
 
-  const fetch = async () => {
-    const { data } = await getSuppliers();
-    setSuppliers(data.data);
-    setLoading(false);
-  };
+  const sorted = useMemo(
+    () => [...suppliers].sort((a, b) => a.name.localeCompare(b.name)),
+    [suppliers]
+  );
 
-  useFocusEffect(useCallback(() => { fetch(); }, []));
+  const totalPayable = useMemo(
+    () => sorted.reduce((sum, s) => sum + Math.max(0, Number(s.payableBalance ?? 0)), 0),
+    [sorted]
+  );
 
-  const onSubmit = async (formData) => {
-    try {
-      setSaving(true);
-      setApiError(null);
-      await createSupplier({
-        name: formData.name,
-        phone: formData.phone || undefined,
-        address: formData.address || undefined,
-      });
-      reset({ name: '', phone: '', address: '' });
-      fetch();
-    } catch (err) {
-      setApiError(getFriendlyErrorMessage(err, 'Could not add supplier.'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) return <LoadingSpinner />;
+  const showSkeleton = loading && suppliers.length === 0;
 
   return (
-    <KeyboardFormView insideTab>
-      <Controller control={control} name="name" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Name *" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.name?.message} />
-      )} />
-      <Controller control={control} name="phone" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Phone" value={value} onChangeText={onChange} onBlur={onBlur} keyboardType="phone-pad" error={errors.phone?.message} />
-      )} />
-      <Controller control={control} name="address" render={({ field: { onChange, onBlur, value } }) => (
-        <AppInput label="Address" value={value} onChangeText={onChange} onBlur={onBlur} error={errors.address?.message} />
-      )} />
-      <AppButton
-        title="Add Supplier"
-        onPress={handleSubmit(onSubmit, () => setApiError('Please fix the errors above'))}
-        loading={saving}
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <FlatList
+        data={showSkeleton ? [] : sorted}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 16, paddingBottom: 88 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchSuppliers(true)} />}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        onScrollBeginDrag={Keyboard.dismiss}
+        ListHeaderComponent={
+          <>
+            <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
+              <Card.Content style={{ alignItems: 'center', paddingVertical: 12 }}>
+                <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.primary }}>
+                  {formatCurrency(totalPayable)}
+                </Text>
+                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
+                  {t('supplier.youWillGive')}
+                </Text>
+              </Card.Content>
+            </Card>
+            <ErrorMessage message={error} />
+          </>
+        }
+        ListEmptyComponent={
+          showSkeleton ? (
+            <CustomerListSkeleton count={6} />
+          ) : (
+            <EmptyState message={t('supplier.empty')} />
+          )
+        }
+        renderItem={({ item }) => {
+          const balance = Number(item.payableBalance ?? 0);
+          return (
+            <Card
+              mode="elevated"
+              style={{ marginBottom: 8, borderRadius: theme.roundness }}
+              onPress={() => navigation.navigate('SupplierDetail', { supplierId: item.id, supplier: item })}
+            >
+              <Card.Content style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="titleSmall" style={{ fontWeight: '600' }}>
+                    {item.name}
+                  </Text>
+                  {item.phone ? (
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                      {item.phone}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={{ alignItems: isRtl ? 'flex-start' : 'flex-end' }}>
+                  <Text
+                    variant="titleSmall"
+                    style={{ fontWeight: '700', color: balance > 0 ? theme.colors.primary : theme.colors.onSurfaceVariant }}
+                  >
+                    {formatCurrency(balance)}
+                  </Text>
+                  <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, ...textDir }}>
+                    {t('ledger.youWillGiveColon')}
+                  </Text>
+                </View>
+              </Card.Content>
+            </Card>
+          );
+        }}
       />
-      <ErrorMessage message={apiError} />
-      {suppliers.length === 0 ? (
-        <EmptyState message="No suppliers yet" />
-      ) : (
-        suppliers.map((item) => (
-          <Card key={item.id} mode="elevated" style={{ marginBottom: 8, marginTop: 8, borderRadius: theme.roundness }}>
-            <Card.Content>
-              <Text variant="titleSmall" style={{ fontWeight: '600' }}>{item.name}</Text>
-              {item.phone ? (
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>{item.phone}</Text>
-              ) : null}
-            </Card.Content>
-          </Card>
-        ))
-      )}
-    </KeyboardFormView>
+      <FAB
+        icon="plus"
+        style={{ position: 'absolute', right: 16, bottom: 16, backgroundColor: theme.colors.primary }}
+        onPress={() => navigation.navigate('AddSupplier')}
+      />
+    </View>
   );
 }

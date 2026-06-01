@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { getT } from '../stores/languageStore';
 
 export const formatDate = (date) => {
   if (!date) return '';
@@ -7,7 +8,7 @@ export const formatDate = (date) => {
 
 export const formatDateTime = (date) => {
   if (!date) return '';
-  return format(new Date(date), 'dd/MM/yyyy HH:mm');
+  return format(new Date(date), 'dd/MM/yyyy h:mm a');
 };
 
 /** month: 1–12 */
@@ -20,10 +21,22 @@ export const getMonthDateRange = (year, month) => {
   };
 };
 
+export const MONTH_KEY_IDS = [
+  'months.jan', 'months.feb', 'months.mar', 'months.apr', 'months.may', 'months.jun',
+  'months.jul', 'months.aug', 'months.sep', 'months.oct', 'months.nov', 'months.dec',
+];
+
+/** @deprecated Use getMonthName(month - 1) for i18n */
 export const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
+
+/** @param {number} monthIndex 0–11 */
+export const getMonthName = (monthIndex) => {
+  const t = getT();
+  return t(MONTH_KEY_IDS[monthIndex] ?? MONTH_KEY_IDS[0]);
+};
 
 export const getYearDateRange = (year) => ({
   from: `${year}-01-01`,
@@ -57,10 +70,17 @@ export const getPeriodQueryParams = (mode, year, month, day = 1) => {
 
 /** @param {'day'|'month'|'year'|'all'} mode */
 export const getPeriodLabel = (mode, year, month, day = 1) => {
-  if (mode === 'all') return 'All time';
-  if (mode === 'year') return `Year ${year}`;
-  if (mode === 'day') return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
-  return `${MONTH_NAMES[month - 1]} ${year}`;
+  const t = getT();
+  if (mode === 'all') return t('period.allTime');
+  if (mode === 'year') return t('period.yearLabel', { year });
+  if (mode === 'day') {
+    return t('period.dayLabel', {
+      day,
+      month: getMonthName(month - 1),
+      year,
+    });
+  }
+  return t('period.monthLabel', { month: getMonthName(month - 1), year });
 };
 
 /** @param {'day'|'month'|'year'|'all'} mode */

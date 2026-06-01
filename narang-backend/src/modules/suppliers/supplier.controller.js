@@ -26,3 +26,17 @@ export const deleteSupplier = asyncHandler(async (req, res) => {
   const result = await supplierService.deleteSupplier(req.params.id);
   return res.json(new ApiResponse(200, result, 'Supplier deleted'));
 });
+
+export const getSupplierLedger = asyncHandler(async (req, res) => {
+  const ledger = await supplierService.getSupplierLedger(req.params.id, {
+    from: req.query.from,
+    to: req.query.to,
+    search: req.query.search,
+  });
+  return res.json(new ApiResponse(200, ledger, 'Supplier ledger fetched'));
+});
+
+export const addSupplierPayment = asyncHandler(async (req, res) => {
+  const result = await supplierService.addSupplierPayment(req.params.id, req.body);
+  return res.json(new ApiResponse(201, result, 'Payment recorded'));
+});

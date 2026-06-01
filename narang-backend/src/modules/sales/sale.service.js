@@ -69,6 +69,10 @@ export const createSale = async (saleData, userId) => {
     throw new ApiError(400, 'Sale must have at least one item');
   }
 
+  if (paymentMethod === 'CREDIT' && !customerId) {
+    throw new ApiError(400, 'Customer is required for credit sales');
+  }
+
   const clientRequestId = rawClientRequestId?.trim() || null;
 
   if (clientRequestId) {

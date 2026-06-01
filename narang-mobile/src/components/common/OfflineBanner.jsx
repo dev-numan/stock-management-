@@ -4,9 +4,11 @@ import { Banner, Button, useTheme } from 'react-native-paper';
 import { useNetworkStore } from '../../stores/networkStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { processSyncQueue } from '../../services/syncService';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function OfflineBanner() {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
   const isOnline = useNetworkStore((s) => s.isOnline);
   const queue = useSyncStore((s) => s.queue);
   const syncing = useSyncStore((s) => s.syncing);
@@ -22,9 +24,11 @@ export default function OfflineBanner() {
 
   const subtitle = isOnline
     ? pending
-      ? `${pending} change(s) waiting to upload`
-      : lastSyncError || 'Tap to retry sync'
-    : 'Using saved data · sales will sync when online';
+      ? t('sync.pendingSubtitle', { count: pending })
+      : lastSyncError || t('sync.retryHint')
+    : t('sync.offlineSubtitle');
+
+  const title = isOnline ? t('sync.pendingTitle') : t('sync.offlineTitle');
 
   return (
     <Banner
@@ -32,14 +36,16 @@ export default function OfflineBanner() {
       icon={isOnline ? 'cloud-sync' : 'cloud-off-outline'}
       actions={
         isOnline && pending > 0
-          ? [{ label: syncing ? 'Syncing…' : 'Sync now', onPress: handleSync, loading: syncing }]
+          ? [{ label: syncing ? t('sync.syncing') : t('sync.syncNow'), onPress: handleSync, loading: syncing }]
           : []
       }
       style={{
         backgroundColor: isOnline ? theme.colors.secondaryContainer : theme.colors.surfaceVariant,
       }}
     >
-      {`${isOnline ? 'Sync pending' : 'Offline mode'} · ${subtitle}`}
+      <View style={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+        {`${title} · ${subtitle}`}
+      </View>
     </Banner>
   );
 }

@@ -16,9 +16,12 @@ import { useCustomersStore } from '../../stores/customersStore';
 import { useNetworkStore } from '../../stores/networkStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { refreshAllData } from '../../services/refreshService';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function DashboardScreen({ navigation }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const data = useDashboardStore((s) => s.dashboard);
   const loading = useDashboardStore((s) => s.loading);
   const error = useDashboardStore((s) => s.error);
@@ -80,12 +83,12 @@ export default function DashboardScreen({ navigation }) {
       >
         <View style={{ flex: 1 }}>
           {!isOnline ? (
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              Offline — showing last saved data
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('dashboard.offlineHint')}
             </Text>
           ) : pendingSync > 0 ? (
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              {pendingSync} change(s) pending — use More → Backup data
+            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('dashboard.pendingSyncHint', { count: pendingSync })}
             </Text>
           ) : null}
         </View>
@@ -97,7 +100,7 @@ export default function DashboardScreen({ navigation }) {
           disabled={refreshingAll}
           onPress={handleRefreshAll}
         >
-          Refresh
+          {t('dashboard.refresh')}
         </Button>
       </View>
       <ErrorMessage message={error} />
@@ -114,9 +117,9 @@ export default function DashboardScreen({ navigation }) {
         >
           <StatCard
             style={{ flex: 1, minHeight: inventoryCardHeight ?? undefined }}
-            title="Today's Sales"
+            title={t('dashboard.todaysSales')}
             value={formatCurrency(display?.todaySalesTotal)}
-            subtitle={`Today's profit: ${formatCurrency(todayProfit)}`}
+            subtitle={t('dashboard.todaysProfit', { amount: formatCurrency(todayProfit) })}
             subtitleColor={todayProfit < 0 ? theme.colors.error : '#2E7D32'}
             color="green"
           />
@@ -142,10 +145,10 @@ export default function DashboardScreen({ navigation }) {
       {display?.showExpiryAlert !== false && display?.expiringProducts?.length > 0 ? (
         <AppCard style={{ marginBottom: 8 }}>
           <Text variant="titleMedium" style={{ color: '#B45309', fontWeight: '600', marginBottom: 4 }}>
-            📅 Expiry Alert
+            📅 {t('dashboard.expiryAlertTitle')}
           </Text>
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
-            Within {display.expiryAlertMonths || 3} month(s)
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8, ...textDir }}>
+            {t('dashboard.expiryWithinMonths', { months: display.expiryAlertMonths || 3 })}
           </Text>
           {display.expiringProducts.map((p) => {
             const label = formatExpiryLabel(p.expiryDate);
@@ -168,11 +171,11 @@ export default function DashboardScreen({ navigation }) {
       {display?.showLowStockAlert !== false && display?.lowStockProducts?.length > 0 ? (
         <AppCard>
           <Text variant="titleMedium" style={{ color: theme.colors.error, fontWeight: '600', marginBottom: 8 }}>
-            ⚠️ Low Stock Alert
+            ⚠️ {t('dashboard.lowStockAlertTitle')}
           </Text>
           {display.lowStockProducts.map((p) => (
-            <Text key={p.id} variant="bodyMedium" style={{ color: theme.colors.onSurface, paddingVertical: 4 }}>
-              {p.name} — {Number(p.currentStock)} left
+            <Text key={p.id} variant="bodyMedium" style={{ color: theme.colors.onSurface, paddingVertical: 4, ...textDir }}>
+              {t('dashboard.lowStockItem', { name: p.name, count: Number(p.currentStock) })}
             </Text>
           ))}
         </AppCard>
@@ -180,10 +183,10 @@ export default function DashboardScreen({ navigation }) {
         <AppCard>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text variant="titleMedium" style={{ fontWeight: '600' }}>
-              Recent Sales
+              {t('dashboard.recentSales')}
             </Text>
             <Button compact mode="text" onPress={() => navigation.navigate('History')}>
-              View all
+              {t('common.viewAll')}
             </Button>
           </View>
         {display?.recentSales?.length ? (
@@ -207,7 +210,7 @@ export default function DashboardScreen({ navigation }) {
           ))
         ) : (
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            No sales today
+            {t('dashboard.noSalesToday')}
           </Text>
         )}
       </AppCard>

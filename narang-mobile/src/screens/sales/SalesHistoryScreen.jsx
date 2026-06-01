@@ -11,11 +11,14 @@ import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import PeriodFilter from '../../components/common/PeriodFilter';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { useSalesStore } from '../../stores/salesStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const now = new Date();
 
 export default function SalesHistoryScreen({ navigation }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,11 +35,11 @@ export default function SalesHistoryScreen({ navigation }) {
       const list = await useSalesStore.getState().fetchSales(params, force);
       setSales(list);
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not load sales.'));
+      setError(getFriendlyErrorMessage(err, t('history.loading')));
     } finally {
       setLoading(false);
     }
-  }, [mode, year, month, day]);
+  }, [mode, year, month, day, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -48,15 +51,19 @@ export default function SalesHistoryScreen({ navigation }) {
   const periodLabel = getPeriodLabel(mode, year, month, day);
   const showSkeleton = loading && sales.length === 0;
   const summaryText = showSkeleton
-    ? 'Loading sales...'
+    ? t('history.loading')
     : mode === 'all'
-      ? `Showing all sales · ${sales.length} sale(s) · ${formatCurrency(totalAmount)}`
-      : `${periodLabel} · ${sales.length} sale(s) · ${formatCurrency(totalAmount)}`;
+      ? t('history.summaryAll', { count: sales.length, total: formatCurrency(totalAmount) })
+      : t('history.summaryPeriod', {
+          period: periodLabel,
+          count: sales.length,
+          total: formatCurrency(totalAmount),
+        });
 
   const ListHeader = (
     <View style={{ marginBottom: 12 }}>
-      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
-        Tap a sale to view or share its invoice.
+      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8, ...textDir }}>
+        {t('history.tapHint')}
       </Text>
       <ErrorMessage message={error} />
       <PeriodFilter
@@ -86,7 +93,7 @@ export default function SalesHistoryScreen({ navigation }) {
         </>
       }
       ListEmptyComponent={
-        !loading ? <EmptyState message="No sales for this period" /> : null
+        !loading ? <EmptyState message={t('history.emptyPeriod')} /> : null
       }
       refreshControl={
         <RefreshControl refreshing={loading} onRefresh={() => fetchSales(true)} />

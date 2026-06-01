@@ -8,6 +8,8 @@ import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import PeriodFilter from '../common/PeriodFilter';
 import { formatCurrency, formatCurrencyCompact } from '../../utils/formatCurrency';
 import { useDashboardStore } from '../../stores/dashboardStore';
+import { getIsOnline } from '../../stores/networkStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const CHART_HEIGHT = 200;
 const H_PADDING = 48;
@@ -15,6 +17,8 @@ const PROFIT_LINE_COLOR = '#2563EB';
 
 export default function SalesTrendChart() {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const now = new Date();
   const [mode, setMode] = useState('month');
   const [year, setYear] = useState(now.getFullYear());
@@ -34,13 +38,16 @@ export default function SalesTrendChart() {
       setError(null);
       const data = await fetchSalesTrend(mode, year, false);
       setTrend(data);
+      if (!data && getIsOnline()) {
+        setError(t('chart.loadFailed'));
+      }
     } catch (err) {
       setTrend(null);
-      setError(getFriendlyErrorMessage(err, 'Could not load sales chart.'));
+      setError(getFriendlyErrorMessage(err, t('chart.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [mode, year, fetchSalesTrend, trendVersion]);
+  }, [mode, year, fetchSalesTrend, trendVersion, t]);
 
   useEffect(() => {
     loadTrend();
@@ -73,15 +80,19 @@ export default function SalesTrendChart() {
   const grossProfitTotal =
     trend?.profitTotal ?? (trend?.profitValues ?? []).reduce((sum, v) => sum + Number(v || 0), 0);
 
-  const summaryText =
-    mode === 'year'
-      ? `${year - 4}–${year} · Sales ${formatCurrency(salesTotal)} · Gross profit ${formatCurrency(grossProfitTotal)}`
-      : `${year} · Sales ${formatCurrency(salesTotal)} · Gross profit ${formatCurrency(grossProfitTotal)}`;
+  const rangeLabel = mode === 'year' ? `${year - 4}–${year}` : String(year);
+  const summaryText = trend
+    ? t('chart.summary', {
+        range: rangeLabel,
+        sales: formatCurrency(salesTotal),
+        profit: formatCurrency(grossProfitTotal),
+      })
+    : '';
 
   return (
     <AppCard>
-      <Text variant="titleMedium" style={{ fontWeight: '600', marginBottom: 4 }}>
-        Sales trend
+      <Text variant="titleMedium" style={{ fontWeight: '600', marginBottom: 4, ...textDir }}>
+        {t('chart.salesTrend')}
       </Text>
       <PeriodFilter
         compact
@@ -94,7 +105,7 @@ export default function SalesTrendChart() {
         onModeChange={setMode}
         onYearChange={setYear}
         onMonthChange={() => {}}
-        summaryText={trend ? summaryText : ''}
+        summaryText={summaryText}
       />
       <ErrorMessage message={error} />
       {trend && hasChartData ? (
@@ -108,8 +119,8 @@ export default function SalesTrendChart() {
                 backgroundColor: theme.colors.primary,
               }}
             />
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              Sales
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('chart.sales')}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -121,8 +132,8 @@ export default function SalesTrendChart() {
                 backgroundColor: PROFIT_LINE_COLOR,
               }}
             />
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              Gross profit
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('chart.grossProfit')}
             </Text>
           </View>
         </View>
@@ -134,8 +145,8 @@ export default function SalesTrendChart() {
       ) : (
         <View style={{ alignItems: 'center', marginTop: 8, overflow: 'hidden' }}>
           {!hasChartData ? (
-            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', paddingVertical: 32 }}>
-              No sales in this period
+            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', paddingVertical: 32, ...textDir }}>
+              {t('chart.noSales')}
             </Text>
           ) : (
             <LineChart

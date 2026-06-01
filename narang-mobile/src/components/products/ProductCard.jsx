@@ -5,9 +5,11 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import { formatExpiryLabel, expiryTone } from '../../utils/expiry';
 import StockBadge from './StockBadge';
 import { formatStockDisplay } from '../../utils/productUnits';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function ProductCard({ product, onPress }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
   const expiryLabel = formatExpiryLabel(product.expiryDate);
   const tone = expiryTone(product.expiryDate);
   const expiryColor =
@@ -38,7 +40,7 @@ export default function ProductCard({ product, onPress }) {
             {formatCurrency(product.salePrice)}
           </Text>
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-            Stock: {formatStockDisplay(product)}
+            {t('product.stockLabel')} {formatStockDisplay(product)}
           </Text>
           <View
             style={{

@@ -4,8 +4,12 @@ import { ApiError } from '../../utils/ApiError.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
 
-export const getAllPurchases = async ({ from, to }) => {
+export const getAllPurchases = async ({ from, to, supplierId }) => {
   const where = {};
+
+  if (supplierId) {
+    where.supplierId = supplierId;
+  }
 
   if (from || to) {
     where.createdAt = {};

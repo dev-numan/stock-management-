@@ -12,6 +12,7 @@ import {
   roundSaleQty,
 } from '../../utils/productUnits';
 import { sanitizeAmountInput } from '../../utils/validation';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SaleUnitPickerModal({
   visible,
@@ -20,9 +21,12 @@ export default function SaleUnitPickerModal({
   onConfirm,
   initialSoldUnit,
   initialQuantity,
-  confirmLabel = 'Add to cart',
+  confirmLabel,
 }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+  const resolvedConfirmLabel = confirmLabel ?? t('unitPicker.addToCart');
   const [soldUnit, setSoldUnit] = useState(product?.unit || 'BAG');
   const [quantity, setQuantity] = useState('1');
   const [error, setError] = useState(null);
@@ -53,12 +57,12 @@ export default function SaleUnitPickerModal({
     const qty = Number(text);
     const limit = getMaxSaleQuantity(product, unit);
     if (!text?.trim() || Number.isNaN(qty) || qty <= 0) {
-      return { qty: null, error: 'Enter a valid quantity' };
+      return { qty: null, error: t('unitPicker.invalidQty') };
     }
     if (qty > limit + 0.0001) {
       return {
         qty: roundSaleQty(Math.min(qty, limit)),
-        error: `Only ${formatMaxQtyLabel(limit, unit)} available`,
+        error: t('cart.onlyAvailable', { qty: formatMaxQtyLabel(limit, unit) }),
       };
     }
     return { qty: roundSaleQty(qty), error: null };
@@ -90,11 +94,11 @@ export default function SaleUnitPickerModal({
         <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 4 }}>
           {product.name}
         </Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-          {alternateEnabled ? 'Choose unit and quantity' : 'Enter quantity'}
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12, ...textDir }}>
+          {alternateEnabled ? t('unitPicker.chooseUnit') : t('unitPicker.enterQty')}
         </Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-          Available: {Math.round(maxQty * 100) / 100} {soldUnit}
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12, ...textDir }}>
+          {t('cart.available', { qty: Math.round(maxQty * 100) / 100, unit: soldUnit })}
         </Text>
 
         {alternateEnabled ? (
@@ -111,10 +115,10 @@ export default function SaleUnitPickerModal({
         ) : null}
 
         <AppInput
-          label={`Quantity (${soldUnit}) *`}
+          label={`${t('cart.quantity', { unit: soldUnit })} *`}
           value={quantity}
-          onChangeText={(t) => {
-            const cleaned = sanitizeAmountInput(t);
+          onChangeText={(text) => {
+            const cleaned = sanitizeAmountInput(text);
             setQuantity(cleaned);
             if (!cleaned.trim()) {
               setError(null);
@@ -137,8 +141,8 @@ export default function SaleUnitPickerModal({
         </Text>
 
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <AppButton title="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
-          <AppButton title={confirmLabel} onPress={handleConfirm} style={{ flex: 1 }} />
+          <AppButton title={t('common.cancel')} variant="outline" onPress={onClose} style={{ flex: 1 }} />
+          <AppButton title={resolvedConfirmLabel} onPress={handleConfirm} style={{ flex: 1 }} />
         </View>
       </Modal>
     </Portal>

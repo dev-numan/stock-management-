@@ -11,6 +11,12 @@ export const createSaleValidator = [
   body('customerId').optional({ nullable: true }).isUUID(),
   body('discount').optional().isFloat({ min: 0 }),
   body('paymentMethod').optional().isIn(['CASH', 'CREDIT']),
+  body().custom((_value, { req }) => {
+    if (req.body.paymentMethod === 'CREDIT' && !req.body.customerId) {
+      throw new Error('Customer is required for credit sales');
+    }
+    return true;
+  }),
   body('notes').optional().trim(),
   body('clientRequestId')
     .optional()

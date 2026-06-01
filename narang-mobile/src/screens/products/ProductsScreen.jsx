@@ -11,9 +11,12 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
 import { useNetworkStore } from '../../stores/networkStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function ProductsScreen({ navigation, route }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
@@ -42,13 +45,13 @@ export default function ProductsScreen({ navigation, route }) {
     [products, search, lowStockOnly]
   );
 
-  const emptyMessage = lowStockOnly ? 'No low stock products' : 'No products found';
+  const emptyMessage = lowStockOnly ? t('products.emptyLowStock') : t('products.empty');
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
         <Searchbar
-          placeholder="Search products..."
+          placeholder={t('products.searchPlaceholder')}
           value={search}
           onChangeText={setSearch}
           style={{ marginBottom: 8, borderRadius: theme.roundness }}
@@ -81,16 +84,17 @@ export default function ProductsScreen({ navigation, route }) {
                   color: lowStockOnly ? theme.colors.onErrorContainer : theme.colors.onSurface,
                 }}
               >
-                Low stock only
+                {t('products.lowStockOnly')}
               </Text>
               <Text
                 variant="bodySmall"
                 style={{
                   color: lowStockOnly ? theme.colors.onErrorContainer : theme.colors.onSurfaceVariant,
                   marginTop: 2,
+                  ...textDir,
                 }}
               >
-                {lowStockOnly ? 'Active — showing low stock products' : 'Off — showing all products'}
+                {lowStockOnly ? t('products.lowStockActive') : t('products.lowStockOff')}
               </Text>
             </View>
           </View>
@@ -102,7 +106,7 @@ export default function ProductsScreen({ navigation, route }) {
         </View>
         {!isOnline ? (
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 8 }}>
-            Offline — showing saved products
+            {t('products.offlineHint')}
           </Text>
         ) : null}
       </View>

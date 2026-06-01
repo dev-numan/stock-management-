@@ -3,9 +3,15 @@ import { Pressable, View } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SaleListItem({ sale, onPress }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+
+  const paymentLabel =
+    sale.paymentMethod === 'CREDIT' ? t('payment.credit') : sale.paymentMethod;
 
   return (
     <Pressable onPress={onPress}>
@@ -16,8 +22,8 @@ export default function SaleListItem({ sale, onPress }) {
               <Text variant="titleMedium" style={{ fontWeight: '600' }}>
                 {sale.invoiceNumber}
               </Text>
-              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                {sale.customer?.name || 'Walk-in customer'}
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+                {sale.customer?.name || t('sale.walkInCustomer')}
               </Text>
             </View>
             <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700' }}>
@@ -29,11 +35,11 @@ export default function SaleListItem({ sale, onPress }) {
               {sale.customer.phone}
             </Text>
           ) : null}
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
             {formatDateTime(sale.createdAt)}
             {' · '}
-            {sale.paymentMethod === 'CREDIT' ? 'Credit' : sale.paymentMethod}
-            {sale.pendingSync ? ' · Pending sync' : ''}
+            {paymentLabel}
+            {sale.pendingSync ? ` · ${t('common.pendingSync')}` : ''}
           </Text>
         </Card.Content>
       </Card>

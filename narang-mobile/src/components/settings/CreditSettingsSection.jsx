@@ -5,26 +5,56 @@ import { SkeletonLine } from '../common/Skeleton';
 import { useFocusEffect } from '@react-navigation/native';
 import { getCredits } from '../../api/credits.api';
 import { formatCurrency } from '../../utils/formatCurrency';
+import {
+  computeTotalCreditOutstanding,
+  mergeCreditSalesWithPending,
+} from '../../utils/creditData';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
+import { useCustomersStore } from '../../stores/customersStore';
+import { useSalesStore } from '../../stores/salesStore';
+import { getIsOnline } from '../../stores/networkStore';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CreditSettingsSection({ navigation }) {
   const theme = useTheme();
+  const { t, isRtl } = useTranslation();
+  const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+  const pendingSales = useSalesStore((s) => s.pendingSales);
+  const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const [sales, setSales] = useState([]);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await getCredits();
-      setSales(data.data.sales || []);
-      setTotalOutstanding(data.data.totalOutstanding || 0);
-    } catch {
-      setSales([]);
-      setTotalOutstanding(0);
+      setError(null);
+
+      if (getIsOnline()) {
+        await fetchCustomers(true);
+      }
+
+      let apiSales = [];
+      if (getIsOnline()) {
+        const { data } = await getCredits();
+        apiSales = data.data?.sales || [];
+      }
+
+      setSales(mergeCreditSalesWithPending(apiSales));
+      setTotalOutstanding(
+        computeTotalCreditOutstanding(useCustomersStore.getState().customers)
+      );
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('credit.summaryFailed')));
+      setSales(mergeCreditSalesWithPending([]));
+      setTotalOutstanding(
+        computeTotalCreditOutstanding(useCustomersStore.getState().customers)
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchCustomers, pendingSales, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,17 +68,25 @@ export default function CreditSettingsSection({ navigation }) {
     <Card mode="elevated" style={{ marginBottom: 16, borderRadius: theme.roundness }}>
       <Card.Content>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text variant="titleLarge" style={{ fontWeight: '700' }}>
-            Credit
+          <Text variant="titleLarge" style={{ fontWeight: '700', ...textDir }}>
+            {t('credit.title')}
           </Text>
           <Button compact mode="text" onPress={() => navigation.navigate('Credits')}>
-            View all
+            {t('common.viewAll')}
           </Button>
         </View>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+        {error ? (
+          <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8, ...textDir }}>
+            {error}
+          </Text>
+        ) : null}
+        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12, ...textDir }}>
           {loading
-            ? 'Loading...'
-            : `Outstanding: ${formatCurrency(totalOutstanding)} · ${sales.length} sale(s)`}
+            ? t('common.loading')
+            : t('credit.summaryShort', {
+                amount: formatCurrency(totalOutstanding),
+                count: sales.length,
+              })}
         </Text>
         {loading ? (
           <>
@@ -60,8 +98,8 @@ export default function CreditSettingsSection({ navigation }) {
             ))}
           </>
         ) : preview.length === 0 ? (
-          <Text variant="bodySmall" style={{ color: theme.colors.outline }}>
-            No credit sales recorded yet.
+          <Text variant="bodySmall" style={{ color: theme.colors.outline, ...textDir }}>
+            {t('credit.emptyShort')}
           </Text>
         ) : (
           preview.map((sale) => (
@@ -77,10 +115,11 @@ export default function CreditSettingsSection({ navigation }) {
             >
               <View style={{ flex: 1 }}>
                 <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
-                  {sale.customer?.name || 'Walk-in customer'}
+                  {sale.customer?.name || (sale.customerId ? t('credit.customerFallback') : t('credit.unlinkedSale'))}
                 </Text>
-                <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
                   {sale.invoiceNumber}
+                  {sale.pendingSync ? ` · ${t('common.pendingUpload')}` : ''}
                 </Text>
               </View>
               <Text variant="bodyMedium" style={{ fontWeight: '600', color: theme.colors.secondary }}>
@@ -91,7 +130,7 @@ export default function CreditSettingsSection({ navigation }) {
         )}
         {sales.length > 5 ? (
           <Button compact mode="text" onPress={() => navigation.navigate('Credits')} style={{ marginTop: 8 }}>
-            +{sales.length - 5} more — open full list
+            {t('credit.moreLink', { count: sales.length - 5 })}
           </Button>
         ) : null}
       </Card.Content>

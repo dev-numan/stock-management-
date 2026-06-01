@@ -8,9 +8,13 @@ import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import ProductSearchModal from '../../components/sales/ProductSearchModal';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { sanitizeAmountInput, validatePurchaseItems } from '../../utils/validation';
+import { useTranslation } from '../../i18n/useTranslation';
 
-export default function AddPurchaseScreen({ navigation }) {
+export default function AddPurchaseScreen({ navigation, route }) {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const presetSupplierId = route.params?.supplierId;
+  const presetSupplier = route.params?.supplier;
   const [items, setItems] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [notes, setNotes] = useState('');
@@ -58,6 +62,7 @@ export default function AddPurchaseScreen({ navigation }) {
       setLoading(true);
       setError(null);
       await createPurchase({
+        supplierId: presetSupplierId || undefined,
         notes,
         items: items.map((i) => ({
           productId: i.productId,
@@ -67,9 +72,16 @@ export default function AddPurchaseScreen({ navigation }) {
           ),
         })),
       });
-      navigation.goBack();
+      if (presetSupplierId) {
+        navigation.navigate('SupplierDetail', {
+          supplierId: presetSupplierId,
+          supplier: presetSupplier,
+        });
+      } else {
+        navigation.goBack();
+      }
     } catch (err) {
-      setError(getFriendlyErrorMessage(err, 'Could not save purchase.'));
+      setError(getFriendlyErrorMessage(err, t('purchase.saveFailed')));
     } finally {
       setLoading(false);
     }
@@ -77,6 +89,18 @@ export default function AddPurchaseScreen({ navigation }) {
 
   return (
     <KeyboardFormView insideTab>
+      {presetSupplier ? (
+        <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
+          <Card.Content>
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              {t('supplier.selectSupplier')}
+            </Text>
+            <Text variant="titleMedium" style={{ fontWeight: '700', marginTop: 4 }}>
+              {presetSupplier.name}
+            </Text>
+          </Card.Content>
+        </Card>
+      ) : null}
       <Button
         mode="contained"
         icon="plus"
@@ -84,14 +108,14 @@ export default function AddPurchaseScreen({ navigation }) {
         style={{ marginBottom: 16, borderRadius: theme.roundness }}
         onPress={() => setModalVisible(true)}
       >
-        Add Product
+        {t('purchase.addProduct')}
       </Button>
       {items.map((item) => (
         <Card key={item.productId} mode="elevated" style={{ marginBottom: 8, borderRadius: theme.roundness }}>
           <Card.Content>
             <Text variant="titleSmall" style={{ fontWeight: '600', marginBottom: 8 }}>{item.name}</Text>
             <AppInput
-              label="Quantity *"
+              label={t('purchase.quantity')}
               value={item.quantity === '' ? '' : String(item.quantity)}
               onChangeText={(v) => updateItem(item.productId, 'quantity', v)}
               keyboardType="decimal-pad"
@@ -99,7 +123,7 @@ export default function AddPurchaseScreen({ navigation }) {
               error={fieldErrors[`${item.productId}-quantity`]}
             />
             <AppInput
-              label="Cost Price (PKR) *"
+              label={t('purchase.costPrice')}
               value={item.costPrice === '' ? '' : String(item.costPrice)}
               onChangeText={(v) => updateItem(item.productId, 'costPrice', v)}
               keyboardType="decimal-pad"
@@ -109,8 +133,8 @@ export default function AddPurchaseScreen({ navigation }) {
           </Card.Content>
         </Card>
       ))}
-      <AppInput label="Notes" value={notes} onChangeText={setNotes} multiline />
-      <AppButton title="Save Purchase" onPress={onSubmit} loading={loading} />
+      <AppInput label={t('common.notes')} value={notes} onChangeText={setNotes} multiline />
+      <AppButton title={t('purchase.save')} onPress={onSubmit} loading={loading} />
       <ErrorMessage message={error} />
       <ProductSearchModal visible={modalVisible} onClose={() => setModalVisible(false)} onSelect={addProduct} />
     </KeyboardFormView>

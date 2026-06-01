@@ -84,7 +84,7 @@ All routes: `/api/v1/`
 - Purchases that update stock and cost price
 - Expenses, customers, suppliers, categories
 - Dashboard & reports (PKR currency, DD/MM/YYYY dates)
-- PDF invoice share via Expo Print + Sharing
+- Invoice share as JPEG image (ViewShot + Sharing); reports export as PDF
 
 ## Tech stack
 

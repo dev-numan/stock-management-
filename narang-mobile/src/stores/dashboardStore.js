@@ -131,7 +131,7 @@ export const useDashboardStore = create(
           return cached;
         }
         if (!getIsOnline()) {
-          return cached || null;
+          return cached && isCompleteTrend(cached) ? cached : null;
         }
 
         set({ trendLoading: true });

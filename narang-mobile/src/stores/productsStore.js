@@ -7,6 +7,7 @@ import {
   deleteProduct as deleteProductApi,
 } from '../api/products.api';
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
+import { getT } from './languageStore';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
 import { zustandStorage, isStale } from './storage';
@@ -72,7 +73,7 @@ export const useProductsStore = create(
           set({ products: list, lastFetched: Date.now(), loading: false, error: null });
           return list;
         } catch (err) {
-          const message = getFriendlyErrorMessage(err, 'Could not load products. Pull down to refresh.');
+          const message = getFriendlyErrorMessage(err, getT()('products.loadFailedRefresh'));
           set({ loading: false, error: products.length ? null : message });
           return products;
         }

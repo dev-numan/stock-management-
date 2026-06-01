@@ -1,4 +1,5 @@
 import { formatDate } from './formatDate';
+import { getT } from '../stores/languageStore';
 
 /** Days from today (local midnight) to expiry date. Negative = expired. */
 export function daysUntilExpiry(expiryDate) {
@@ -14,11 +15,12 @@ export function formatExpiryLabel(expiryDate) {
   if (!expiryDate) return null;
   const days = daysUntilExpiry(expiryDate);
   if (days === null) return null;
-  if (days < 0) return `Expired · ${formatDate(expiryDate)}`;
-  if (days === 0) return 'Expires today';
-  if (days === 1) return 'Expires tomorrow';
-  if (days <= 60) return `Expires in ${days} days`;
-  return `Expires ${formatDate(expiryDate)}`;
+  const t = getT();
+  if (days < 0) return t('expiry.expired', { date: formatDate(expiryDate) });
+  if (days === 0) return t('expiry.today');
+  if (days === 1) return t('expiry.tomorrow');
+  if (days <= 60) return t('expiry.inDays', { days });
+  return t('expiry.onDate', { date: formatDate(expiryDate) });
 }
 
 export function expiryTone(expiryDate) {

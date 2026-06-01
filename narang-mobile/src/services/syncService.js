@@ -121,6 +121,7 @@ export const processSyncQueue = async () => {
   sync.setLastSyncAt(new Date().toISOString());
 
   if (synced > 0) {
+    useDashboardStore.getState().invalidateTrends();
     await Promise.all([
       useProductsStore.getState().fetchProducts(true),
       useCustomersStore.getState().fetchCustomers(true),
