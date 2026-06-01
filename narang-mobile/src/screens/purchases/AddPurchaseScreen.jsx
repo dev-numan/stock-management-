@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Text, Button, useTheme } from 'react-native-paper';
 import { createPurchase } from '../../api/purchases.api';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
-import { getFriendlyErrorMessage } from '../../utils/apiErrors';
+import SupplierNameAutocomplete from '../../components/suppliers/SupplierNameAutocomplete';
+import { useSuppliersStore } from '../../stores/suppliersStore';
 import ProductSearchModal from '../../components/sales/ProductSearchModal';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { sanitizeAmountInput, validatePurchaseItems } from '../../utils/validation';
@@ -15,12 +16,22 @@ export default function AddPurchaseScreen({ navigation, route }) {
   const { t } = useTranslation();
   const presetSupplierId = route.params?.supplierId;
   const presetSupplier = route.params?.supplier;
+  const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
+
   const [items, setItems] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [notes, setNotes] = useState('');
+  const [supplierName, setSupplierName] = useState(presetSupplier?.name || '');
+  const [selectedSupplier, setSelectedSupplier] = useState(presetSupplier || null);
   const [error, setError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const supplierLocked = Boolean(presetSupplierId && presetSupplier);
+
+  useEffect(() => {
+    fetchSuppliers(true);
+  }, [fetchSuppliers]);
 
   const addProduct = (product) => {
     setItems((prev) => {
@@ -58,11 +69,17 @@ export default function AddPurchaseScreen({ navigation, route }) {
       return;
     }
 
+    const trimmedSupplier = supplierName.trim();
+    const supplierId = selectedSupplier?.id || presetSupplierId || undefined;
+    const supplierNamePayload =
+      !supplierId && trimmedSupplier ? trimmedSupplier : undefined;
+
     try {
       setLoading(true);
       setError(null);
-      await createPurchase({
-        supplierId: presetSupplierId || undefined,
+      const { data } = await createPurchase({
+        supplierId,
+        supplierName: supplierNamePayload,
         notes,
         items: items.map((i) => ({
           productId: i.productId,
@@ -72,10 +89,13 @@ export default function AddPurchaseScreen({ navigation, route }) {
           ),
         })),
       });
-      if (presetSupplierId) {
+      const purchase = data.data;
+      await fetchSuppliers(true);
+      const resolvedId = purchase?.supplierId || supplierId || presetSupplierId;
+      if (resolvedId) {
         navigation.navigate('SupplierDetail', {
-          supplierId: presetSupplierId,
-          supplier: presetSupplier,
+          supplierId: resolvedId,
+          supplier: purchase?.supplier || selectedSupplier || presetSupplier,
         });
       } else {
         navigation.goBack();
@@ -89,18 +109,14 @@ export default function AddPurchaseScreen({ navigation, route }) {
 
   return (
     <KeyboardFormView insideTab>
-      {presetSupplier ? (
-        <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
-          <Card.Content>
-            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-              {t('supplier.selectSupplier')}
-            </Text>
-            <Text variant="titleMedium" style={{ fontWeight: '700', marginTop: 4 }}>
-              {presetSupplier.name}
-            </Text>
-          </Card.Content>
-        </Card>
-      ) : null}
+      <SupplierNameAutocomplete
+        value={supplierName}
+        onChangeText={setSupplierName}
+        onSelectSupplier={setSelectedSupplier}
+        selectedSupplierId={selectedSupplier?.id || presetSupplierId}
+        disabled={supplierLocked}
+        error={fieldErrors.supplier}
+      />
       <Button
         mode="contained"
         icon="plus"

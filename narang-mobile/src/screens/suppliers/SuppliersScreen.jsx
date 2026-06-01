@@ -4,6 +4,8 @@ import { Card, Text, FAB, useTheme } from 'react-native-paper';
 import { CustomerListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
+import SupplierLedgerSummary from '../../components/suppliers/SupplierLedgerSummary';
+import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
 import { useSuppliersStore } from '../../stores/suppliersStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { useTranslation } from '../../i18n/useTranslation';
@@ -26,11 +28,6 @@ export default function SuppliersScreen({ navigation }) {
     [suppliers]
   );
 
-  const totalPayable = useMemo(
-    () => sorted.reduce((sum, s) => sum + Math.max(0, Number(s.payableBalance ?? 0)), 0),
-    [sorted]
-  );
-
   const showSkeleton = loading && suppliers.length === 0;
 
   return (
@@ -45,16 +42,7 @@ export default function SuppliersScreen({ navigation }) {
         onScrollBeginDrag={Keyboard.dismiss}
         ListHeaderComponent={
           <>
-            <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
-              <Card.Content style={{ alignItems: 'center', paddingVertical: 12 }}>
-                <Text variant="headlineSmall" style={{ fontWeight: '700', color: theme.colors.primary }}>
-                  {formatCurrency(totalPayable)}
-                </Text>
-                <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
-                  {t('supplier.youWillGive')}
-                </Text>
-              </Card.Content>
-            </Card>
+            <SupplierLedgerSummary suppliers={sorted} />
             <ErrorMessage message={error} />
           </>
         }
@@ -67,33 +55,58 @@ export default function SuppliersScreen({ navigation }) {
         }
         renderItem={({ item }) => {
           const balance = Number(item.payableBalance ?? 0);
+          const totalPurchases = Number(item.totalPurchases ?? 0);
+          const totalPayments = Number(item.totalPayments ?? 0);
           return (
             <Card
               mode="elevated"
               style={{ marginBottom: 8, borderRadius: theme.roundness }}
               onPress={() => navigation.navigate('SupplierDetail', { supplierId: item.id, supplier: item })}
             >
-              <Card.Content style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flex: 1 }}>
-                  <Text variant="titleSmall" style={{ fontWeight: '600' }}>
-                    {item.name}
-                  </Text>
-                  {item.phone ? (
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                      {item.phone}
+              <Card.Content>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="titleSmall" style={{ fontWeight: '600' }}>
+                      {item.name}
                     </Text>
-                  ) : null}
+                    {item.phone ? (
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                        {item.phone}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={{ alignItems: isRtl ? 'flex-start' : 'flex-end' }}>
+                    <Text
+                      variant="titleSmall"
+                      style={{
+                        fontWeight: '700',
+                        color: balance > 0 ? theme.colors.primary : balance < 0 ? RECEIPT_GREEN : theme.colors.onSurfaceVariant,
+                      }}
+                    >
+                      {formatCurrency(Math.abs(balance))}
+                    </Text>
+                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, ...textDir }}>
+                      {balance < 0 ? t('ledger.youWillGetColon') : t('ledger.youWillGiveColon')}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ alignItems: isRtl ? 'flex-start' : 'flex-end' }}>
-                  <Text
-                    variant="titleSmall"
-                    style={{ fontWeight: '700', color: balance > 0 ? theme.colors.primary : theme.colors.onSurfaceVariant }}
-                  >
-                    {formatCurrency(balance)}
-                  </Text>
-                  <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, ...textDir }}>
-                    {t('ledger.youWillGiveColon')}
-                  </Text>
+                <View style={{ flexDirection: 'row', marginTop: 10, gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+                      {t('supplier.col.purchase')}
+                    </Text>
+                    <Text variant="bodyMedium" style={{ fontWeight: '700', color: theme.colors.error, marginTop: 2 }}>
+                      {formatCurrency(totalPurchases)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+                      {t('supplier.col.payment')}
+                    </Text>
+                    <Text variant="bodyMedium" style={{ fontWeight: '700', color: RECEIPT_GREEN, marginTop: 2 }}>
+                      {formatCurrency(totalPayments)}
+                    </Text>
+                  </View>
                 </View>
               </Card.Content>
             </Card>

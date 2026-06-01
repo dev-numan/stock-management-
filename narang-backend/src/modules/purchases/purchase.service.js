@@ -43,8 +43,27 @@ export const getPurchaseById = async (id) => {
   return purchase;
 };
 
+async function resolveSupplierId(tx, { supplierId, supplierName }) {
+  if (supplierId) {
+    const supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) throw new ApiError(404, 'Supplier not found');
+    return supplierId;
+  }
+
+  const name = supplierName?.trim();
+  if (!name) return null;
+
+  const existing = await tx.supplier.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' } },
+  });
+  if (existing) return existing.id;
+
+  const created = await tx.supplier.create({ data: { name } });
+  return created.id;
+}
+
 export const createPurchase = async (purchaseData) => {
-  const { items, supplierId, notes } = purchaseData;
+  const { items, supplierId, supplierName, notes } = purchaseData;
 
   if (!items?.length) {
     throw new ApiError(400, 'Purchase must have at least one item');
@@ -77,9 +96,11 @@ export const createPurchase = async (purchaseData) => {
       });
     }
 
+    const resolvedSupplierId = await resolveSupplierId(tx, { supplierId, supplierName });
+
     const purchase = await tx.purchase.create({
       data: {
-        supplierId: supplierId || null,
+        supplierId: resolvedSupplierId,
         totalAmount,
         notes: notes || null,
         items: { create: purchaseItemsData },

@@ -3,22 +3,21 @@ import {
   View,
   ScrollView,
   RefreshControl,
-  Linking,
-  Alert,
   Platform,
   Keyboard,
 } from 'react-native';
-import { Text, Card, Searchbar, useTheme } from 'react-native-paper';
+import { Text, Card, Searchbar, Chip, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { getSupplier, getSupplierLedger, addSupplierPayment } from '../../api/suppliers.api';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { formatPhoneDisplay } from '../../utils/phone';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import EmptyState from '../../components/common/EmptyState';
 import { CustomerDetailSkeleton, SkeletonCard, SkeletonLine } from '../../components/common/Skeleton';
 import SupplierLedgerEntryRow from '../../components/suppliers/SupplierLedgerEntryRow';
 import AddSupplierPaymentModal from '../../components/suppliers/AddSupplierPaymentModal';
+import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
+import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import { useTranslation } from '../../i18n/useTranslation';
 
@@ -63,6 +62,8 @@ export default function SupplierDetailScreen({ route, navigation }) {
     );
   }, [allLedger, search]);
 
+  const stockProducts = useMemo(() => collectSupplierProductNames(allLedger), [allLedger]);
+
   useFocusEffect(
     useCallback(() => {
       load();
@@ -70,6 +71,8 @@ export default function SupplierDetailScreen({ route, navigation }) {
   );
 
   const payableBalance = Number(supplier?.payableBalance ?? 0);
+  const totalPurchases = Number(supplier?.totalPurchases ?? 0);
+  const totalPayments = Number(supplier?.totalPayments ?? 0);
 
   const handlePayment = async ({ amount, notes }) => {
     try {
@@ -83,24 +86,6 @@ export default function SupplierDetailScreen({ route, navigation }) {
     } finally {
       setPaymentSaving(false);
     }
-  };
-
-  const handleSms = () => {
-    if (!supplier?.phone?.trim()) {
-      Alert.alert(t('reminder.noPhoneTitle'), t('reminder.noPhoneMessage'));
-      return;
-    }
-    const phone = supplier.phone.replace(/\D/g, '');
-    const body = encodeURIComponent(
-      `${supplier.name}: ${t('supplier.balance')} ${formatCurrency(payableBalance)} (${t('supplier.youWillGive')})`
-    );
-    Linking.openURL(`sms:${phone}?body=${body}`).catch(() => {
-      Alert.alert(t('reminder.smsUnavailableTitle'), t('reminder.smsUnavailableMessage'));
-    });
-  };
-
-  const handleReport = () => {
-    Alert.alert(t('supplier.report'), t('supplier.reportSoon'));
   };
 
   if (loading && !supplier) {
@@ -136,32 +121,59 @@ export default function SupplierDetailScreen({ route, navigation }) {
             </Text>
             <Text
               variant="headlineLarge"
-              style={{ fontWeight: '800', color: theme.colors.primary, marginTop: 4 }}
+              style={{
+                fontWeight: '800',
+                color: payableBalance < 0 ? RECEIPT_GREEN : theme.colors.primary,
+                marginTop: 4,
+              }}
             >
-              {formatCurrency(payableBalance)}
+              {formatCurrency(Math.abs(payableBalance))}
             </Text>
             <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
-              {t('supplier.youWillGive')}
+              {payableBalance < 0 ? t('ledger.youWillGet') : t('supplier.youWillGive')}
             </Text>
           </Card.Content>
         </Card>
 
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-          <View style={{ flex: 1 }}>
-            <AppButton title={t('supplier.sms')} variant="outline" onPress={handleSms} icon="message-text" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <AppButton
-              title={t('customer.whatsapp')}
-              variant="outline"
-              onPress={handleSms}
-              icon="whatsapp"
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <AppButton title={t('supplier.report')} variant="outline" onPress={handleReport} icon="file-download" />
-          </View>
+          <Card mode="elevated" style={{ flex: 1, borderRadius: theme.roundness }}>
+            <Card.Content>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+                {t('supplier.col.purchase')}
+              </Text>
+              <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.error, marginTop: 4 }}>
+                {formatCurrency(totalPurchases)}
+              </Text>
+            </Card.Content>
+          </Card>
+          <Card mode="elevated" style={{ flex: 1, borderRadius: theme.roundness }}>
+            <Card.Content>
+              <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+                {t('supplier.col.payment')}
+              </Text>
+              <Text variant="titleMedium" style={{ fontWeight: '700', color: RECEIPT_GREEN, marginTop: 4 }}>
+                {formatCurrency(totalPayments)}
+              </Text>
+            </Card.Content>
+          </Card>
         </View>
+
+        {stockProducts.length > 0 ? (
+          <Card mode="elevated" style={{ marginBottom: 12, borderRadius: theme.roundness }}>
+            <Card.Content>
+              <Text variant="titleSmall" style={{ fontWeight: '700', marginBottom: 8, ...textDir }}>
+                {t('supplier.stockFrom')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {stockProducts.map((name) => (
+                  <Chip key={name} compact style={{ marginBottom: 2 }}>
+                    {name}
+                  </Chip>
+                ))}
+              </View>
+            </Card.Content>
+          </Card>
+        ) : null}
 
         <Searchbar
           placeholder={t('supplier.searchPlaceholder')}
@@ -181,10 +193,10 @@ export default function SupplierDetailScreen({ route, navigation }) {
               borderTopRightRadius: theme.roundness,
             }}
           >
-            <Text style={{ width: 72, textAlign: 'center', fontWeight: '700', fontSize: 12, ...textDir }}>
+            <Text style={{ width: 72, textAlign: 'center', fontWeight: '700', fontSize: 12, color: RECEIPT_GREEN, ...textDir }}>
               {t('supplier.col.payment')}
             </Text>
-            <Text style={{ width: 72, textAlign: 'center', fontWeight: '700', fontSize: 12, ...textDir }}>
+            <Text style={{ width: 72, textAlign: 'center', fontWeight: '700', fontSize: 12, color: theme.colors.error, ...textDir }}>
               {t('supplier.col.purchase')}
             </Text>
             <Text style={{ flex: 1, textAlign: isRtl ? 'right' : 'left', fontWeight: '700', fontSize: 12, paddingLeft: 8, ...textDir }}>
@@ -225,7 +237,7 @@ export default function SupplierDetailScreen({ route, navigation }) {
           <AppButton
             title={t('supplier.paymentRs')}
             onPress={() => setPaymentVisible(true)}
-            buttonColor={theme.colors.error}
+            buttonColor={RECEIPT_GREEN}
             icon="cash-minus"
           />
         </View>
@@ -233,7 +245,7 @@ export default function SupplierDetailScreen({ route, navigation }) {
           <AppButton
             title={t('supplier.purchaseRs')}
             onPress={() => navigation.navigate('AddPurchase', { supplierId, supplier })}
-            buttonColor={theme.colors.primary}
+            buttonColor={theme.colors.error}
             icon="cart-plus"
           />
         </View>

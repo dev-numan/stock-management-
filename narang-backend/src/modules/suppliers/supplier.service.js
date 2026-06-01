@@ -4,7 +4,7 @@ import { ApiError } from '../../utils/ApiError.js';
 
 const toNum = (v) => Number(v ?? 0);
 
-export async function computeSupplierPayable(supplierId) {
+async function getSupplierTotals(supplierId) {
   const [purchaseAgg, paymentAgg] = await Promise.all([
     db.purchase.aggregate({
       where: { supplierId },
@@ -15,7 +15,27 @@ export async function computeSupplierPayable(supplierId) {
       _sum: { amount: true },
     }),
   ]);
-  return toNum(purchaseAgg._sum.totalAmount) - toNum(paymentAgg._sum.amount);
+  const totalPurchases = toNum(purchaseAgg._sum.totalAmount);
+  const totalPayments = toNum(paymentAgg._sum.amount);
+  return {
+    totalPurchases,
+    totalPayments,
+    payableBalance: totalPurchases - totalPayments,
+  };
+}
+
+export async function computeSupplierPayable(supplierId) {
+  const { payableBalance } = await getSupplierTotals(supplierId);
+  return payableBalance;
+}
+
+function mapGroupTotals(groups, idField, sumField) {
+  const map = new Map();
+  for (const g of groups) {
+    const id = g[idField];
+    if (id) map.set(id, toNum(g._sum[sumField]));
+  }
+  return map;
 }
 
 function buildDateFilter(from, to) {
@@ -114,21 +134,42 @@ export const getAllSuppliers = async ({ search }) => {
     orderBy: { name: 'asc' },
   });
 
-  const withBalance = await Promise.all(
-    suppliers.map(async (s) => ({
-      ...s,
-      payableBalance: await computeSupplierPayable(s.id),
-    }))
-  );
+  if (suppliers.length === 0) return [];
 
-  return withBalance;
+  const ids = suppliers.map((s) => s.id);
+  const [purchaseGroups, paymentGroups] = await Promise.all([
+    db.purchase.groupBy({
+      by: ['supplierId'],
+      where: { supplierId: { in: ids } },
+      _sum: { totalAmount: true },
+    }),
+    db.supplierPayment.groupBy({
+      by: ['supplierId'],
+      where: { supplierId: { in: ids } },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const purchaseMap = mapGroupTotals(purchaseGroups, 'supplierId', 'totalAmount');
+  const paymentMap = mapGroupTotals(paymentGroups, 'supplierId', 'amount');
+
+  return suppliers.map((s) => {
+    const totalPurchases = purchaseMap.get(s.id) ?? 0;
+    const totalPayments = paymentMap.get(s.id) ?? 0;
+    return {
+      ...s,
+      totalPurchases,
+      totalPayments,
+      payableBalance: totalPurchases - totalPayments,
+    };
+  });
 };
 
 export const getSupplierById = async (id) => {
   const supplier = await db.supplier.findUnique({ where: { id } });
   if (!supplier) throw new ApiError(404, 'Supplier not found');
-  const payableBalance = await computeSupplierPayable(id);
-  return { ...supplier, payableBalance };
+  const totals = await getSupplierTotals(id);
+  return { ...supplier, ...totals };
 };
 
 export const createSupplier = async (data) => {

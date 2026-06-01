@@ -4,12 +4,16 @@ import { Text, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
 import { useTranslation } from '../../i18n/useTranslation';
+import { RECEIPT_GREEN } from '../invoice/thermalReceiptShared';
 
 export default function SupplierLedgerEntryRow({ entry }) {
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const isPayment = entry.type === 'PAYMENT';
+  const paymentColor = RECEIPT_GREEN;
+  const purchaseColor = theme.colors.error;
+
   return (
     <View
       style={{
@@ -24,7 +28,7 @@ export default function SupplierLedgerEntryRow({ entry }) {
       <View style={{ width: 72, alignItems: 'center', paddingTop: 2 }}>
         <Text
           variant="titleSmall"
-          style={{ fontWeight: '700', color: isPayment ? theme.colors.error : 'transparent' }}
+          style={{ fontWeight: '700', color: isPayment ? paymentColor : 'transparent' }}
         >
           {isPayment ? formatCurrency(entry.amount) : ' '}
         </Text>
@@ -32,7 +36,7 @@ export default function SupplierLedgerEntryRow({ entry }) {
       <View style={{ width: 72, alignItems: 'center', paddingTop: 2 }}>
         <Text
           variant="titleSmall"
-          style={{ fontWeight: '700', color: !isPayment ? theme.colors.primary : 'transparent' }}
+          style={{ fontWeight: '700', color: !isPayment ? purchaseColor : 'transparent' }}
         >
           {!isPayment ? formatCurrency(entry.amount) : ' '}
         </Text>
