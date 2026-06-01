@@ -67,7 +67,9 @@ export function buildInvoiceReceiptLines(sale, settings) {
     lines.push({ text: '' });
     lines.push({ text: `${t('invoice.customerNameLabel')} ${sale.customer.name}` });
     if (sale.customer.phone) {
-      lines.push({ text: formatPhoneDisplay(sale.customer.phone) });
+      lines.push({
+        text: `${t('invoice.customerPhoneLabel')} ${formatPhoneDisplay(sale.customer.phone)}`,
+      });
     }
   }
   lines.push({ text: DIVIDER });

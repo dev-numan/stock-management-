@@ -75,7 +75,7 @@ export function buildInvoiceReceiptUrduHtml(sale, settings) {
   <div><b>${tu('invoice.dateTimeLabel')}</b> ${formatDateTime(sale.createdAt)}</div>
   ${
     sale.customer
-      ? `<div style="margin-top:6px;"><b>${tu('invoice.customerNameLabel')}</b> ${sale.customer.name}${sale.customer.phone ? `<br/>${formatPhoneDisplay(sale.customer.phone)}` : ''}</div>`
+      ? `<div style="margin-top:6px;"><b>${tu('invoice.customerNameLabel')}</b> ${sale.customer.name}${sale.customer.phone ? `<br/><b>${tu('invoice.customerPhoneLabel')}</b> ${formatPhoneDisplay(sale.customer.phone)}` : ''}</div>`
       : ''
   }
   <div class="divider"></div>

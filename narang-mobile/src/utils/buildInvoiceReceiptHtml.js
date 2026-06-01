@@ -50,7 +50,7 @@ export function buildInvoiceReceiptHtml(sale, settings) {
   <div>${formatDateTime(sale.createdAt)}</div>
   ${
     sale.customer
-      ? `<div style="margin-top:4px;"><b>${t('invoice.customerNameLabel')}</b> ${sale.customer.name}${sale.customer.phone ? `<br/>${formatPhoneDisplay(sale.customer.phone)}` : ''}</div>`
+      ? `<div style="margin-top:4px;"><b>${t('invoice.customerNameLabel')}</b> ${sale.customer.name}${sale.customer.phone ? `<br/><b>${t('invoice.customerPhoneLabel')}</b> ${formatPhoneDisplay(sale.customer.phone)}` : ''}</div>`
       : ''
   }
   <div class="divider"></div>

@@ -191,9 +191,12 @@ export default function InvoiceReceiptUrduCard({ sale, settings }) {
               valueStyle={{ color: '#111827', fontWeight: '400' }}
             />
             {sale.customer.phone ? (
-              <Text style={{ fontSize: 12, color: MUTED, marginTop: 4, ...rtlText, alignSelf: 'flex-end' }}>
-                {formatPhoneDisplay(sale.customer.phone)}
-              </Text>
+              <RtlLabelValue
+                label={tu('invoice.customerPhoneLabel')}
+                value={formatPhoneDisplay(sale.customer.phone)}
+                labelStyle={{ color: '#111827', marginTop: 4 }}
+                valueStyle={{ color: '#111827', fontWeight: '400' }}
+              />
             ) : null}
           </View>
         ) : null}

@@ -173,9 +173,12 @@ export default function InvoiceReceiptEnglishCard({ sale, settings }) {
               valueStyle={{ color: '#111827', fontWeight: '400' }}
             />
             {sale.customer.phone ? (
-              <Text style={{ fontSize: 12, color: RECEIPT_MUTED, marginTop: 4 }}>
-                {formatPhoneDisplay(sale.customer.phone)}
-              </Text>
+              <LabelValue
+                label={te('invoice.customerPhoneLabel')}
+                value={formatPhoneDisplay(sale.customer.phone)}
+                labelStyle={{ color: '#111827', marginTop: 4 }}
+                valueStyle={{ color: '#111827', fontWeight: '400' }}
+              />
             ) : null}
           </View>
         ) : null}
