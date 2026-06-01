@@ -59,7 +59,7 @@ model Supplier {
   payments  SupplierPayment[]
 }
 
-/** Cash paid to supplier (reduces payable balance). */
+// Cash paid to supplier (reduces payable balance).
 model SupplierPayment {
   id         String   @id @default(uuid())
   supplierId String
