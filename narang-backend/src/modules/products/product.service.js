@@ -166,7 +166,7 @@ export const updateProduct = async (id, data) => {
 
 export const addProductStock = async (
   productId,
-  { quantity, supplierId, supplierName, notes }
+  { quantity, supplierId, supplierName, notes, costPrice: costPriceInput, salePrice: salePriceInput }
 ) => {
   const qty = Number(quantity);
   if (!qty || qty <= 0) {
@@ -185,9 +185,21 @@ export const addProductStock = async (
       throw new ApiError(400, 'Supplier is required');
     }
 
-    const costPrice = product.costPrice;
+    const lineCost =
+      costPriceInput != null && costPriceInput !== ''
+        ? decimal(costPriceInput)
+        : product.costPrice;
+    const newSalePrice =
+      salePriceInput != null && salePriceInput !== ''
+        ? decimal(salePriceInput)
+        : null;
+
+    if (newSalePrice && newSalePrice.lt(lineCost)) {
+      throw new ApiError(400, 'Sale price cannot be less than cost price');
+    }
+
     const qtyDec = decimal(qty);
-    const totalAmount = costPrice.mul(qtyDec);
+    const totalAmount = lineCost.mul(qtyDec);
 
     const purchase = await tx.purchase.create({
       data: {
@@ -199,7 +211,7 @@ export const addProductStock = async (
             {
               productId,
               quantity: qtyDec,
-              costPrice,
+              costPrice: lineCost,
             },
           ],
         },
@@ -210,12 +222,18 @@ export const addProductStock = async (
       },
     });
 
+    const productUpdate = {
+      currentStock: { increment: qtyDec },
+      supplierId: resolvedSupplierId,
+      costPrice: lineCost,
+    };
+    if (newSalePrice) {
+      productUpdate.salePrice = newSalePrice;
+    }
+
     const updated = await tx.product.update({
       where: { id: productId },
-      data: {
-        currentStock: { increment: qtyDec },
-        supplierId: resolvedSupplierId,
-      },
+      data: productUpdate,
       include: { supplier: true },
     });
 

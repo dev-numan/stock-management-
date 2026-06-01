@@ -5,6 +5,7 @@ import {
   createProduct as createProductApi,
   updateProduct as updateProductApi,
   deleteProduct as deleteProductApi,
+  addProductStock as addProductStockApi,
 } from '../api/products.api';
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getT } from './languageStore';
@@ -58,15 +59,20 @@ export const useProductsStore = create(
       fetchProducts: async (force = false) => {
         const { products, lastFetched } = get();
         if (!force && products.length > 0 && !isStale(lastFetched)) {
+          set({ loading: false });
           return products;
         }
         if (!getIsOnline()) {
-          if (products.length) return products;
-          set({ error: 'Offline — showing cached products when available' });
+          if (products.length) {
+            set({ loading: false });
+            return products;
+          }
+          set({ error: 'Offline — showing cached products when available', loading: false });
           return products;
         }
 
-        set({ loading: true, error: null });
+        const isInitialLoad = products.length === 0;
+        set({ loading: isInitialLoad, error: null });
         try {
           const { data } = await getProducts({ search: '' });
           const list = data.data || [];
@@ -92,6 +98,26 @@ export const useProductsStore = create(
         get().patchProduct(id, res.data);
         set({ lastFetched: Date.now() });
         return res.data;
+      },
+
+      addProductStock: async (productId, { quantity, supplierId, supplierName, notes, costPrice, salePrice }) => {
+        if (!getIsOnline()) {
+          throw new Error(getT()('products.offlineHint'));
+        }
+        const { data: res } = await addProductStockApi(productId, {
+          quantity,
+          supplierId,
+          supplierName,
+          notes,
+          costPrice,
+          salePrice,
+        });
+        const updated = res.data?.product;
+        if (updated) {
+          get().patchProduct(productId, updated);
+          set({ lastFetched: Date.now() });
+        }
+        return updated;
       },
 
       createProduct: async (data) => {

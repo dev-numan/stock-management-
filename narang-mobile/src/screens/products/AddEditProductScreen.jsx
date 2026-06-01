@@ -4,7 +4,7 @@ import { Text, Chip, Switch, Card, useTheme } from 'react-native-paper';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getProduct, addProductStock as addProductStockApi } from '../../api/products.api';
+import { getProduct } from '../../api/products.api';
 import AddStockModal from '../../components/products/AddStockModal';
 import SupplierNameAutocomplete from '../../components/suppliers/SupplierNameAutocomplete';
 import { useSuppliersStore } from '../../stores/suppliersStore';
@@ -52,6 +52,7 @@ export default function AddEditProductScreen({ route, navigation }) {
   const suppliers = useSuppliersStore((s) => s.suppliers);
   const saveProduct = useProductsStore((s) => s.saveProduct);
   const createProduct = useProductsStore((s) => s.createProduct);
+  const addProductStock = useProductsStore((s) => s.addProductStock);
   const deleteProduct = useProductsStore((s) => s.deleteProduct);
   const [productLoading, setProductLoading] = useState(Boolean(initialProduct?.id));
   const [error, setError] = useState(null);
@@ -189,16 +190,20 @@ export default function AddEditProductScreen({ route, navigation }) {
         const match = selectedSupplier || findSupplierByExactName(suppliers, trimmedSupplier);
         if (!match && !trimmedSupplier) {
           setError(t('product.supplierRequired'));
+          setLoading(false);
           return;
         }
         const qty = Number(String(initialQty).trim());
         if (!qty || qty <= 0) {
           setError(t('product.addStockQtyRequired'));
+          setLoading(false);
           return;
         }
         const created = await createProduct(payload);
-        await addProductStockApi(created.id, {
+        await addProductStock(created.id, {
           quantity: qty,
+          costPrice: data.costPrice,
+          salePrice: data.salePrice,
           supplierId: match?.id,
           supplierName: match ? undefined : trimmedSupplier,
         });
@@ -215,23 +220,25 @@ export default function AddEditProductScreen({ route, navigation }) {
     }
   };
 
-  const handleAddStock = async ({ quantity, supplierId, supplierName: name }) => {
+  const handleAddStock = async ({ quantity, costPrice, salePrice, supplierId, supplierName: name }) => {
     if (!productId) return;
     try {
       setAddStockLoading(true);
       setError(null);
-      const { data } = await addProductStockApi(productId, {
+      const updated = await addProductStock(productId, {
         quantity,
+        costPrice,
+        salePrice,
         supplierId,
         supplierName: name,
       });
-      const updated = data.data?.product;
       if (updated) {
         setDisplayStock(Number(updated.currentStock));
+        setValue('costPrice', String(Number(updated.costPrice)));
+        setValue('salePrice', String(Number(updated.salePrice)));
         setLoadedSupplier(updated.supplier || null);
         setSupplierName(updated.supplier?.name || '');
         setSelectedSupplier(updated.supplier || null);
-        useProductsStore.getState().patchProduct(productId, updated);
       }
       await fetchSuppliers(true);
       setAddStockVisible(false);
@@ -520,6 +527,8 @@ export default function AddEditProductScreen({ route, navigation }) {
         productName={watch('name')}
         defaultSupplierName={loadedSupplier?.name || supplierName}
         defaultSupplierId={loadedSupplier?.id || selectedSupplier?.id}
+        defaultCostPrice={watch('costPrice')}
+        defaultSalePrice={watch('salePrice')}
         onSubmit={handleAddStock}
         onClose={() => setAddStockVisible(false)}
         loading={addStockLoading}

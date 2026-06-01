@@ -20,6 +20,7 @@ export default function ProductsScreen({ navigation, route }) {
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const isOnline = useNetworkStore((s) => s.isOnline);
 
   const products = useProductsStore((s) => s.products);
@@ -29,6 +30,15 @@ export default function ProductsScreen({ navigation, route }) {
 
   useEffect(() => {
     fetchProducts();
+  }, [fetchProducts]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchProducts(true);
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchProducts]);
 
   useFocusEffect(
@@ -115,7 +125,7 @@ export default function ProductsScreen({ navigation, route }) {
         data={loading && filtered.length === 0 ? [] : filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingTop: 0 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchProducts(true)} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           loading ? <ProductListSkeleton count={6} /> : <EmptyState message={emptyMessage} />
         }
