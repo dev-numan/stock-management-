@@ -1,6 +1,6 @@
 import { APP_NAME, SHOP_NAME } from '../constants/branding';
 import { formatCurrency } from './formatCurrency';
-import { formatDateTime } from './formatDate';
+import { formatReceiptDateTime } from './formatDate';
 import { formatPhoneDisplay } from './phone';
 import { getT } from '../stores/languageStore';
 
@@ -47,10 +47,10 @@ export function buildInvoiceReceiptHtml(sale, settings) {
   ${phone ? `<div class="center">${phone}</div>` : ''}
   <div class="divider"></div>
   <div><b>${t('invoice.invoiceLabel')}</b> ${sale.invoiceNumber}</div>
-  <div>${formatDateTime(sale.createdAt)}</div>
+  <div>${formatReceiptDateTime(sale.createdAt)}</div>
   ${
     sale.customer
-      ? `<div style="margin-top:4px;"><b>${t('invoice.customerNameLabel')}</b> ${sale.customer.name}${sale.customer.phone ? `<br/><b>${t('invoice.customerPhoneLabel')}</b> ${formatPhoneDisplay(sale.customer.phone)}` : ''}</div>`
+      ? `<div style="margin-top:4px;"><b>${t('invoice.customerNameLabel')}</b> ${sale.customer.name}</div>`
       : ''
   }
   <div class="divider"></div>

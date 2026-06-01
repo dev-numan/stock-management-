@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 import { getT } from '../stores/languageStore';
 
 export const formatDate = (date) => {
@@ -11,15 +12,32 @@ export const formatDateTime = (date) => {
   return format(new Date(date), 'dd/MM/yyyy h:mm a');
 };
 
-/** month: 1–12 */
-export const getMonthDateRange = (year, month) => {
-  const from = new Date(year, month - 1, 1);
-  const to = new Date(year, month, 0);
-  return {
-    from: format(from, 'yyyy-MM-dd'),
-    to: format(to, 'yyyy-MM-dd'),
-  };
+/** Receipts & share image: always English, e.g. Sun 11 may, 2026 11:55 Pm */
+export const formatReceiptDateTime = (date) => {
+  if (!date) return '';
+  const d = new Date(date);
+  const dayName = format(d, 'EEE', { locale: enUS });
+  const day = format(d, 'd', { locale: enUS });
+  const month = format(d, 'MMM', { locale: enUS }).toLowerCase();
+  const year = format(d, 'yyyy', { locale: enUS });
+  const time = format(d, 'h:mm', { locale: enUS });
+  const ampm = format(d, 'a', { locale: enUS });
+  const ampmLabel = ampm.charAt(0) + ampm.slice(1).toLowerCase();
+  return `${dayName} ${day} ${month}, ${year} ${time} ${ampmLabel}`;
 };
+
+/** Local calendar day bounds as ISO (matches on-screen dd/MM/yyyy). */
+const toRangeIso = (start, end) => ({
+  from: start.toISOString(),
+  to: end.toISOString(),
+});
+
+/** month: 1–12 */
+export const getMonthDateRange = (year, month) =>
+  toRangeIso(
+    new Date(year, month - 1, 1, 0, 0, 0, 0),
+    new Date(year, month, 0, 23, 59, 59, 999)
+  );
 
 export const MONTH_KEY_IDS = [
   'months.jan', 'months.feb', 'months.mar', 'months.apr', 'months.may', 'months.jun',
@@ -38,16 +56,18 @@ export const getMonthName = (monthIndex) => {
   return t(MONTH_KEY_IDS[monthIndex] ?? MONTH_KEY_IDS[0]);
 };
 
-export const getYearDateRange = (year) => ({
-  from: `${year}-01-01`,
-  to: `${year}-12-31`,
-});
+export const getYearDateRange = (year) =>
+  toRangeIso(
+    new Date(year, 0, 1, 0, 0, 0, 0),
+    new Date(year, 11, 31, 23, 59, 59, 999)
+  );
 
 /** day: 1–31 */
-export const getDayDateRange = (year, month, day) => {
-  const dateStr = format(new Date(year, month - 1, day), 'yyyy-MM-dd');
-  return { from: dateStr, to: dateStr };
-};
+export const getDayDateRange = (year, month, day) =>
+  toRangeIso(
+    new Date(year, month - 1, day, 0, 0, 0, 0),
+    new Date(year, month - 1, day, 23, 59, 59, 999)
+  );
 
 export const daysInMonth = (year, month) => new Date(year, month, 0).getDate();
 

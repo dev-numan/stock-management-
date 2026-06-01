@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { generateInvoiceNumber } from '../../utils/invoiceNumber.js';
+import { createdAtRange } from '../../utils/dateRange.js';
 import {
   getStockDeduction,
   getUnitPrice,
@@ -13,15 +14,8 @@ const decimal = (v) => new Prisma.Decimal(v);
 export const getAllSales = async ({ from, to, customerId, paymentMethod }) => {
   const where = {};
 
-  if (from || to) {
-    where.createdAt = {};
-    if (from) where.createdAt.gte = new Date(from);
-    if (to) {
-      const end = new Date(to);
-      end.setHours(23, 59, 59, 999);
-      where.createdAt.lte = end;
-    }
-  }
+  const range = createdAtRange(from, to);
+  if (range) where.createdAt = range;
   if (customerId) where.customerId = customerId;
   if (paymentMethod) where.paymentMethod = paymentMethod;
 

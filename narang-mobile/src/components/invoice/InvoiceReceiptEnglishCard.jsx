@@ -4,7 +4,7 @@ import AppLogo from '../common/AppLogo';
 import { SHOP_NAME } from '../../constants/branding';
 import { translate } from '../../i18n/translations';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { formatDateTime } from '../../utils/formatDate';
+import { formatReceiptDateTime } from '../../utils/formatDate';
 import { formatPhoneDisplay } from '../../utils/phone';
 import {
   THERMAL_RECEIPT_WIDTH,
@@ -159,7 +159,7 @@ export default function InvoiceReceiptEnglishCard({ sale, settings }) {
         <View style={{ marginTop: 4 }}>
           <LabelValue
             label={te('invoice.dateTimeLabel')}
-            value={formatDateTime(sale.createdAt)}
+            value={formatReceiptDateTime(sale.createdAt)}
             labelStyle={{ color: RECEIPT_MUTED }}
             valueStyle={{ color: RECEIPT_MUTED, fontWeight: '400' }}
           />
@@ -172,14 +172,6 @@ export default function InvoiceReceiptEnglishCard({ sale, settings }) {
               labelStyle={{ color: '#111827' }}
               valueStyle={{ color: '#111827', fontWeight: '400' }}
             />
-            {sale.customer.phone ? (
-              <LabelValue
-                label={te('invoice.customerPhoneLabel')}
-                value={formatPhoneDisplay(sale.customer.phone)}
-                labelStyle={{ color: '#111827', marginTop: 4 }}
-                valueStyle={{ color: '#111827', fontWeight: '400' }}
-              />
-            ) : null}
           </View>
         ) : null}
       </View>

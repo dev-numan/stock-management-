@@ -4,7 +4,7 @@ import AppLogo from '../common/AppLogo';
 import { APP_NAME_URDU } from '../../constants/branding';
 import { translate } from '../../i18n/translations';
 import { formatCurrency } from '../../utils/formatCurrency';
-import { formatDateTime } from '../../utils/formatDate';
+import { formatReceiptDateTime } from '../../utils/formatDate';
 import { formatPhoneDisplay } from '../../utils/phone';
 import {
   THERMAL_RECEIPT_WIDTH,
@@ -177,7 +177,7 @@ export default function InvoiceReceiptUrduCard({ sale, settings }) {
         <View style={{ marginTop: 4 }}>
           <RtlLabelValue
             label={tu('invoice.dateTimeLabel')}
-            value={formatDateTime(sale.createdAt)}
+            value={formatReceiptDateTime(sale.createdAt)}
             labelStyle={{ color: MUTED }}
             valueStyle={{ color: MUTED, fontWeight: '400' }}
           />
@@ -190,14 +190,6 @@ export default function InvoiceReceiptUrduCard({ sale, settings }) {
               labelStyle={{ color: '#111827' }}
               valueStyle={{ color: '#111827', fontWeight: '400' }}
             />
-            {sale.customer.phone ? (
-              <RtlLabelValue
-                label={tu('invoice.customerPhoneLabel')}
-                value={formatPhoneDisplay(sale.customer.phone)}
-                labelStyle={{ color: '#111827', marginTop: 4 }}
-                valueStyle={{ color: '#111827', fontWeight: '400' }}
-              />
-            ) : null}
           </View>
         ) : null}
       </View>

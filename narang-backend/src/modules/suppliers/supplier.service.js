@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { createdAtRange } from '../../utils/dateRange.js';
 
 const toNum = (v) => Number(v ?? 0);
 
@@ -39,15 +40,7 @@ function mapGroupTotals(groups, idField, sumField) {
 }
 
 function buildDateFilter(from, to) {
-  if (!from && !to) return undefined;
-  const createdAt = {};
-  if (from) createdAt.gte = new Date(from);
-  if (to) {
-    const end = new Date(to);
-    end.setHours(23, 59, 59, 999);
-    createdAt.lte = end;
-  }
-  return createdAt;
+  return createdAtRange(from, to);
 }
 
 export async function getSupplierLedger(supplierId, { from, to, search } = {}) {

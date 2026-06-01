@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { resolveSupplierId } from '../../utils/supplierResolve.js';
+import { createdAtRange } from '../../utils/dateRange.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
 
@@ -12,15 +13,8 @@ export const getAllPurchases = async ({ from, to, supplierId }) => {
     where.supplierId = supplierId;
   }
 
-  if (from || to) {
-    where.createdAt = {};
-    if (from) where.createdAt.gte = new Date(from);
-    if (to) {
-      const end = new Date(to);
-      end.setHours(23, 59, 59, 999);
-      where.createdAt.lte = end;
-    }
-  }
+  const range = createdAtRange(from, to);
+  if (range) where.createdAt = range;
 
   return db.purchase.findMany({
     where,

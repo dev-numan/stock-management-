@@ -1,6 +1,6 @@
 import { SHOP_NAME } from '../constants/branding';
 import { formatCurrency } from './formatCurrency';
-import { formatDateTime } from './formatDate';
+import { formatReceiptDateTime } from './formatDate';
 import { formatPhoneDisplay } from './phone';
 import { getT } from '../stores/languageStore';
 
@@ -62,15 +62,10 @@ export function buildInvoiceReceiptLines(sale, settings) {
   }
   lines.push({ text: DOUBLE_DIVIDER });
   lines.push({ text: `${t('invoice.invoiceLabel')} ${sale.invoiceNumber}` });
-  lines.push({ text: formatDateTime(sale.createdAt) });
+  lines.push({ text: formatReceiptDateTime(sale.createdAt) });
   if (sale.customer?.name) {
     lines.push({ text: '' });
     lines.push({ text: `${t('invoice.customerNameLabel')} ${sale.customer.name}` });
-    if (sale.customer.phone) {
-      lines.push({
-        text: `${t('invoice.customerPhoneLabel')} ${formatPhoneDisplay(sale.customer.phone)}`,
-      });
-    }
   }
   lines.push({ text: DIVIDER });
 

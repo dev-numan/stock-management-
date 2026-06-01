@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, FlatList, Keyboard, Platform, useWindowDimensions } from 'react-native';
-import { Modal, Portal, Text, Searchbar, Card, Chip, IconButton, ActivityIndicator, useTheme } from 'react-native-paper';
+import { Modal, Portal, Text, Searchbar, Card, Chip, IconButton, ActivityIndicator, Button, useTheme } from 'react-native-paper';
+import AddCustomerQuickModal from '../customers/AddCustomerQuickModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Contacts from 'expo-contacts';
 import { formatContactAddress, getContactDisplayName, getContactPrimaryPhone } from '../../utils/contactFormat';
@@ -68,6 +69,9 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
 
   const appCustomers = useCustomersStore((s) => s.customers);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const createCustomer = useCustomersStore((s) => s.createCustomer);
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const loadContacts = useCallback(async () => {
     setContactsLoading(true);
@@ -118,6 +122,15 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
 
   const filtered = useMemo(() => filterPickerItems(pickerItems, search), [pickerItems, search]);
 
+  const trimmedSearch = search.trim();
+  const exactAppMatch = useMemo(() => {
+    if (!trimmedSearch) return null;
+    const q = trimmedSearch.toLowerCase();
+    return appCustomers.find((c) => c.name.trim().toLowerCase() === q) || null;
+  }, [appCustomers, trimmedSearch]);
+
+  const canAddNew = trimmedSearch.length > 0 && !exactAppMatch;
+
   const topOffset = insets.top + 48;
   const sheetHeight = windowHeight - topOffset;
   const showContactsSpinner = contactsLoading && contacts.length === 0 && appCustomers.length === 0;
@@ -129,12 +142,28 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
       : t('customer.emptyPicker');
 
   const handleSelect = (item) => {
-    if (resolving) return;
+    if (resolving || creating) return;
     if (item.source === 'app') {
       onSelect({ type: 'app', customer: item.rawCustomer });
       return;
     }
     onSelect({ type: 'contact', contact: item.rawContact });
+  };
+
+  const handleQuickAdd = async ({ name, phone }) => {
+    try {
+      setCreating(true);
+      const created = await createCustomer({
+        name,
+        ...(phone ? { phone } : {}),
+      });
+      setQuickAddVisible(false);
+      onSelect({ type: 'app', customer: created });
+    } catch (err) {
+      setContactsError(err.message || t('customer.addFailed'));
+    } finally {
+      setCreating(false);
+    }
   };
 
   if (!visible) return null;
@@ -166,7 +195,16 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
           <Text variant="headlineSmall" style={{ fontWeight: '700' }}>
             {t('customer.selectTitle')}
           </Text>
-          <IconButton icon="close" onPress={onClose} disabled={resolving} style={{ margin: 0 }} />
+          <View style={{ flexDirection: 'row' }}>
+            <IconButton
+              icon="plus"
+              onPress={() => setQuickAddVisible(true)}
+              disabled={resolving || creating}
+              style={{ margin: 0 }}
+              accessibilityLabel={t('customer.addQuickTitle')}
+            />
+            <IconButton icon="close" onPress={onClose} disabled={resolving || creating} style={{ margin: 0 }} />
+          </View>
         </View>
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12, ...textDir }}>
           {t('customer.selectHint')}
@@ -176,9 +214,21 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
           placeholder={t('customer.searchPlaceholder')}
           value={search}
           onChangeText={setSearch}
-          editable={!resolving}
+          editable={!resolving && !creating}
           style={{ marginBottom: 12, borderRadius: theme.roundness }}
         />
+
+        {canAddNew ? (
+          <Button
+            mode="outlined"
+            icon="plus"
+            onPress={() => setQuickAddVisible(true)}
+            disabled={resolving || creating}
+            style={{ marginBottom: 12, borderRadius: theme.roundness }}
+          >
+            {t('customer.useNewName', { name: trimmedSearch })}
+          </Button>
+        ) : null}
 
         {contactsError ? (
           <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>
@@ -249,7 +299,7 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
           )}
         </View>
 
-        {resolving ? (
+        {(resolving || creating) ? (
           <View
             style={{
               position: 'absolute',
@@ -271,6 +321,13 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
           </View>
         ) : null}
       </Modal>
+      <AddCustomerQuickModal
+        visible={quickAddVisible}
+        initialName={trimmedSearch}
+        onSubmit={handleQuickAdd}
+        onClose={() => setQuickAddVisible(false)}
+        loading={creating}
+      />
     </Portal>
   );
 }

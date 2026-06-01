@@ -26,7 +26,6 @@ export const useSalesStore = create(
       getPendingForRange: (from, to) => {
         const start = from ? new Date(from) : null;
         const end = to ? new Date(to) : null;
-        if (end) end.setHours(23, 59, 59, 999);
 
         return get().pendingSales.filter((sale) => {
           const d = new Date(sale.createdAt);

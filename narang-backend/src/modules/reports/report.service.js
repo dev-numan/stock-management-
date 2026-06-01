@@ -1,19 +1,11 @@
 import { db } from '../../config/db.js';
 import { clampExpiryAlertMonths } from '../../utils/parseExpiryDate.js';
 import { getStockDeduction } from '../../utils/productUnits.js';
+import { createdAtRange } from '../../utils/dateRange.js';
 
 const toNumber = (d) => Number(d ?? 0);
 
-const dateRange = (from, to) => {
-  const range = {};
-  if (from) range.gte = new Date(from);
-  if (to) {
-    const end = new Date(to);
-    end.setHours(23, 59, 59, 999);
-    range.lte = end;
-  }
-  return Object.keys(range).length ? range : undefined;
-};
+const dateRange = (from, to) => createdAtRange(from, to);
 
 const todayRange = () => {
   const start = new Date();

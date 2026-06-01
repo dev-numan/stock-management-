@@ -1,7 +1,7 @@
 import { APP_NAME_URDU } from '../constants/branding';
 import { translate } from '../i18n/translations';
 import { formatCurrency } from './formatCurrency';
-import { formatDateTime } from './formatDate';
+import { formatReceiptDateTime } from './formatDate';
 import { formatPhoneDisplay } from './phone';
 
 const tu = (key, params) => translate('ur', key, params);
@@ -72,10 +72,10 @@ export function buildInvoiceReceiptUrduHtml(sale, settings) {
   </div>
   <div class="divider"></div>
   <div><b>${tu('invoice.invoiceLabel')}</b> ${sale.invoiceNumber}</div>
-  <div><b>${tu('invoice.dateTimeLabel')}</b> ${formatDateTime(sale.createdAt)}</div>
+  <div><b>${tu('invoice.dateTimeLabel')}</b> ${formatReceiptDateTime(sale.createdAt)}</div>
   ${
     sale.customer
-      ? `<div style="margin-top:6px;"><b>${tu('invoice.customerNameLabel')}</b> ${sale.customer.name}${sale.customer.phone ? `<br/><b>${tu('invoice.customerPhoneLabel')}</b> ${formatPhoneDisplay(sale.customer.phone)}` : ''}</div>`
+      ? `<div style="margin-top:6px;"><b>${tu('invoice.customerNameLabel')}</b> ${sale.customer.name}</div>`
       : ''
   }
   <div class="divider"></div>
