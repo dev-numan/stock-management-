@@ -3,6 +3,7 @@ import { View, Alert } from 'react-native';
 import { Card, Text, List, Divider, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import AppButton from '../../components/common/AppButton';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import AppLogo from '../../components/common/AppLogo';
 import ScreenContainer from '../../components/common/ScreenContainer';
 import LanguageSettingsSection from '../../components/settings/LanguageSettingsSection';
@@ -32,6 +33,18 @@ export default function MoreScreen({ navigation }) {
   const isOnline = useNetworkStore((s) => s.isOnline);
   const [backingUp, setBackingUp] = useState(false);
   const [showLanguage, setShowLanguage] = useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      await logout();
+      setLogoutVisible(false);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   const handleBackup = async () => {
     if (backingUp) return;
@@ -144,8 +157,22 @@ export default function MoreScreen({ navigation }) {
       </Card>
 
       <View style={{ marginTop: 24, marginBottom: 16 }}>
-        <AppButton title={t('more.logout')} variant="danger" onPress={logout} icon="logout" />
+        <AppButton
+          title={t('more.logout')}
+          variant="danger"
+          onPress={() => setLogoutVisible(true)}
+          icon="logout"
+        />
       </View>
+      <ConfirmModal
+        visible={logoutVisible}
+        title={t('more.logoutConfirmTitle')}
+        message={t('more.logoutConfirmMessage')}
+        confirmLabel={t('more.logout')}
+        onConfirm={handleLogout}
+        onCancel={() => setLogoutVisible(false)}
+        loading={loggingOut}
+      />
     </ScreenContainer>
   );
 }

@@ -2,7 +2,15 @@ import React from 'react';
 import { Portal, Dialog, Button, Text } from 'react-native-paper';
 import { useTranslation } from '../../i18n/useTranslation';
 
-export default function ConfirmModal({ visible, title, message, onConfirm, onCancel, loading }) {
+export default function ConfirmModal({
+  visible,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  loading,
+  confirmLabel,
+}) {
   const { t, isRtl } = useTranslation();
 
   return (
@@ -17,7 +25,7 @@ export default function ConfirmModal({ visible, title, message, onConfirm, onCan
             {t('common.cancel')}
           </Button>
           <Button onPress={onConfirm} loading={loading} textColor="#DC2626">
-            {t('common.delete')}
+            {confirmLabel || t('common.delete')}
           </Button>
         </Dialog.Actions>
       </Dialog>
