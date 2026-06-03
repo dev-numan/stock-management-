@@ -20,13 +20,32 @@ import reportRoutes from './src/modules/reports/report.routes.js';
 import settingsRoutes from './src/modules/settings/settings.routes.js';
 import creditRoutes from './src/modules/credits/credit.routes.js';
 
+// Fail fast on a missing/weak JWT secret rather than booting an insecure server.
+const KNOWN_WEAK_SECRETS = new Set([
+  'your_super_secret_key_here',
+  'narang_fertilizers_jwt_secret_change_in_production',
+]);
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set. Refusing to start.');
+}
+if (process.env.NODE_ENV === 'production') {
+  if (process.env.JWT_SECRET.length < 32 || KNOWN_WEAK_SECRETS.has(process.env.JWT_SECRET)) {
+    throw new Error(
+      'JWT_SECRET is weak or a known default. Set a strong (>=32 char, random) secret in production.'
+    );
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Behind Railway/ngrok proxies — needed for correct client IPs (rate limiting).
+app.set('trust proxy', 1);
+
 app.use(helmet());
 app.use(cors());
-app.use(morgan('dev'));
-app.use(express.json());
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(express.json({ limit: '1mb' }));
 
 app.use('/api/v1', async (req, res, next) => {
   try {

@@ -30,6 +30,8 @@ import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
+import { useSuppliersStore } from '../../stores/suppliersStore';
+import { useDashboardStore } from '../../stores/dashboardStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SupplierDetailScreen({ route }) {
@@ -38,6 +40,8 @@ export default function SupplierDetailScreen({ route }) {
   const { t, isRtl } = useTranslation();
   const { isAdmin } = useAuth();
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
+  const upsertSupplier = useSuppliersStore((s) => s.upsertSupplier);
+  const invalidateDashboard = useDashboardStore((s) => s.invalidate);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
 
   const [supplier, setSupplier] = useState(initialSupplier);
@@ -60,14 +64,18 @@ export default function SupplierDetailScreen({ route }) {
         getSupplier(supplierId),
         getSupplierLedger(supplierId),
       ]);
-      setSupplier(supplierRes.data.data);
+      const freshSupplier = supplierRes.data.data;
+      setSupplier(freshSupplier);
       setAllLedger(ledgerRes.data.data || []);
+      // Keep the suppliers list/summary in sync so balances update immediately
+      // when the user navigates back after a purchase/payment change.
+      upsertSupplier(freshSupplier);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('supplier.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [supplierId, t]);
+  }, [supplierId, t, upsertSupplier]);
 
   const ledger = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -128,7 +136,10 @@ export default function SupplierDetailScreen({ route }) {
         await deleteSupplierPayment(supplierId, deleteTarget.id);
       } else {
         await deletePurchase(deleteTarget.id);
+        // Deleting a stock purchase reverses stock — refresh products and let
+        // the dashboard recompute inventory valuation / low-stock counts.
         await fetchProducts(true);
+        invalidateDashboard();
       }
       setDeleteTarget(null);
       await load();

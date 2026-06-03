@@ -23,6 +23,7 @@ router.get('/', customerController.getAllCustomers);
 router.get('/:id', customerController.getCustomerById);
 router.get('/:id/advance', customerController.getCustomerAdvanceEntries);
 router.post('/:id/advance', advanceBody, validate, customerController.addCustomerAdvance);
+router.post('/:id/credit-charge', advanceBody, validate, customerController.addCustomerCreditCharge);
 router.delete(
   '/:id/advance/:entryId',
   [

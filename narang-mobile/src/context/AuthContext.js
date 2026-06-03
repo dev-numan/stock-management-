@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { login as loginApi, getMe } from '../api/auth.api';
-import { getToken, setToken, getUser, setUser, clearAuth } from '../utils/storage';
+import { getToken, setToken, getUser, setUser, clearAuth, migrateLegacyAuth } from '../utils/storage';
 import { setSessionExpiredHandler } from '../utils/authSession';
 import { useProductsStore } from '../stores/productsStore';
 import { useCustomersStore } from '../stores/customersStore';
@@ -20,6 +20,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const load = async () => {
       try {
+        await migrateLegacyAuth();
         const token = await getToken();
         const storedUser = await getUser();
         if (!token || !storedUser) return;

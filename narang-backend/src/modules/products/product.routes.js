@@ -13,10 +13,11 @@ const idParam = [param('id').isUUID().withMessage('Valid product ID is required'
 
 router.get('/', productController.getAllProducts);
 router.get('/:id', idParam, validate, productController.getProductById);
-router.post('/', createProductValidator, validate, productController.createProduct);
-router.put('/:id', idParam, updateProductValidator, validate, productController.updateProduct);
+router.post('/', authorize('ADMIN'), createProductValidator, validate, productController.createProduct);
+router.put('/:id', authorize('ADMIN'), idParam, updateProductValidator, validate, productController.updateProduct);
 router.post(
   '/:id/stock',
+  authorize('ADMIN'),
   idParam,
   [
     body('quantity').isFloat({ min: 0.01 }).withMessage('Valid quantity is required'),

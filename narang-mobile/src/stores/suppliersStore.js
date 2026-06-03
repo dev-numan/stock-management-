@@ -29,4 +29,23 @@ export const useSuppliersStore = create((set, get) => ({
     set({ suppliers: [...get().suppliers, { ...created, payableBalance: 0 }] });
     return created;
   },
+
+  /**
+   * Insert or update a single supplier in the cached list. Used by the detail
+   * screen so the list/summary reflect new balances immediately (e.g. after a
+   * purchase/payment is added or deleted) without waiting for a refetch.
+   */
+  upsertSupplier: (supplier) => {
+    if (!supplier?.id) return;
+    const existing = get().suppliers;
+    const found = existing.some((s) => s.id === supplier.id);
+    set({
+      suppliers: found
+        ? existing.map((s) => (s.id === supplier.id ? { ...s, ...supplier } : s))
+        : [...existing, supplier],
+    });
+  },
+
+  removeSupplier: (id) =>
+    set({ suppliers: get().suppliers.filter((s) => s.id !== id) }),
 }));

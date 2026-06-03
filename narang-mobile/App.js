@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import ErrorBoundary from './src/components/common/ErrorBoundary';
 import OfflineBanner from './src/components/common/OfflineBanner';
 import { useNetworkSync } from './src/hooks/useNetworkSync';
 import { appTheme } from './src/theme/paperTheme';
@@ -28,11 +29,13 @@ export default function App() {
     <SafeAreaProvider>
       <PaperProvider theme={appTheme}>
         <Portal.Host>
-          <AuthProvider>
-            <CartProvider>
-              <AppRoot />
-            </CartProvider>
-          </AuthProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <CartProvider>
+                <AppRoot />
+              </CartProvider>
+            </AuthProvider>
+          </ErrorBoundary>
         </Portal.Host>
       </PaperProvider>
     </SafeAreaProvider>

@@ -37,6 +37,11 @@ export const addCustomerAdvance = asyncHandler(async (req, res) => {
   return res.json(new ApiResponse(200, customer, 'Advance payment recorded'));
 });
 
+export const addCustomerCreditCharge = asyncHandler(async (req, res) => {
+  const customer = await customerService.addCustomerCreditCharge(req.params.id, req.body);
+  return res.json(new ApiResponse(200, customer, 'Credit charge recorded'));
+});
+
 export const deleteCustomerAdvanceEntry = asyncHandler(async (req, res) => {
   const customer = await customerService.deleteCustomerAdvanceEntry(
     req.params.id,

@@ -93,3 +93,29 @@ export const addCustomerAdvance = async (customerId, { amount, notes }) => {
     });
   }, TRANSACTION_OPTS);
 };
+
+/** Manual credit / amount owed without a product sale. */
+export const addCustomerCreditCharge = async (customerId, { amount, notes }) => {
+  const value = new Prisma.Decimal(amount);
+  if (value.lte(0)) {
+    throw new ApiError(400, 'Amount must be greater than zero');
+  }
+
+  return db.$transaction(async (tx) => {
+    const customer = await tx.customer.findUnique({ where: { id: customerId } });
+    if (!customer) throw new ApiError(404, 'Customer not found');
+
+    await tx.customerAdvanceEntry.create({
+      data: {
+        customerId,
+        amount: value.neg(),
+        notes: notes?.trim() || null,
+      },
+    });
+
+    return tx.customer.update({
+      where: { id: customerId },
+      data: { advanceBalance: { decrement: value } },
+    });
+  }, TRANSACTION_OPTS);
+};

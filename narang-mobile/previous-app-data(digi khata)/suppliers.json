@@ -1,0 +1,25 @@
+{
+    "report": {
+      "title": "Supplier List Report - Hafeez Zara'i Markaz",
+      "phone": "03410111243",
+      "date": "03 Jun 26",
+      "summary": {
+        "balance": 3423537,
+        "advance": 276384,
+        "total_payable": 3699921,
+        "total_entries": 10
+      },
+      "suppliers": [
+        {"#": 1,  "name": "Bahi Habib 345",                "phone": "923454774740", "payable": 2297357, "advance": null},
+        {"#": 2,  "name": "Raees Mughal Nrg Vanda Dlr",    "phone": "923220011208", "payable": 90000,   "advance": null},
+        {"#": 3,  "name": "Arshad Khal Stor NRG",          "phone": "923444958601", "payable": 115079,  "advance": null},
+        {"#": 4,  "name": "Star Flour Mills MDK",          "phone": "923004302211", "payable": null,    "advance": 155000},
+        {"#": 5,  "name": "Punjab Dairy House Nrg",        "phone": "923281000863", "payable": null,    "advance": 121350},
+        {"#": 7,  "name": "Gulfam Bhatti Gandum Khata",    "phone": "923444406647", "payable": 678485,  "advance": null},
+        {"#": 8,  "name": "Ansar Iftkhar Traders Nrg",     "phone": "923466312536", "payable": 13000,   "advance": null},
+        {"#": 9,  "name": "Ateeq 51 No. Sell Officer",     "phone": "923026252858", "payable": 505700,  "advance": null},
+        {"#": 24, "name": "Farhan Malhi Fo UPL Arysta",    "phone": "923018217677", "payable": null,    "advance": 34},
+        {"#": 25, "name": "Iftekhar Yaqoob FO Plant4Life Agri", "phone": "923016669320", "payable": 300, "advance": null}
+      ]
+    }
+  }

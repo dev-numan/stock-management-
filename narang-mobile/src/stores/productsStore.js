@@ -11,8 +11,12 @@ import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getT } from './languageStore';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
+import { useDashboardStore } from './dashboardStore';
 import { zustandStorage, isStale } from './storage';
 import { filterAndSortProducts } from '../utils/productListFilters';
+
+/** Mark the dashboard stale so inventory stats refetch on next focus. */
+const invalidateDashboard = () => useDashboardStore.getState().invalidate();
 
 export const useProductsStore = create(
   persist(
@@ -88,11 +92,13 @@ export const useProductsStore = create(
             payload: { id, body: data },
           });
           get().patchProduct(id, data);
+          invalidateDashboard();
           return { id, ...data };
         }
         const { data: res } = await updateProductApi(id, data);
         get().patchProduct(id, res.data);
         set({ lastFetched: Date.now() });
+        invalidateDashboard();
         return res.data;
       },
 
@@ -112,6 +118,7 @@ export const useProductsStore = create(
         if (updated) {
           get().patchProduct(productId, updated);
           set({ lastFetched: Date.now() });
+          invalidateDashboard();
         }
         return updated;
       },
@@ -134,6 +141,7 @@ export const useProductsStore = create(
             localId,
           });
           set({ products: [local, ...get().products] });
+          invalidateDashboard();
           return local;
         }
         const { data: res } = await createProductApi(data);
@@ -141,6 +149,7 @@ export const useProductsStore = create(
           products: [res.data, ...get().products.filter((p) => p.id !== res.data.id)],
           lastFetched: Date.now(),
         });
+        invalidateDashboard();
         return res.data;
       },
 
@@ -151,10 +160,12 @@ export const useProductsStore = create(
             payload: { id },
           });
           get().removeProduct(id);
+          invalidateDashboard();
           return;
         }
         await deleteProductApi(id);
         get().removeProduct(id);
+        invalidateDashboard();
       },
     }),
     {

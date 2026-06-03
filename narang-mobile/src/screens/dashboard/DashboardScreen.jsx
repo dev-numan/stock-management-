@@ -1,5 +1,6 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, ScrollView, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatExpiryLabel, expiryTone } from '../../utils/expiry';
@@ -52,9 +53,14 @@ export default function DashboardScreen({ navigation }) {
     }
   }, [load]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Refresh on focus so changes made elsewhere (sale deleted, stock/expense
+  // added) show up when returning to the dashboard. fetchDashboard/fetchCustomers
+  // only hit the network when their cache is stale or was invalidated.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const display = enrichDashboard(data);
   const todayProfit = Number(display?.todayGrossProfit ?? 0);

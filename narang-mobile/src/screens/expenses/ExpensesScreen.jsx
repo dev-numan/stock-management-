@@ -15,6 +15,7 @@ import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate } from '../../utils/formatDate';
 import { expenseSchema, sanitizeAmountInput } from '../../utils/validation';
+import { useDashboardStore } from '../../stores/dashboardStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function ExpensesScreen() {
@@ -54,6 +55,8 @@ export default function ExpensesScreen() {
       setSaving(true);
       setApiError(null);
       await createExpense(formData);
+      // Expenses feed the dashboard's profit/expense totals — refresh on return.
+      useDashboardStore.getState().invalidate();
       reset({ title: '', amount: '', category: '', date: '', notes: '' });
       fetch();
     } catch (err) {

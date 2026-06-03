@@ -14,10 +14,6 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSAllowsLocalNetworking": true
-        },
         "NSContactsUsageDescription": "Allow access to contacts to select customers for sales.",
         "LSApplicationQueriesSchemes": [
           "whatsapp",
@@ -34,7 +30,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2E7D32"
       },
-      "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "READ_CONTACTS",
@@ -60,10 +55,13 @@
           "android": {
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "abiFilters": ["arm64-v8a"]
+            "abiFilters": [
+              "arm64-v8a"
+            ]
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

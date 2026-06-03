@@ -38,7 +38,9 @@ export const getUnitPrice = (product, soldUnit) => {
   const perStock = getUnitsPerStockUnit(product);
   if (!perStock || soldUnit !== product.alternateSaleUnit) return salePrice;
 
-  return salePrice / perStock;
+  // Round to paisa so the per-alternate-unit price is a real chargeable amount
+  // and matches the mobile client (which rounds the same way).
+  return Math.round((salePrice / perStock) * 100) / 100;
 };
 
 /** Stock to subtract from currentStock (always in primary unit) */

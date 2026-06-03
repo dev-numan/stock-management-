@@ -10,6 +10,8 @@ import {
 } from '../../utils/productUnits.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
+/** Round a Decimal money value to 2 places (half-up), matching the mobile client. */
+const round2 = (v) => decimal(v).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
 export const getAllSales = async ({ from, to, customerId, paymentMethod }) => {
   const where = {};
@@ -120,8 +122,10 @@ export const createSale = async (saleData, userId) => {
       }
       stockDeductions.set(item.productId, totalDeduction);
 
-      const unitPrice = decimal(item.unitPrice ?? getUnitPrice(product, soldUnit));
-      const lineTotal = unitPrice.mul(qty);
+      // Always price server-side from the product — never trust a client-sent
+      // unitPrice (otherwise a tampered client could set any price).
+      const unitPrice = round2(getUnitPrice(product, soldUnit));
+      const lineTotal = round2(unitPrice.mul(qty));
       subtotal = subtotal.add(lineTotal);
 
       saleItemsData.push({
@@ -133,8 +137,14 @@ export const createSale = async (saleData, userId) => {
       });
     }
 
-    const discountDec = decimal(discount);
-    const totalAmount = subtotal.sub(discountDec);
+    subtotal = round2(subtotal);
+    const discountDec = round2(discount);
+    // A discount cannot exceed the subtotal — otherwise the total goes negative
+    // and a "sale" would credit the customer instead of charging them.
+    if (discountDec.greaterThan(subtotal)) {
+      throw new ApiError(400, 'Discount cannot be greater than the subtotal');
+    }
+    const totalAmount = round2(subtotal.sub(discountDec));
 
     const sale = await tx.sale.create({
       data: {
@@ -154,7 +164,10 @@ export const createSale = async (saleData, userId) => {
       include: saleInclude,
     });
 
-    await Promise.all(
+    // The DB decrement is atomic and the row lock serialises concurrent sales,
+    // so re-checking the post-decrement value here catches an oversell race
+    // (two cashiers selling the last units at once) and rolls the sale back.
+    const decrementedProducts = await Promise.all(
       [...stockDeductions.entries()].map(([productId, deduction]) =>
         tx.product.update({
           where: { id: productId },
@@ -162,6 +175,11 @@ export const createSale = async (saleData, userId) => {
         })
       )
     );
+    for (const p of decrementedProducts) {
+      if (decimal(p.currentStock).lessThan(0)) {
+        throw new ApiError(400, `Insufficient stock for ${p.name}`);
+      }
+    }
 
     if (customerId && paymentMethod === 'CREDIT') {
       await tx.customerAdvanceEntry.create({

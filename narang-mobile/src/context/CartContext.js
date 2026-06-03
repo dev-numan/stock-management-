@@ -7,6 +7,7 @@ import {
   hasAlternateSale,
   roundSaleQty,
 } from '../utils/productUnits';
+import { roundMoney } from '../utils/money';
 
 const CartContext = createContext(null);
 
@@ -23,7 +24,7 @@ const buildLine = (product, quantity, soldUnit, cartItems, lineKey) => {
     soldUnit: unit,
     quantity: qty,
     unitPrice,
-    total: qty * unitPrice,
+    total: roundMoney(qty * unitPrice),
     stockDeduction,
     maxQuantity,
   };
@@ -110,11 +111,11 @@ export const CartProvider = ({ children }) => {
   };
 
   const subtotal = useMemo(
-    () => items.reduce((sum, i) => sum + i.total, 0),
+    () => roundMoney(items.reduce((sum, i) => sum + i.total, 0)),
     [items]
   );
 
-  const total = useMemo(() => subtotal - discount, [subtotal, discount]);
+  const total = useMemo(() => roundMoney(subtotal - discount), [subtotal, discount]);
 
   return (
     <CartContext.Provider

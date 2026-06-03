@@ -1,3 +1,5 @@
+import { roundMoney } from './money';
+
 /** Allowed primary unit → alternate sale unit pairs */
 export const ALLOWED_ALTERNATE_UNITS = {
   BAG: ['KG'],
@@ -40,7 +42,10 @@ export const getUnitPrice = (product, soldUnit) => {
   const perStock = getUnitsPerStockUnit(product);
   if (!perStock || soldUnit !== product.alternateSaleUnit) return salePrice;
 
-  return salePrice / perStock;
+  // Price per alternate unit — round to paisa so it's a real chargeable price
+  // (e.g. 1000 / 3 = 333.33, not 333.3333333). Keeps cart, receipt and the
+  // synced server amount consistent.
+  return roundMoney(salePrice / perStock);
 };
 
 export const getStockDeduction = (product, soldUnit, quantity) => {

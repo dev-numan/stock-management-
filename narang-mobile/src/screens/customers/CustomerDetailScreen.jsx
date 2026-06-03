@@ -1,12 +1,13 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { View, ScrollView, RefreshControl, Keyboard, Platform } from 'react-native';
 import ViewShot from 'react-native-view-shot';
-import { Text, Card, IconButton, useTheme } from 'react-native-paper';
+import { Text, Card, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getCustomer,
   getCustomerAdvanceEntries,
   addCustomerAdvance,
+  addCustomerCreditCharge,
   deleteCustomerAdvanceEntry,
 } from '../../api/customers.api';
 import { getSales } from '../../api/sales.api';
@@ -21,8 +22,10 @@ import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import AppButton from '../../components/common/AppButton';
-import AddAdvanceModal from '../../components/customers/AddAdvanceModal';
+import AddCustomerLedgerModal from '../../components/customers/AddCustomerLedgerModal';
+import CustomerAccountEntryRow from '../../components/customers/CustomerAccountEntryRow';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import { buildCustomerAccountHistory } from '../../utils/customerAccountHistory';
 import { useAuth } from '../../context/AuthContext';
 import PaymentReminderCard from '../../components/customers/PaymentReminderCard';
 import { APP_NAME_URDU } from '../../constants/branding';
@@ -32,6 +35,7 @@ import {
   getPaymentReminderShopSettings,
 } from '../../utils/sharePaymentReminder';
 import { useSalesStore } from '../../stores/salesStore';
+import { useCustomersStore } from '../../stores/customersStore';
 import { getIsOnline } from '../../stores/networkStore';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import { useTranslation } from '../../i18n/useTranslation';
@@ -58,6 +62,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [advanceModalVisible, setAdvanceModalVisible] = useState(false);
+  const [creditModalVisible, setCreditModalVisible] = useState(false);
   const [advanceSaving, setAdvanceSaving] = useState(false);
   const [mode, setMode] = useState('all');
   const [year, setYear] = useState(now.getFullYear());
@@ -68,6 +73,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const reminderCaptureRef = useRef(null);
   const { t, isRtl } = useTranslation();
   const { isAdmin } = useAuth();
+  const patchCustomer = useCustomersStore((s) => s.patchCustomer);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [deletePaymentTarget, setDeletePaymentTarget] = useState(null);
   const [deletingPayment, setDeletingPayment] = useState(false);
@@ -84,6 +90,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
         const { data } = await getCustomer(customerId);
         detail = data.data;
         setCustomer(detail);
+        // Keep the customers list balance in sync with the fresh detail.
+        patchCustomer(detail);
       } else {
         setCustomer(detail);
       }
@@ -112,7 +120,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [customerId, initialCustomer, mode, year, month, day]);
+  }, [customerId, initialCustomer, mode, year, month, day, patchCustomer]);
 
   useFocusEffect(
     useCallback(() => {
@@ -124,6 +132,10 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const creditSales = sales.filter((s) => s.paymentMethod === 'CREDIT');
   const creditTotal = creditSales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
   const advanceBalance = customer ? getEffectiveAdvanceBalance(customer) : 0;
+  const accountHistory = useMemo(
+    () => buildCustomerAccountHistory(advanceEntries),
+    [advanceEntries]
+  );
   const isLocalCustomer = String(customerId).startsWith('local-');
   const canSendMessages = !isLocalCustomer && Boolean(customer?.phone?.trim());
 
@@ -173,6 +185,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setError(null);
       const { data } = await deleteCustomerAdvanceEntry(customerId, deletePaymentTarget.id);
       setCustomer(data.data);
+      patchCustomer(data.data);
       setDeletePaymentTarget(null);
       await load();
     } catch (err) {
@@ -188,6 +201,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setError(null);
       const { data } = await addCustomerAdvance(customerId, { amount, notes });
       setCustomer(data.data);
+      patchCustomer(data.data);
       setAdvanceModalVisible(false);
       await load();
     } catch (err) {
@@ -195,6 +209,30 @@ export default function CustomerDetailScreen({ route, navigation }) {
     } finally {
       setAdvanceSaving(false);
     }
+  };
+
+  const handleAddCreditCharge = async ({ amount, notes }) => {
+    try {
+      setAdvanceSaving(true);
+      setError(null);
+      const { data } = await addCustomerCreditCharge(customerId, { amount, notes });
+      setCustomer(data.data);
+      patchCustomer(data.data);
+      setCreditModalVisible(false);
+      await load();
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('customer.creditChargeFailed')));
+    } finally {
+      setAdvanceSaving(false);
+    }
+  };
+
+  const openSaleFromEntry = (entry) => {
+    if (!entry.linkedSaleId) return;
+    navigation.navigate('Invoice', {
+      saleId: entry.linkedSaleId,
+      sale: entry.sale,
+    });
   };
 
   const periodLabel = getPeriodLabel(mode, year, month, day);
@@ -255,17 +293,19 @@ export default function CustomerDetailScreen({ route, navigation }) {
         >
           {formatCurrency(advanceBalance)}
         </Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-          {advanceBalance >= 0
-            ? t('customer.balancePrepaidHint')
-            : t('customer.balanceOwesHint')}
-        </Text>
         {!isLocalCustomer && getIsOnline() ? (
-          <View style={{ marginTop: 12 }}>
+          <View style={{ marginTop: 12, gap: 8 }}>
             <AppButton
-              title={t('customer.addCreditBalance')}
+              title={t('customer.recordPayment')}
               variant="outline"
               onPress={() => setAdvanceModalVisible(true)}
+              icon="plus"
+            />
+            <AppButton
+              title={t('customer.addCreditOwed')}
+              variant="outline"
+              onPress={() => setCreditModalVisible(true)}
+              icon="minus"
             />
           </View>
         ) : isLocalCustomer ? (
@@ -343,64 +383,67 @@ export default function CustomerDetailScreen({ route, navigation }) {
       </AppCard>
 
      
-      {advanceEntries.length > 0 ? (
-        <View style={{ marginTop: 16 }}>
-          <Text variant="titleLarge" style={{ fontWeight: '700', marginBottom: 8, ...textDir }}>{t('customer.payments')}</Text>
-          {advanceEntries.map((entry) => {
-            const amt = Number(entry.amount);
-            const isCharge = amt < 0;
-            const linkedSale = entry.saleId || entry.sale?.id;
-            return (
-              <AppCard key={entry.id} style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="titleSmall" style={{ fontWeight: '600', color: isCharge ? theme.colors.error : theme.colors.primary }}>
-                      {isCharge ? '−' : '+'}
-                      {formatCurrency(Math.abs(amt))}
-                    </Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-                      {formatDate(entry.createdAt)}
-                    </Text>
-                    {entry.notes ? (
-                      <Text variant="bodySmall" style={{ marginTop: 4 }}>{entry.notes}</Text>
-                    ) : null}
-                    {linkedSale ? (
-                      <Text
-                        variant="labelSmall"
-                        style={{ marginTop: 6, color: theme.colors.secondary, ...textDir }}
-                        onPress={() =>
-                          navigation.navigate('Invoice', {
-                            saleId: linkedSale,
-                            sale: entry.sale,
-                          })
-                        }
-                      >
-                        {t('customer.paymentLinkedSale', {
-                          invoice: entry.sale?.invoiceNumber || linkedSale,
-                        })}
-                      </Text>
-                    ) : null}
-                  </View>
-                  {isAdmin && !linkedSale && !isCharge ? (
-                    <IconButton
-                      icon="delete-outline"
-                      size={20}
-                      onPress={() => setDeletePaymentTarget(entry)}
-                      accessibilityLabel={t('common.delete')}
-                    />
-                  ) : null}
-                </View>
-              </AppCard>
-            );
-          })}
-        </View>
+      {accountHistory.length > 0 ? (
+        <Card mode="elevated" style={{ marginTop: 16, borderRadius: theme.roundness }}>
+          <Card.Content style={{ paddingBottom: 8 }}>
+            <Text variant="titleLarge" style={{ fontWeight: '700', marginBottom: 12, ...textDir }}>
+              {t('customer.accountHistory')}
+            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                paddingVertical: 8,
+                paddingHorizontal: 4,
+                backgroundColor: theme.colors.surfaceVariant,
+                borderRadius: theme.roundness,
+                marginBottom: 4,
+              }}
+            >
+              <Text style={{ flex: 1.1, fontWeight: '700', fontSize: 12, ...textDir }}>
+                {t('customer.col.date')}
+              </Text>
+              <Text
+                style={{
+                  width: 88,
+                  fontWeight: '700',
+                  fontSize: 12,
+                  textAlign: isRtl ? 'left' : 'right',
+                  ...textDir,
+                }}
+              >
+                {t('customer.col.amount')}
+              </Text>
+              <Text style={{ flex: 1.2, fontWeight: '700', fontSize: 12, paddingHorizontal: 6, ...textDir }}>
+                {t('customer.col.note')}
+              </Text>
+            </View>
+            {accountHistory.map((entry) => (
+              <CustomerAccountEntryRow
+                key={entry.id}
+                entry={entry}
+                canDelete={isAdmin}
+                onDelete={setDeletePaymentTarget}
+                onOpenSale={openSaleFromEntry}
+              />
+            ))}
+          </Card.Content>
+        </Card>
       ) : null}
 
-      <AddAdvanceModal
+      <AddCustomerLedgerModal
         visible={advanceModalVisible}
+        variant="payment"
         customerName={customer?.name}
         onSubmit={handleAddAdvance}
         onClose={() => setAdvanceModalVisible(false)}
+        loading={advanceSaving}
+      />
+      <AddCustomerLedgerModal
+        visible={creditModalVisible}
+        variant="credit"
+        customerName={customer?.name}
+        onSubmit={handleAddCreditCharge}
+        onClose={() => setCreditModalVisible(false)}
         loading={advanceSaving}
       />
       <ConfirmModal

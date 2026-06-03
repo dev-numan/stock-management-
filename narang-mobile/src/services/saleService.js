@@ -7,6 +7,7 @@ import { useDashboardStore } from '../stores/dashboardStore';
 import { useCustomersStore } from '../stores/customersStore';
 import { createClientRequestId } from '../utils/clientRequestId';
 import { shouldQueueOffline } from '../utils/connectivity';
+import { roundMoney } from '../utils/money';
 
 const buildLocalInvoiceNumber = () =>
   `LOCAL-${Date.now().toString(36).toUpperCase()}`;
@@ -125,8 +126,8 @@ export const completeSale = async ({
   notes,
   selectedCustomer,
 }) => {
-  const subtotal = items.reduce((sum, i) => sum + i.total, 0);
-  const totalAmount = subtotal - discount;
+  const subtotal = roundMoney(items.reduce((sum, i) => sum + i.total, 0));
+  const totalAmount = roundMoney(subtotal - discount);
 
   let customerId = null;
   let customer = null;
