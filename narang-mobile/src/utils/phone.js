@@ -19,3 +19,6 @@ export const toWhatsAppPhone = (phone) => {
   if (!n) return '';
   return `92${n}`;
 };
+
+/** E.164 without plus, e.g. 923001234567 — reliable for smsto:/sms: on Android. */
+export const toInternationalPhoneDigits = (phone) => toWhatsAppPhone(phone);

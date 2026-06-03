@@ -15,6 +15,7 @@ import { useLanguageStore } from '../../stores/languageStore';
 const menuItems = [
   { titleKey: 'more.profit', screen: 'Profit', icon: 'cash-plus', adminOnly: true },
   { titleKey: 'more.reports', screen: 'Reports', icon: 'chart-bar', adminOnly: true },
+  { titleKey: 'more.parties', screen: 'Parties', icon: 'account-multiple' },
   { titleKey: 'more.customers', screen: 'Customers', icon: 'account-group' },
   { titleKey: 'more.suppliers', screen: 'Suppliers', icon: 'store' },
   { titleKey: 'more.expenses', screen: 'Expenses', icon: 'cash-minus' },

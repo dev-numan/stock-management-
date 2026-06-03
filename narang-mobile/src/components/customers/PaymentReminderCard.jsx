@@ -41,11 +41,11 @@ export default function PaymentReminderCard({ advanceBalance, shopNameUrdu, shop
   return (
     <View
       style={{
-        width: 340,
+        width: 360,
         backgroundColor: '#ffffff',
         borderRadius: 16,
         paddingVertical: 36,
-        paddingHorizontal: 28,
+        paddingHorizontal: 32,
         alignItems: 'center',
       }}
     >
@@ -87,12 +87,18 @@ export default function PaymentReminderCard({ advanceBalance, shopNameUrdu, shop
             color: '#111827',
             textAlign: 'center',
             writingDirection: 'rtl',
+            flexShrink: 1,
+            flexWrap: 'wrap',
           }}
+          numberOfLines={0}
         >
           {shop}
         </Text>
         {phone ? (
-          <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 8, textAlign: 'center' }}>
+          <Text
+            style={{ fontSize: 15, color: '#6B7280', marginTop: 8, textAlign: 'center', flexShrink: 1 }}
+            numberOfLines={0}
+          >
             {phone}
           </Text>
         ) : null}

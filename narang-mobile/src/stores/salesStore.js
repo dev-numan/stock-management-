@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getSales } from '../api/sales.api';
+import { isInstantInLocalRange } from '../utils/formatDate';
 import { getIsOnline } from './networkStore';
 import { zustandStorage, isStale } from './storage';
 
@@ -23,17 +24,10 @@ export const useSalesStore = create(
           ),
         }),
 
-      getPendingForRange: (from, to) => {
-        const start = from ? new Date(from) : null;
-        const end = to ? new Date(to) : null;
-
-        return get().pendingSales.filter((sale) => {
-          const d = new Date(sale.createdAt);
-          if (start && d < start) return false;
-          if (end && d > end) return false;
-          return true;
-        });
-      },
+      getPendingForRange: (from, to) =>
+        get().pendingSales.filter((sale) =>
+          isInstantInLocalRange(sale.createdAt, from, to)
+        ),
 
       fetchSales: async (params = {}, force = false) => {
         const key = cacheKey(params);

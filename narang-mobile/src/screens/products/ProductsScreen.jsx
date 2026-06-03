@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import ActiveFilterChips from '../../components/common/ActiveFilterChips';
+import {
+  buildListFilterTags,
+  PRODUCT_FILTER_LABEL_KEYS,
+  PRODUCT_SORT_LABEL_KEYS,
+} from '../../utils/filterLabelKeys';
 import { View, FlatList, RefreshControl } from 'react-native';
-import { Searchbar, Switch, FAB, Text, useTheme } from 'react-native-paper';
+import { Searchbar, FAB, Text, IconButton, Badge, useTheme } from 'react-native-paper';
+import ProductFilterSortModal from '../../components/products/ProductFilterSortModal';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import ProductCard from '../../components/products/ProductCard';
@@ -19,7 +26,9 @@ export default function ProductsScreen({ navigation, route }) {
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const { isAdmin } = useAuth();
   const [search, setSearch] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('newest');
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const isOnline = useNetworkStore((s) => s.isOnline);
 
@@ -44,76 +53,85 @@ export default function ProductsScreen({ navigation, route }) {
   useFocusEffect(
     useCallback(() => {
       if (route.params?.lowStockOnly) {
-        setLowStockOnly(true);
+        setFilter('lowStock');
         navigation.setParams({ lowStockOnly: undefined });
       }
     }, [route.params?.lowStockOnly, navigation])
   );
 
   const filtered = useMemo(
-    () => useProductsStore.getState().getFiltered({ search, lowStock: lowStockOnly }),
-    [products, search, lowStockOnly]
+    () => useProductsStore.getState().getFiltered({ search, filter, sort }),
+    [products, search, filter, sort]
   );
 
-  const emptyMessage = lowStockOnly ? t('products.emptyLowStock') : t('products.empty');
+  const hasActiveFilters = filter !== 'all' || sort !== 'newest' || Boolean(search.trim());
+
+  const filterTags = useMemo(
+    () =>
+      buildListFilterTags({
+        t,
+        filter,
+        sort,
+        search,
+        filterLabelKeys: PRODUCT_FILTER_LABEL_KEYS,
+        sortLabelKeys: PRODUCT_SORT_LABEL_KEYS,
+        onClearFilter: () => setFilter('all'),
+        onClearSort: () => setSort('newest'),
+        onClearSearch: () => setSearch(''),
+      }),
+    [filter, sort, search, t]
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setFilter('all');
+    setSort('newest');
+    setSearch('');
+  }, []);
+
+  const emptyMessage = useMemo(() => {
+    if (search.trim()) return t('products.noMatch', { query: search.trim() });
+    if (filter === 'lowStock') return t('products.emptyLowStock');
+    if (filter === 'outOfStock') return t('products.emptyOutOfStock');
+    if (filter === 'inStock') return t('products.emptyInStock');
+    if (filter === 'expiringSoon') return t('products.emptyExpiringSoon');
+    return t('products.empty');
+  }, [filter, search, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
-        <Searchbar
-          placeholder={t('products.searchPlaceholder')}
-          value={search}
-          onChangeText={setSearch}
-          style={{ marginBottom: 8, borderRadius: theme.roundness }}
-        />
-        <StockValuationSummary products={products} />
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            borderRadius: theme.roundness,
-            backgroundColor: lowStockOnly ? theme.colors.errorContainer : theme.colors.surfaceVariant,
-            borderWidth: 1,
-            borderColor: lowStockOnly ? theme.colors.error : theme.colors.outlineVariant,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12 }}>
-            <MaterialCommunityIcons
-              name="alert"
-              size={22}
-              color={lowStockOnly ? theme.colors.error : theme.colors.onSurfaceVariant}
-            />
-            <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text
-                variant="labelLarge"
-                style={{
-                  fontWeight: lowStockOnly ? '700' : '500',
-                  color: lowStockOnly ? theme.colors.onErrorContainer : theme.colors.onSurface,
-                }}
-              >
-                {t('products.lowStockOnly')}
-              </Text>
-              <Text
-                variant="bodySmall"
-                style={{
-                  color: lowStockOnly ? theme.colors.onErrorContainer : theme.colors.onSurfaceVariant,
-                  marginTop: 2,
-                  ...textDir,
-                }}
-              >
-                {lowStockOnly ? t('products.lowStockActive') : t('products.lowStockOff')}
-              </Text>
-            </View>
-          </View>
-          <Switch
-            value={lowStockOnly}
-            onValueChange={setLowStockOnly}
-            color={theme.colors.error}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+          <Searchbar
+            placeholder={t('products.searchPlaceholder')}
+            value={search}
+            onChangeText={setSearch}
+            style={{ flex: 1, borderRadius: theme.roundness }}
           />
+          <View>
+            <IconButton
+              icon="filter-variant"
+              mode="contained-tonal"
+              onPress={() => setFilterModalVisible(true)}
+              accessibilityLabel={t('products.filterSort')}
+            />
+            {filterTags.length > 0 ? (
+              <Badge
+                size={8}
+                style={{ position: 'absolute', top: 8, right: 8, backgroundColor: theme.colors.primary }}
+              />
+            ) : null}
+          </View>
         </View>
+        <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
+        <StockValuationSummary products={filtered} />
+        {hasActiveFilters ? (
+          <Text
+            variant="bodySmall"
+            style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8, ...textDir }}
+          >
+            {t('products.resultsCount', { count: filtered.length })}
+          </Text>
+        ) : null}
         {!isOnline ? (
           <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 8 }}>
             {t('products.offlineHint')}
@@ -135,6 +153,16 @@ export default function ProductsScreen({ navigation, route }) {
             onPress={() => navigation.navigate('AddEditProduct', { product: item, readOnly: !isAdmin })}
           />
         )}
+      />
+      <ProductFilterSortModal
+        visible={filterModalVisible}
+        filter={filter}
+        sort={sort}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={({ filter: nextFilter, sort: nextSort }) => {
+          setFilter(nextFilter);
+          setSort(nextSort);
+        }}
       />
       {isAdmin ? (
         <FAB

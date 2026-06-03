@@ -99,6 +99,7 @@ export default function SalesTrendChart() {
         title=""
         modes={['month', 'year']}
         showMonthPicker={false}
+        defaultMode="month"
         mode={mode}
         year={year}
         month={1}

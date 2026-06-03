@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Keyboard, View } from 'react-native';
 import { TextInput, HelperText, useTheme } from 'react-native-paper';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function AppInput({
   label,
@@ -11,6 +12,7 @@ export default function AppInput({
   error,
   keyboardType = 'default',
   secureTextEntry = false,
+  passwordToggle = false,
   multiline = false,
   editable = true,
   dense = false,
@@ -18,7 +20,11 @@ export default function AppInput({
   onSubmitEditing,
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const displayValue = value ?? '';
+  const isPasswordField = secureTextEntry || passwordToggle;
+  const hidePassword = passwordToggle ? !passwordVisible : secureTextEntry;
 
   const handleSubmitEditing = (e) => {
     if (onSubmitEditing) {
@@ -40,11 +46,25 @@ export default function AppInput({
         onBlur={onBlur}
         placeholder={placeholder}
         keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
+        secureTextEntry={hidePassword}
         multiline={multiline}
         editable={editable}
         error={!!error}
         dense={dense}
+        right={
+          passwordToggle ? (
+            <TextInput.Icon
+              icon={passwordVisible ? 'eye-off' : 'eye'}
+              onPress={() => setPasswordVisible((v) => !v)}
+              forceTextInputFocus={false}
+              accessibilityLabel={
+                passwordVisible ? t('login.hidePassword') : t('login.showPassword')
+              }
+            />
+          ) : undefined
+        }
+        autoCapitalize={isPasswordField ? 'none' : undefined}
+        autoCorrect={isPasswordField ? false : undefined}
         returnKeyType={returnKeyType ?? (multiline ? 'default' : 'done')}
         blurOnSubmit={!multiline}
         onSubmitEditing={handleSubmitEditing}

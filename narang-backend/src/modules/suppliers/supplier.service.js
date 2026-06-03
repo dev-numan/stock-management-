@@ -221,3 +221,44 @@ export const addSupplierPayment = async (supplierId, { amount, notes }) => {
     return { payment, payableBalance };
   }, TRANSACTION_OPTS);
 };
+
+/** Manual purchase on supplier ledger (no stock / line items). */
+export const addSupplierPurchase = async (supplierId, { amount, notes }) => {
+  const value = new Prisma.Decimal(amount);
+  if (value.lte(0)) {
+    throw new ApiError(400, 'Amount must be greater than zero');
+  }
+
+  return db.$transaction(async (tx) => {
+    const supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) throw new ApiError(404, 'Supplier not found');
+
+    const purchase = await tx.purchase.create({
+      data: {
+        supplierId,
+        totalAmount: value,
+        notes: notes?.trim() || null,
+      },
+    });
+
+    const payableBalance =
+      toNum(
+        (
+          await tx.purchase.aggregate({
+            where: { supplierId },
+            _sum: { totalAmount: true },
+          })
+        )._sum.totalAmount
+      ) -
+      toNum(
+        (
+          await tx.supplierPayment.aggregate({
+            where: { supplierId },
+            _sum: { amount: true },
+          })
+        )._sum.amount
+      );
+
+    return { purchase, payableBalance };
+  }, TRANSACTION_OPTS);
+};

@@ -8,8 +8,9 @@ import {
   Chip,
   useTheme,
 } from 'react-native-paper';
-import { daysInMonth, shiftCalendarDay, getMonthName } from '../../utils/formatDate';
+import { daysInMonth, shiftCalendarDay, getMonthName, getPeriodLabel } from '../../utils/formatDate';
 import { useTranslation } from '../../i18n/useTranslation';
+import ActiveFilterChips from './ActiveFilterChips';
 
 export default function PeriodFilter({
   mode,
@@ -25,6 +26,8 @@ export default function PeriodFilter({
   showMonthPicker = true,
   title,
   compact = false,
+  defaultMode = 'all',
+  showActiveChips = true,
 }) {
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
@@ -61,6 +64,26 @@ export default function PeriodFilter({
     onMonthChange(next.month);
     onDayChange(next.day);
   };
+
+  const resetPeriodToDefault = () => {
+    const now = new Date();
+    onModeChange(defaultMode);
+    onYearChange(now.getFullYear());
+    onMonthChange(now.getMonth() + 1);
+    if (onDayChange) onDayChange(now.getDate());
+  };
+
+  const periodActive = mode !== defaultMode;
+  const periodTags =
+    showActiveChips && periodActive
+      ? [
+          {
+            id: 'period',
+            label: getPeriodLabel(mode, year, month, day),
+            onRemove: resetPeriodToDefault,
+          },
+        ]
+      : [];
 
   const content = (
     <>
@@ -128,6 +151,7 @@ export default function PeriodFilter({
           <IconButton icon="chevron-right" mode="contained-tonal" onPress={() => shiftDay(1)} />
         </View>
       ) : null}
+      <ActiveFilterChips tags={periodTags} />
       {summaryText ? (
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', ...textDir }}>
           {summaryText}

@@ -1,6 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
-import { Banner, Button, useTheme } from 'react-native-paper';
+import { Banner, Text, useTheme } from 'react-native-paper';
 import { useNetworkStore } from '../../stores/networkStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { processSyncQueue } from '../../services/syncService';
@@ -25,7 +24,7 @@ export default function OfflineBanner() {
   const subtitle = isOnline
     ? pending
       ? t('sync.pendingSubtitle', { count: pending })
-      : lastSyncError || t('sync.retryHint')
+      : String(lastSyncError || t('sync.retryHint'))
     : t('sync.offlineSubtitle');
 
   const title = isOnline ? t('sync.pendingTitle') : t('sync.offlineTitle');
@@ -43,9 +42,9 @@ export default function OfflineBanner() {
         backgroundColor: isOnline ? theme.colors.secondaryContainer : theme.colors.surfaceVariant,
       }}
     >
-      <View style={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}>
-        {`${title} · ${subtitle}`}
-      </View>
+      <Text style={{ writingDirection: isRtl ? 'rtl' : 'ltr' }}>
+        {title} · {subtitle}
+      </Text>
     </Banner>
   );
 }

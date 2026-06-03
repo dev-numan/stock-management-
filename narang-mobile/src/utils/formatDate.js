@@ -26,15 +26,15 @@ export const formatReceiptDateTime = (date) => {
   return `${dayName} ${day} ${month}, ${year} ${time} ${ampmLabel}`;
 };
 
-/** Local calendar day bounds as ISO (matches on-screen dd/MM/yyyy). */
-const toRangeIso = (start, end) => ({
+/** Device-local period bounds as ISO (matches on-screen dd/MM/yyyy). */
+export const localPeriodBounds = (start, end) => ({
   from: start.toISOString(),
   to: end.toISOString(),
 });
 
 /** month: 1–12 */
 export const getMonthDateRange = (year, month) =>
-  toRangeIso(
+  localPeriodBounds(
     new Date(year, month - 1, 1, 0, 0, 0, 0),
     new Date(year, month, 0, 23, 59, 59, 999)
   );
@@ -57,17 +57,24 @@ export const getMonthName = (monthIndex) => {
 };
 
 export const getYearDateRange = (year) =>
-  toRangeIso(
+  localPeriodBounds(
     new Date(year, 0, 1, 0, 0, 0, 0),
     new Date(year, 11, 31, 23, 59, 59, 999)
   );
 
 /** day: 1–31 */
 export const getDayDateRange = (year, month, day) =>
-  toRangeIso(
+  localPeriodBounds(
     new Date(year, month - 1, day, 0, 0, 0, 0),
     new Date(year, month - 1, day, 23, 59, 59, 999)
   );
+
+/** Sales trend: last 5 calendar years ending at endYear. */
+export const getTrendYearRange = (endYear) => {
+  const start = getYearDateRange(endYear - 4);
+  const end = getYearDateRange(endYear);
+  return { from: start.from, to: end.to };
+};
 
 export const daysInMonth = (year, month) => new Date(year, month, 0).getDate();
 
@@ -103,17 +110,25 @@ export const getPeriodLabel = (mode, year, month, day = 1) => {
   return t('period.monthLabel', { month: getMonthName(month - 1), year });
 };
 
+export const isInstantInLocalRange = (date, from, to) => {
+  if (!date) return false;
+  const t = new Date(date).getTime();
+  if (from && t < new Date(from).getTime()) return false;
+  if (to && t > new Date(to).getTime()) return false;
+  return true;
+};
+
 /** @param {'day'|'month'|'year'|'all'} mode */
 export const isDateInPeriod = (date, mode, year, month, day = 1) => {
   if (mode === 'all' || !date) return true;
-  const d = new Date(date);
-  if (mode === 'year') return d.getFullYear() === year;
-  if (mode === 'day') {
-    return (
-      d.getFullYear() === year &&
-      d.getMonth() + 1 === month &&
-      d.getDate() === day
-    );
+  if (mode === 'year') {
+    const { from, to } = getYearDateRange(year);
+    return isInstantInLocalRange(date, from, to);
   }
-  return d.getFullYear() === year && d.getMonth() + 1 === month;
+  if (mode === 'day') {
+    const { from, to } = getDayDateRange(year, month, day);
+    return isInstantInLocalRange(date, from, to);
+  }
+  const { from, to } = getMonthDateRange(year, month);
+  return isInstantInLocalRange(date, from, to);
 };

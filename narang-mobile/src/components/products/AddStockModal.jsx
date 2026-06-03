@@ -80,17 +80,13 @@ export default function AddStockModal({
     }
     const trimmedName = supplierName.trim();
     const match = selectedSupplier || findSupplierByExactName(suppliers, trimmedName);
-    if (!match && !trimmedName) {
-      setError(t('product.supplierRequired'));
-      return;
-    }
     setError(null);
     onSubmit({
       quantity: qty,
       costPrice: cost,
       salePrice: sale,
       supplierId: match?.id,
-      supplierName: match ? undefined : trimmedName,
+      supplierName: match ? undefined : trimmedName || undefined,
     });
   };
 
@@ -132,7 +128,11 @@ export default function AddStockModal({
               onChangeText={setSupplierName}
               onSelectSupplier={setSelectedSupplier}
               selectedSupplierId={selectedSupplier?.id}
+              optional
             />
+            <Text variant="bodySmall" style={{ color: '#6B7280', marginTop: -4, marginBottom: 8, ...textDir }}>
+              {t('product.noSupplierStockHint')}
+            </Text>
             {error ? (
               <Text variant="bodySmall" style={{ color: '#B00020', marginTop: 4, ...textDir }}>
                 {error}

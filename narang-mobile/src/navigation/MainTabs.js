@@ -23,6 +23,7 @@ import CustomerDetailScreen from '../screens/customers/CustomerDetailScreen';
 import SuppliersScreen from '../screens/suppliers/SuppliersScreen';
 import AddSupplierScreen from '../screens/suppliers/AddSupplierScreen';
 import SupplierDetailScreen from '../screens/suppliers/SupplierDetailScreen';
+import PartiesScreen from '../screens/parties/PartiesScreen';
 import ExpensesScreen from '../screens/expenses/ExpensesScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import CreditsScreen from '../screens/credits/CreditsScreen';
@@ -85,6 +86,7 @@ function MoreStack() {
       <Stack.Screen name="Reports" component={ReportsScreen} options={{ title: t('screens.reports') }} />
       <Stack.Screen name="Purchases" component={PurchasesScreen} options={{ title: t('screens.purchases') }} />
       <Stack.Screen name="AddPurchase" component={AddPurchaseScreen} options={{ title: t('screens.addPurchase') }} />
+      <Stack.Screen name="Parties" component={PartiesScreen} options={{ title: t('screens.parties') }} />
       <Stack.Screen name="Customers" component={CustomersScreen} options={{ title: t('screens.customers') }} />
       <Stack.Screen name="AddCustomer" component={AddCustomerScreen} options={{ title: t('screens.addCustomer') }} />
       <Stack.Screen

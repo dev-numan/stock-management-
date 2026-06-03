@@ -1,10 +1,13 @@
-import { Alert, Linking, Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as IntentLauncher from 'expo-intent-launcher';
+import { Alert, Platform } from 'react-native';
 import { getSettings } from '../api/settings.api';
 import { APP_NAME_URDU } from '../constants/branding';
 import { buildPaymentReminderText } from './paymentReminder';
-import { formatPhoneDisplay, toWhatsAppPhone } from './phone';
+import { toWhatsAppPhone } from './phone';
+import {
+  openSmsApp,
+  openWhatsAppChat,
+  shareImageToWhatsAppContact,
+} from './openMessaging';
 import { isTechnicalMessage } from './apiErrors';
 import { getT } from '../stores/languageStore';
 
@@ -31,8 +34,7 @@ const loadShopSettings = async () => {
 
 export const sendPaymentReminderSms = async ({ customerPhone, advanceBalance, shopSettings }) => {
   const t = getT();
-  const phone = formatPhoneDisplay(customerPhone);
-  if (!phone) {
+  if (!toWhatsAppPhone(customerPhone)) {
     Alert.alert(t('reminder.noPhoneTitle'), t('reminder.noPhoneMessage'));
     return;
   }
@@ -44,39 +46,11 @@ export const sendPaymentReminderSms = async ({ customerPhone, advanceBalance, sh
     shopPhone: settings.phone,
   });
 
-  const separator = Platform.OS === 'ios' ? '&' : '?';
-  const url = `sms:${phone}${separator}body=${encodeURIComponent(body)}`;
-  const canOpen = await Linking.canOpenURL(url);
-  if (!canOpen) {
+  try {
+    await openSmsApp(customerPhone, body);
+  } catch {
     Alert.alert(t('reminder.smsUnavailableTitle'), t('reminder.smsUnavailableMessage'));
-    return;
   }
-  await Linking.openURL(url);
-};
-
-const openWhatsAppChat = async (waPhone, text) => {
-  const url = `whatsapp://send?phone=${waPhone}&text=${encodeURIComponent(text)}`;
-  const canOpen = await Linking.canOpenURL(url);
-  if (canOpen) {
-    await Linking.openURL(url);
-    return;
-  }
-  const webUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(text)}`;
-  await Linking.openURL(webUrl);
-};
-
-const shareWhatsAppAndroid = async (imageUri, waPhone, text) => {
-  const contentUri = await FileSystem.getContentUriAsync(imageUri);
-  await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
-    type: 'image/png',
-    packageName: 'com.whatsapp',
-    extra: {
-      'android.intent.extra.STREAM': contentUri,
-      'android.intent.extra.TEXT': text,
-      jid: `${waPhone}@s.whatsapp.net`,
-    },
-    flags: 1,
-  });
 };
 
 export const sharePaymentReminderWhatsApp = async ({
@@ -86,8 +60,7 @@ export const sharePaymentReminderWhatsApp = async ({
   shopSettings,
 }) => {
   const t = getT();
-  const waPhone = toWhatsAppPhone(customerPhone);
-  if (!waPhone) {
+  if (!toWhatsAppPhone(customerPhone)) {
     Alert.alert(t('reminder.noPhoneTitle'), t('reminder.noPhoneMessage'));
     return;
   }
@@ -100,21 +73,23 @@ export const sharePaymentReminderWhatsApp = async ({
       shopPhone: settings.phone,
     });
 
-    if (Platform.OS === 'android') {
-      if (!captureViewRef?.current) {
-        Alert.alert('Error', t('reminder.imageFailed'));
+    if (Platform.OS === 'android' && captureViewRef?.current) {
+      try {
+        const imageUri = await captureViewRef.current.capture();
+        try {
+          await shareImageToWhatsAppContact(imageUri, customerPhone, text);
+          return;
+        } catch {
+          await openWhatsAppChat(customerPhone, text);
+          return;
+        }
+      } catch {
+        await openWhatsAppChat(customerPhone, text);
         return;
       }
-      const imageUri = await captureViewRef.current.capture();
-      try {
-        await shareWhatsAppAndroid(imageUri, waPhone, text);
-      } catch {
-        await openWhatsAppChat(waPhone, text);
-      }
-      return;
     }
 
-    await openWhatsAppChat(waPhone, text);
+    await openWhatsAppChat(customerPhone, text);
   } catch (err) {
     Alert.alert(t('reminder.whatsappFailedTitle'), getWhatsAppErrorMessage(err));
   }

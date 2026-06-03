@@ -188,29 +188,41 @@ export const getProfitLoss = async ({ from, to }) => {
 };
 
 /** @param {'all'|'day'|'month'|'year'} mode */
-export const getProfitReport = async ({ mode = 'month', year, month, day }) => {
+export const getProfitReport = async ({
+  mode = 'month',
+  year,
+  month,
+  day,
+  from: fromQuery,
+  to: toQuery,
+}) => {
   const y = Number(year) || new Date().getFullYear();
   const m = Number(month) || new Date().getMonth() + 1;
   const d = Number(day) || new Date().getDate();
 
-  let from;
-  let to;
+  let from = fromQuery;
+  let to = toQuery;
   let breakdown = null;
 
   if (mode === 'all') {
     breakdown = 'year';
-  } else if (mode === 'year') {
-    from = `${y}-01-01`;
-    to = `${y}-12-31`;
-    breakdown = 'month';
-  } else if (mode === 'month') {
-    from = formatYmd(y, m, 1);
-    to = formatYmd(y, m, new Date(y, m, 0).getDate());
-    breakdown = 'day';
-  } else if (mode === 'day') {
-    from = formatYmd(y, m, d);
-    to = from;
-    breakdown = null;
+  } else {
+    if (mode === 'year') breakdown = 'month';
+    else if (mode === 'month') breakdown = 'day';
+    else if (mode === 'day') breakdown = null;
+
+    if (!from && !to) {
+      if (mode === 'year') {
+        from = `${y}-01-01`;
+        to = `${y}-12-31`;
+      } else if (mode === 'month') {
+        from = formatYmd(y, m, 1);
+        to = formatYmd(y, m, new Date(y, m, 0).getDate());
+      } else if (mode === 'day') {
+        from = formatYmd(y, m, d);
+        to = from;
+      }
+    }
   }
 
   const createdAt = dateRange(from, to);
@@ -287,25 +299,25 @@ export const getProfitReport = async ({ mode = 'month', year, month, day }) => {
   return { mode, summary, breakdown: breakdownRows };
 };
 
-export const getSalesTrend = async ({ mode = 'month', year }) => {
+export const getSalesTrend = async ({ mode = 'month', year, from: fromQuery, to: toQuery }) => {
   const y = Number(year) || new Date().getFullYear();
   const breakdown = mode === 'year' ? 'year' : 'month';
 
-  let from;
-  let to;
+  let from = fromQuery;
+  let to = toQuery;
   let labels;
   let keys;
 
   if (mode === 'year') {
     const startYear = y - 4;
-    from = `${startYear}-01-01`;
-    to = `${y}-12-31`;
+    if (!from) from = `${startYear}-01-01`;
+    if (!to) to = `${y}-12-31`;
     keys = [];
     for (let yr = startYear; yr <= y; yr += 1) keys.push(yr);
     labels = keys.map(String);
   } else {
-    from = `${y}-01-01`;
-    to = `${y}-12-31`;
+    if (!from) from = `${y}-01-01`;
+    if (!to) to = `${y}-12-31`;
     labels = [...MONTH_LABELS];
     keys = Array.from({ length: 12 }, (_, i) => i + 1);
   }

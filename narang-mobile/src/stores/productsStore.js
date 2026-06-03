@@ -12,6 +12,7 @@ import { getT } from './languageStore';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
 import { zustandStorage, isStale } from './storage';
+import { filterAndSortProducts } from '../utils/productListFilters';
 
 export const useProductsStore = create(
   persist(
@@ -21,18 +22,13 @@ export const useProductsStore = create(
       loading: false,
       error: null,
 
-      getFiltered: ({ search = '', lowStock = false } = {}) => {
-        let list = get().products;
-        if (search.trim()) {
-          const q = search.trim().toLowerCase();
-          list = list.filter((p) => p.name?.toLowerCase().includes(q));
-        }
-        if (lowStock) {
-          list = list.filter(
-            (p) => Number(p.currentStock) <= Number(p.minStockAlert)
-          );
-        }
-        return list;
+      getFiltered: ({ search = '', filter = 'all', sort = 'newest', lowStock = false } = {}) => {
+        const resolvedFilter = lowStock ? 'lowStock' : filter;
+        return filterAndSortProducts(get().products, {
+          search,
+          filter: resolvedFilter,
+          sort,
+        });
       },
 
       getById: (id) => get().products.find((p) => p.id === id),

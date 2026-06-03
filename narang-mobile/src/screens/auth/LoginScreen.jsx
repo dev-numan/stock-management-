@@ -73,7 +73,7 @@ export default function LoginScreen() {
                 label={t('login.password')}
                 value={value}
                 onChangeText={onChange}
-                secureTextEntry
+                passwordToggle
                 error={errors.password?.message}
               />
             )}

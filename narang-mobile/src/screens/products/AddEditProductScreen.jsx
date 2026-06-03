@@ -188,26 +188,20 @@ export default function AddEditProductScreen({ route, navigation }) {
       if (!isEdit) {
         const trimmedSupplier = supplierName.trim();
         const match = selectedSupplier || findSupplierByExactName(suppliers, trimmedSupplier);
-        if (!match && !trimmedSupplier) {
-          setError(t('product.supplierRequired'));
-          setLoading(false);
-          return;
-        }
         const qty = Number(String(initialQty).trim());
-        if (!qty || qty <= 0) {
-          setError(t('product.addStockQtyRequired'));
-          setLoading(false);
-          return;
-        }
         const created = await createProduct(payload);
-        await addProductStock(created.id, {
-          quantity: qty,
-          costPrice: data.costPrice,
-          salePrice: data.salePrice,
-          supplierId: match?.id,
-          supplierName: match ? undefined : trimmedSupplier,
-        });
-        await fetchSuppliers(true);
+        if (qty > 0) {
+          await addProductStock(created.id, {
+            quantity: qty,
+            costPrice: data.costPrice,
+            salePrice: data.salePrice,
+            supplierId: match?.id,
+            supplierName: match ? undefined : trimmedSupplier || undefined,
+          });
+        }
+          if (qty > 0 && (match || trimmedSupplier)) {
+          await fetchSuppliers(true);
+        }
       } else {
         const updated = await saveProduct(productId, payload);
         setProductId(updated.id);
@@ -222,6 +216,7 @@ export default function AddEditProductScreen({ route, navigation }) {
 
   const handleAddStock = async ({ quantity, costPrice, salePrice, supplierId, supplierName: name }) => {
     if (!productId) return;
+    const usedSupplier = Boolean(supplierId || name?.trim());
     try {
       setAddStockLoading(true);
       setError(null);
@@ -240,7 +235,9 @@ export default function AddEditProductScreen({ route, navigation }) {
         setSupplierName(updated.supplier?.name || '');
         setSelectedSupplier(updated.supplier || null);
       }
-      await fetchSuppliers(true);
+      if (usedSupplier) {
+        await fetchSuppliers(true);
+      }
       setAddStockVisible(false);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('product.addStockFailed')));
@@ -463,14 +460,18 @@ export default function AddEditProductScreen({ route, navigation }) {
             onSelectSupplier={setSelectedSupplier}
             selectedSupplierId={selectedSupplier?.id}
             disabled={!canEdit}
+            optional
           />
           <AppInput
-            label={t('product.initialStock')}
+            label={t('product.initialStockOptional')}
             value={initialQty}
             onChangeText={(v) => setInitialQty(sanitizeAmountInput(v))}
             keyboardType="decimal-pad"
-            placeholder="1"
+            placeholder="0"
           />
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+            {t('product.noSupplierStockHint')}
+          </Text>
         </>
       )}
       <Controller

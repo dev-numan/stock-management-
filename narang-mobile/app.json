@@ -21,7 +21,9 @@
         "NSContactsUsageDescription": "Allow access to contacts to select customers for sales.",
         "LSApplicationQueriesSchemes": [
           "whatsapp",
-          "whatsapp-business"
+          "whatsapp-business",
+          "sms",
+          "smsto"
         ]
       }
     },
@@ -44,6 +46,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withAndroidLinkingQueries.js",
       "@react-native-community/datetimepicker",
       [
         "expo-contacts",

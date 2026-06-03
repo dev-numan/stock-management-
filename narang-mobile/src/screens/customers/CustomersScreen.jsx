@@ -1,6 +1,13 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, FlatList, RefreshControl, Keyboard, Platform } from 'react-native';
-import { Card, Text, Icon, FAB, useTheme } from 'react-native-paper';
+import { Card, Text, Icon, FAB, IconButton, Badge, Searchbar, useTheme } from 'react-native-paper';
+import PartyFilterSortModal from '../../components/common/PartyFilterSortModal';
+import ActiveFilterChips from '../../components/common/ActiveFilterChips';
+import {
+  buildListFilterTags,
+  PARTY_FILTER_LABEL_KEYS,
+  PARTY_SORT_LABEL_KEYS,
+} from '../../utils/filterLabelKeys';
 import { CustomerListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -9,31 +16,111 @@ import { useCustomersStore } from '../../stores/customersStore';
 import { useSalesStore } from '../../stores/salesStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
+import { filterAndSortParties } from '../../utils/partyListFilters';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CustomersScreen({ navigation }) {
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('newest');
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+
   const customers = useCustomersStore((s) => s.customers);
   const loading = useCustomersStore((s) => s.loading);
   const error = useCustomersStore((s) => s.error);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
   const pendingSales = useSalesStore((s) => s.pendingSales);
 
+  const getBalance = useCallback((c) => getEffectiveAdvanceBalance(c), [pendingSales]);
+
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
 
-  const sortedCustomers = useMemo(() => {
-    return [...customers].sort((a, b) => a.name.localeCompare(b.name));
-  }, [customers, pendingSales]);
+  const displayedCustomers = useMemo(() => {
+    let list = filterAndSortParties(customers, { filter, sort, getBalance });
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(q) ||
+          c.phone?.toLowerCase().includes(q) ||
+          c.address?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [customers, filter, sort, search, getBalance]);
+
+  const hasActiveFilters = filter !== 'all' || sort !== 'newest' || Boolean(search.trim());
+
+  const filterTags = useMemo(
+    () =>
+      buildListFilterTags({
+        t,
+        filter,
+        sort,
+        search,
+        filterLabelKeys: PARTY_FILTER_LABEL_KEYS,
+        sortLabelKeys: PARTY_SORT_LABEL_KEYS,
+        onClearFilter: () => setFilter('all'),
+        onClearSort: () => setSort('newest'),
+        onClearSearch: () => setSearch(''),
+      }),
+    [filter, sort, search, t]
+  );
+
+  const clearAllFilters = useCallback(() => {
+    setFilter('all');
+    setSort('newest');
+    setSearch('');
+  }, []);
+
+  const emptyMessage = useMemo(() => {
+    if (search.trim()) return t('customers.noMatch', { query: search.trim() });
+    if (filter === 'youWillGet') return t('customers.emptyYouWillGet');
+    if (filter === 'youWillGive') return t('customers.emptyYouWillGive');
+    return t('customers.empty');
+  }, [filter, search, t]);
 
   const showSkeleton = loading && customers.length === 0;
 
   const ListHeader = (
     <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+        <Searchbar
+          placeholder={t('customers.searchPlaceholder')}
+          value={search}
+          onChangeText={setSearch}
+          style={{ flex: 1, borderRadius: theme.roundness }}
+        />
+        <View>
+          <IconButton
+            icon="filter-variant"
+            mode="contained-tonal"
+            onPress={() => setFilterModalVisible(true)}
+            accessibilityLabel={t('party.filterSort')}
+          />
+          {filterTags.length > 0 ? (
+            <Badge
+              size={8}
+              style={{ position: 'absolute', top: 8, right: 8, backgroundColor: theme.colors.primary }}
+            />
+          ) : null}
+        </View>
+      </View>
+      <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
       <CustomerLedgerSummary customers={customers} />
+      {hasActiveFilters ? (
+        <Text
+          variant="bodySmall"
+          style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8, ...textDir }}
+        >
+          {t('customers.resultsCount', { count: displayedCustomers.length })}
+        </Text>
+      ) : null}
       <ErrorMessage message={error} />
     </>
   );
@@ -41,7 +128,7 @@ export default function CustomersScreen({ navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <FlatList
-        data={showSkeleton ? [] : sortedCustomers}
+        data={showSkeleton ? [] : displayedCustomers}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 88 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchCustomers(true)} />}
@@ -54,7 +141,7 @@ export default function CustomersScreen({ navigation }) {
           showSkeleton ? (
             <CustomerListSkeleton count={6} />
           ) : (
-            <EmptyState message={t('customers.empty')} />
+            <EmptyState message={emptyMessage} />
           )
         }
         renderItem={({ item }) => {
@@ -103,6 +190,17 @@ export default function CustomersScreen({ navigation }) {
               </Card.Content>
             </Card>
           );
+        }}
+      />
+      <PartyFilterSortModal
+        visible={filterModalVisible}
+        filter={filter}
+        sort={sort}
+        titleKey="customers.filterTitle"
+        onClose={() => setFilterModalVisible(false)}
+        onApply={({ filter: nextFilter, sort: nextSort }) => {
+          setFilter(nextFilter);
+          setSort(nextSort);
         }}
       />
       <FAB

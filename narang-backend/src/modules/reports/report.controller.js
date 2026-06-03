@@ -30,6 +30,8 @@ export const getProfitReport = asyncHandler(async (req, res) => {
     year: req.query.year,
     month: req.query.month,
     day: req.query.day,
+    from: req.query.from,
+    to: req.query.to,
   });
   return res.json(new ApiResponse(200, data, 'Profit report fetched'));
 });
@@ -39,6 +41,8 @@ export const getSalesTrend = asyncHandler(async (req, res) => {
   const data = await reportService.getSalesTrend({
     mode,
     year: req.query.year,
+    from: req.query.from,
+    to: req.query.to,
   });
   return res.json(new ApiResponse(200, data, 'Sales trend fetched'));
 });

@@ -77,9 +77,13 @@ export default function InvoiceScreen({ route }) {
   const handleShare = async () => {
     try {
       setSharing(true);
-      await captureAndShareInvoiceImage(shareCaptureRef, sale.invoiceNumber);
+      await captureAndShareInvoiceImage(shareCaptureRef, sale.invoiceNumber, {
+        phone: sale.customer?.phone,
+        text: `${t('invoice.invoiceLabel')} ${sale.invoiceNumber}`,
+      });
     } catch (err) {
       const msg = typeof err?.message === 'string' ? err.message.trim() : '';
+      console.error('[InvoiceShare] failed:', err);
       Alert.alert(
         t('invoice.shareFailedTitle'),
         msg && !isTechnicalMessage(msg) ? msg : t('invoice.shareFailedMessage')

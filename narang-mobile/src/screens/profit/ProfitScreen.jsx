@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-gifted-charts';
 import { getProfitReport } from '../../api/reports.api';
 import { formatCurrency, formatCurrencyCompact } from '../../utils/formatCurrency';
-import { getPeriodLabel } from '../../utils/formatDate';
+import { getPeriodLabel, getPeriodQueryParams } from '../../utils/formatDate';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import AppCard from '../../components/common/AppCard';
 import { ReportCardsSkeleton } from '../../components/common/Skeleton';
@@ -40,7 +40,13 @@ export default function ProfitScreen() {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await getProfitReport({ mode, year, month, day });
+      const { data } = await getProfitReport({
+        mode,
+        year,
+        month,
+        day,
+        ...getPeriodQueryParams(mode, year, month, day),
+      });
       setReport(data.data);
     } catch (err) {
       setReport(null);
@@ -86,6 +92,7 @@ export default function ProfitScreen() {
         year={year}
         month={month}
         day={day}
+        defaultMode="month"
         onModeChange={setMode}
         onYearChange={setYear}
         onMonthChange={setMonth}

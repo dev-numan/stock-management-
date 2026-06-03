@@ -6,6 +6,7 @@ import { getIsOnline } from './networkStore';
 import { useSalesStore } from './salesStore';
 import { zustandStorage, isStale } from './storage';
 import { computeSaleGrossProfit } from '../utils/saleProfit';
+import { getTrendYearRange, getYearDateRange } from '../utils/formatDate';
 
 const trendKey = (mode, year) => `${mode}-${year}`;
 
@@ -136,7 +137,9 @@ export const useDashboardStore = create(
 
         set({ trendLoading: true });
         try {
-          const { data } = await getSalesTrend({ mode, year });
+          const range =
+            mode === 'year' ? getTrendYearRange(year) : getYearDateRange(year);
+          const { data } = await getSalesTrend({ mode, year, ...range });
           const trend = data.data;
           set({
             trendByKey: { ...get().trendByKey, [key]: trend },

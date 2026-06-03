@@ -14,6 +14,7 @@ export default function SupplierNameAutocomplete({
   onSelectSupplier,
   selectedSupplierId,
   disabled = false,
+  optional = false,
   error,
 }) {
   const theme = useTheme();
@@ -52,7 +53,7 @@ export default function SupplierNameAutocomplete({
       <Pressable onPress={openPicker} disabled={disabled}>
         <View pointerEvents="none" style={{ position: 'relative' }}>
           <AppInput
-            label={t('supplier.nameLabel')}
+            label={optional ? t('supplier.nameOptional') : t('supplier.nameLabel')}
             value={value}
             editable={false}
             error={error}

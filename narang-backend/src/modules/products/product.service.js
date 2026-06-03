@@ -172,18 +172,12 @@ export const addProductStock = async (
   if (!qty || qty <= 0) {
     throw new ApiError(400, 'Quantity must be greater than zero');
   }
-  if (!supplierId && !supplierName?.trim()) {
-    throw new ApiError(400, 'Supplier is required');
-  }
+
+  const hasSupplier = Boolean(supplierId || supplierName?.trim());
 
   return db.$transaction(async (tx) => {
     const product = await tx.product.findUnique({ where: { id: productId } });
     if (!product) throw new ApiError(404, 'Product not found');
-
-    const resolvedSupplierId = await resolveSupplierId(tx, { supplierId, supplierName });
-    if (!resolvedSupplierId) {
-      throw new ApiError(400, 'Supplier is required');
-    }
 
     const lineCost =
       costPriceInput != null && costPriceInput !== ''
@@ -199,6 +193,29 @@ export const addProductStock = async (
     }
 
     const qtyDec = decimal(qty);
+
+    const productUpdate = {
+      currentStock: { increment: qtyDec },
+      costPrice: lineCost,
+    };
+    if (newSalePrice) {
+      productUpdate.salePrice = newSalePrice;
+    }
+
+    if (!hasSupplier) {
+      const updated = await tx.product.update({
+        where: { id: productId },
+        data: productUpdate,
+        include: { supplier: true },
+      });
+      return { product: updated, purchase: null };
+    }
+
+    const resolvedSupplierId = await resolveSupplierId(tx, { supplierId, supplierName });
+    if (!resolvedSupplierId) {
+      throw new ApiError(400, 'Supplier could not be resolved');
+    }
+
     const totalAmount = lineCost.mul(qtyDec);
 
     const purchase = await tx.purchase.create({
@@ -222,14 +239,7 @@ export const addProductStock = async (
       },
     });
 
-    const productUpdate = {
-      currentStock: { increment: qtyDec },
-      supplierId: resolvedSupplierId,
-      costPrice: lineCost,
-    };
-    if (newSalePrice) {
-      productUpdate.salePrice = newSalePrice;
-    }
+    productUpdate.supplierId = resolvedSupplierId;
 
     const updated = await tx.product.update({
       where: { id: productId },

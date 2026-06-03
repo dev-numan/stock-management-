@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Text, Card, Searchbar, Chip, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getSupplier, getSupplierLedger, addSupplierPayment } from '../../api/suppliers.api';
+import { getSupplier, getSupplierLedger, addSupplierPayment, addSupplierPurchase } from '../../api/suppliers.api';
 import { formatCurrency } from '../../utils/formatCurrency';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -16,6 +16,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { CustomerDetailSkeleton, SkeletonCard, SkeletonLine } from '../../components/common/Skeleton';
 import SupplierLedgerEntryRow from '../../components/suppliers/SupplierLedgerEntryRow';
 import AddSupplierPaymentModal from '../../components/suppliers/AddSupplierPaymentModal';
+import AddSupplierPurchaseModal from '../../components/suppliers/AddSupplierPurchaseModal';
 import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
 import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
@@ -34,6 +35,8 @@ export default function SupplierDetailScreen({ route }) {
   const [search, setSearch] = useState('');
   const [paymentVisible, setPaymentVisible] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [purchaseVisible, setPurchaseVisible] = useState(false);
+  const [purchaseSaving, setPurchaseSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +88,20 @@ export default function SupplierDetailScreen({ route }) {
       setError(getFriendlyErrorMessage(err, t('supplier.paymentFailed')));
     } finally {
       setPaymentSaving(false);
+    }
+  };
+
+  const handlePurchase = async ({ amount, notes }) => {
+    try {
+      setPurchaseSaving(true);
+      setError(null);
+      await addSupplierPurchase(supplierId, { amount, notes });
+      setPurchaseVisible(false);
+      await load();
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('supplier.purchaseFailed')));
+    } finally {
+      setPurchaseSaving(false);
     }
   };
 
@@ -235,14 +252,33 @@ export default function SupplierDetailScreen({ route }) {
           borderTopColor: theme.colors.outlineVariant,
         }}
       >
-        <AppButton
-          title={t('supplier.paymentRs')}
-          onPress={() => setPaymentVisible(true)}
-          buttonColor={RECEIPT_GREEN}
-          icon="cash-minus"
-        />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <AppButton
+              title={t('supplier.purchaseRs')}
+              onPress={() => setPurchaseVisible(true)}
+              buttonColor={theme.colors.error}
+              icon="cart-plus"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppButton
+              title={t('supplier.paymentRs')}
+              onPress={() => setPaymentVisible(true)}
+              buttonColor={RECEIPT_GREEN}
+              icon="cash-minus"
+            />
+          </View>
+        </View>
       </View>
 
+      <AddSupplierPurchaseModal
+        visible={purchaseVisible}
+        supplierName={supplier?.name}
+        onSubmit={handlePurchase}
+        onClose={() => setPurchaseVisible(false)}
+        loading={purchaseSaving}
+      />
       <AddSupplierPaymentModal
         visible={paymentVisible}
         supplierName={supplier?.name}

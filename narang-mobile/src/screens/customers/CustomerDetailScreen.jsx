@@ -278,7 +278,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       </Card>
 
       {canSendMessages ? (
-        <View style={{ position: 'absolute', left: -2000, top: 0, opacity: 0 }} pointerEvents="none">
+        <View style={{ position: 'absolute', left: -2000, top: 0, opacity: 0, width: 360 }} pointerEvents="none">
           <ViewShot ref={reminderCaptureRef} options={{ format: 'png', quality: 1 }}>
             <PaymentReminderCard
               advanceBalance={advanceBalance}
