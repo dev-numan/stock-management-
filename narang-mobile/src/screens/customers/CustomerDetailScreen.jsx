@@ -9,6 +9,7 @@ import {
   addCustomerAdvance,
   addCustomerCreditCharge,
   deleteCustomerAdvanceEntry,
+  getCustomerDeletionBlockers,
 } from '../../api/customers.api';
 import { getSales } from '../../api/sales.api';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -24,6 +25,7 @@ import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import AppButton from '../../components/common/AppButton';
 import AddCustomerLedgerModal from '../../components/customers/AddCustomerLedgerModal';
 import CustomerAccountEntryRow from '../../components/customers/CustomerAccountEntryRow';
+import CustomerDeletionBlockedModal from '../../components/customers/CustomerDeletionBlockedModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { buildCustomerAccountHistory } from '../../utils/customerAccountHistory';
 import { useAuth } from '../../context/AuthContext';
@@ -74,9 +76,15 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const { t, isRtl } = useTranslation();
   const { isAdmin } = useAuth();
   const patchCustomer = useCustomersStore((s) => s.patchCustomer);
+  const deleteCustomer = useCustomersStore((s) => s.deleteCustomer);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [deletePaymentTarget, setDeletePaymentTarget] = useState(null);
   const [deletingPayment, setDeletingPayment] = useState(false);
+  const [showDeleteCustomer, setShowDeleteCustomer] = useState(false);
+  const [showDeleteCustomerBlocked, setShowDeleteCustomerBlocked] = useState(false);
+  const [deleteCustomerBlockers, setDeleteCustomerBlockers] = useState({ sales: [] });
+  const [deleteCustomerChecking, setDeleteCustomerChecking] = useState(false);
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -233,6 +241,52 @@ export default function CustomerDetailScreen({ route, navigation }) {
       saleId: entry.linkedSaleId,
       sale: entry.sale,
     });
+  };
+
+  const openBlockedSale = (sale) => {
+    setShowDeleteCustomerBlocked(false);
+    navigation.navigate('Invoice', { saleId: sale.id, sale });
+  };
+
+  const handleDeleteCustomerPress = async () => {
+    if (isLocalCustomer) return;
+    try {
+      setDeleteCustomerChecking(true);
+      setError(null);
+      const { data } = await getCustomerDeletionBlockers(customerId);
+      const blockers = data.data;
+      if (!blockers?.canDelete) {
+        setDeleteCustomerBlockers({ sales: blockers?.sales || [] });
+        setShowDeleteCustomerBlocked(true);
+        return;
+      }
+      setShowDeleteCustomer(true);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('customer.deleteFailed')));
+    } finally {
+      setDeleteCustomerChecking(false);
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    try {
+      setDeletingCustomer(true);
+      setError(null);
+      await deleteCustomer(customerId);
+      setShowDeleteCustomer(false);
+      navigation.goBack();
+    } catch (err) {
+      const blockerData = err?.response?.data?.data;
+      if (err?.response?.status === 409 && blockerData?.sales) {
+        setDeleteCustomerBlockers({ sales: blockerData.sales || [] });
+        setShowDeleteCustomer(false);
+        setShowDeleteCustomerBlocked(true);
+        return;
+      }
+      setError(getFriendlyErrorMessage(err, t('customer.deleteFailed')));
+    } finally {
+      setDeletingCustomer(false);
+    }
   };
 
   const periodLabel = getPeriodLabel(mode, year, month, day);
@@ -454,6 +508,21 @@ export default function CustomerDetailScreen({ route, navigation }) {
         onCancel={() => setDeletePaymentTarget(null)}
         loading={deletingPayment}
       />
+      <ConfirmModal
+        visible={showDeleteCustomer}
+        title={t('customer.deleteConfirmTitle')}
+        message={t('customer.deleteConfirmMessage')}
+        onConfirm={handleDeleteCustomer}
+        onCancel={() => setShowDeleteCustomer(false)}
+        loading={deletingCustomer}
+      />
+      <CustomerDeletionBlockedModal
+        visible={showDeleteCustomerBlocked}
+        customerName={customer?.name}
+        sales={deleteCustomerBlockers.sales}
+        onClose={() => setShowDeleteCustomerBlocked(false)}
+        onOpenSale={openBlockedSale}
+      />
 
       {showSalesSkeleton ? (
         <>
@@ -521,6 +590,16 @@ export default function CustomerDetailScreen({ route, navigation }) {
           )}
         </>
       )}
+      {isAdmin && !isLocalCustomer ? (
+        <AppButton
+          title={t('customer.delete')}
+          variant="danger"
+          onPress={handleDeleteCustomerPress}
+          loading={deleteCustomerChecking}
+          style={{ marginTop: 16, marginBottom: 8 }}
+          icon="delete-outline"
+        />
+      ) : null}
       <View style={{ height: 24 }} />
     </ScrollView>
   );

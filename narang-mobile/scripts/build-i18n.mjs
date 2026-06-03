@@ -338,8 +338,8 @@ const en = {
   'customer.balancePrepaidHint': 'Prepaid by client, or zero. Credit sales reduce this amount.',
   'customer.balanceOwesHint': 'Customer owes this amount (credit sales exceeded prepaid).',
   'customer.addCreditBalance': 'Add Credit Balance',
-  'customer.recordPayment': 'Record Payment',
-  'customer.addCreditOwed': 'Add Credit (No Products)',
+  'customer.recordPayment': 'Balance Plus',
+  'customer.addCreditOwed': 'Balance Minus',
   'customer.accountHistory': 'Account history',
   'customer.col.date': 'Date',
   'customer.col.amount': 'Amount',
@@ -359,6 +359,15 @@ const en = {
   'customer.deletePaymentConfirmMessage':
     'This will permanently remove this payment from the customer account. The customer balance will be updated. This cannot be undone.',
   'customer.deletePaymentFailed': 'Could not delete payment.',
+  'customer.delete': 'Delete Customer',
+  'customer.deleteConfirmTitle': 'Delete Customer?',
+  'customer.deleteConfirmMessage':
+    'This will permanently remove this customer and all account history. This cannot be undone.',
+  'customer.deleteFailed': 'Could not delete customer.',
+  'customer.deleteBlockedTitle': 'Cannot Delete Customer',
+  'customer.deleteBlockedSalesMessage':
+    'This customer has {{count}} sale(s). Delete those sales first, then you can delete the customer.',
+  'customer.deleteBlockedHint': 'Tap a sale below to open it and delete it from the invoice screen.',
   'ledgerEntry.deleteFailed': 'Could not delete this entry.',
   'customer.salesHistory': 'Sales history',
   'customer.loadingSales': 'Loading sales...',
@@ -487,6 +496,21 @@ const en = {
   'supplier.deletePurchaseConfirmTitle': 'Delete Purchase Entry?',
   'supplier.deletePurchaseConfirmMessage':
     'This will permanently remove this purchase from the supplier ledger. Stock linked to this purchase will be adjusted. This cannot be undone.',
+  'supplier.delete': 'Delete Supplier',
+  'supplier.deleteConfirmTitle': 'Delete Supplier?',
+  'supplier.deleteConfirmMessage':
+    'This will permanently remove this supplier and all ledger history. This cannot be undone.',
+  'supplier.deleteFailed': 'Could not delete supplier.',
+  'supplier.deleteBlockedTitle': 'Cannot Delete Supplier',
+  'supplier.deleteBlockedProductsMessage':
+    'This supplier is linked to {{count}} product(s). Remove or reassign those products first.',
+  'supplier.deleteBlockedPurchasesMessage':
+    'This supplier has {{count}} purchase record(s). Delete those from the ledger first.',
+  'supplier.deleteBlockedBothMessage':
+    'This supplier is linked to {{productCount}} product(s) and {{purchaseCount}} purchase record(s). Clear those first.',
+  'supplier.deleteBlockedGeneric': 'This supplier cannot be deleted yet.',
+  'supplier.deleteBlockedHint': 'Tap a product to open it. Delete ledger purchases from this screen first.',
+  'supplier.deleteBlockedProductStock': 'Stock: {{stock}}',
   'supplier.ledgerEmpty': 'No entries yet',
   'supplier.sms': 'SMS',
   'supplier.report': 'Report',
@@ -870,8 +894,8 @@ const ur = {
   'customer.balancePrepaidHint': 'گاہک کی پیشگی رقم، یا صفر۔ کریڈت فروخت اسے کم کرتی ہے۔',
   'customer.balanceOwesHint': 'گاہک کا بقایا (کریڈت فروخت پیشگی سے زیادہ)۔',
   'customer.addCreditBalance': 'کریڈت بیلنس شامل کریں',
-  'customer.recordPayment': 'ادائیگی درج کریں',
-  'customer.addCreditOwed': 'کریڈٹ شامل کریں',
+  'customer.recordPayment': 'بیلنس جمع کریں',
+  'customer.addCreditOwed': 'بیلنس منفی کریں',
   'customer.accountHistory': 'اکاؤنٹ کی تاریخ',
   'customer.col.date': 'تاریخ',
   'customer.col.amount': 'رقم',
@@ -891,6 +915,15 @@ const ur = {
   'customer.deletePaymentConfirmMessage':
     'اس سے یہ ادائیگی گاہک کے اکاؤنٹ سے مستقل طور پر حذف ہو جائے گی۔ گاہک کا بیلنس اپ ڈیٹ ہو گا۔ یہ واپس نہیں ہو سکتا۔',
   'customer.deletePaymentFailed': 'ادائیگی حذف نہیں ہو سکی۔',
+  'customer.delete': 'گاہک حذف کریں',
+  'customer.deleteConfirmTitle': 'گاہک حذف کریں؟',
+  'customer.deleteConfirmMessage':
+    'اس سے یہ گاہک اور تمام اکاؤنٹ ہسٹری مستقل طور پر حذف ہو جائے گی۔ یہ واپس نہیں ہو سکتا۔',
+  'customer.deleteFailed': 'گاہک حذف نہیں ہو سکا۔',
+  'customer.deleteBlockedTitle': 'گاہک حذف نہیں ہو سکتا',
+  'customer.deleteBlockedSalesMessage':
+    'اس گاہک کی {{count}} فروخت ہے۔ پہلے وہ فروختیں حذف کریں، پھر گاہک حذف کر سکتے ہیں۔',
+  'customer.deleteBlockedHint': 'فروخت کھولنے اور حذف کرنے کے لیے نیچے فروخت پر ٹیپ کریں۔',
   'ledgerEntry.deleteFailed': 'یہ انٹری حذف نہیں ہو سکی۔',
   'customer.salesHistory': 'فروخت کی ہسٹری',
   'customer.loadingSales': 'فروخت لوڈ ہو رہی ہے...',
@@ -1019,6 +1052,21 @@ const ur = {
   'supplier.deletePurchaseConfirmTitle': 'خریداری حذف کریں؟',
   'supplier.deletePurchaseConfirmMessage':
     'اس سے یہ خریداری سپلائر لیجر سے مستقل طور پر حذف ہو جائے گی۔ منسلک اسٹاک ایڈجسٹ ہو گا۔ یہ واپس نہیں ہو سکتا۔',
+  'supplier.delete': 'سپلائر حذف کریں',
+  'supplier.deleteConfirmTitle': 'سپلائر حذف کریں؟',
+  'supplier.deleteConfirmMessage':
+    'اس سے یہ سپلائر اور تمام لیجر ہسٹری مستقل طور پر حذف ہو جائے گی۔ یہ واپس نہیں ہو سکتا۔',
+  'supplier.deleteFailed': 'سپلائر حذف نہیں ہو سکا۔',
+  'supplier.deleteBlockedTitle': 'سپلائر حذف نہیں ہو سکتا',
+  'supplier.deleteBlockedProductsMessage':
+    'یہ سپلائر {{count}} مصنوعات سے منسلک ہے۔ پہلے وہ مصنوعات ہٹائیں یا تبدیل کریں۔',
+  'supplier.deleteBlockedPurchasesMessage':
+    'اس سپلائر کی {{count}} خریداری ہے۔ پہلے لیجر سے وہ حذف کریں۔',
+  'supplier.deleteBlockedBothMessage':
+    'یہ سپلائر {{productCount}} مصنوعات اور {{purchaseCount}} خریداری سے منسلک ہے۔ پہلے یہ صاف کریں۔',
+  'supplier.deleteBlockedGeneric': 'یہ سپلائر ابھی حذف نہیں ہو سکتا۔',
+  'supplier.deleteBlockedHint': 'مصنوعات کھولنے کے لیے ٹیپ کریں۔ پہلے اس اسکرین سے لیجر خریداریاں حذف کریں۔',
+  'supplier.deleteBlockedProductStock': 'اسٹاک: {{stock}}',
   'supplier.ledgerEmpty': 'ابھی کوئی انٹری نہیں',
   'supplier.sms': 'ایس ایم ایس',
   'supplier.report': 'رپورٹ',

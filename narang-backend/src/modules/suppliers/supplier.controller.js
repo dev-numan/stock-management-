@@ -27,6 +27,11 @@ export const deleteSupplier = asyncHandler(async (req, res) => {
   return res.json(new ApiResponse(200, result, 'Supplier deleted'));
 });
 
+export const getSupplierDeletionBlockers = asyncHandler(async (req, res) => {
+  const blockers = await supplierService.getSupplierDeletionBlockers(req.params.id);
+  return res.json(new ApiResponse(200, blockers, 'Supplier deletion blockers fetched'));
+});
+
 export const getSupplierLedger = asyncHandler(async (req, res) => {
   const ledger = await supplierService.getSupplierLedger(req.params.id, {
     from: req.query.from,

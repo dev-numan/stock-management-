@@ -5,12 +5,6 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
 import { useTranslation } from '../../i18n/useTranslation';
 
-const TYPE_LABEL_KEYS = {
-  payment: 'customer.entryTypePayment',
-  credit: 'customer.entryTypeCredit',
-  sale: 'customer.entryTypeSale',
-};
-
 export default function CustomerAccountEntryRow({
   entry,
   canDelete,
@@ -22,7 +16,6 @@ export default function CustomerAccountEntryRow({
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const amt = Number(entry.amount);
   const isCredit = amt < 0;
-  const typeKey = TYPE_LABEL_KEYS[entry.entryType] || TYPE_LABEL_KEYS.payment;
 
   const noteText =
     entry.notes?.trim() ||
@@ -44,9 +37,6 @@ export default function CustomerAccountEntryRow({
       <View style={{ flex: 1.1, paddingRight: 6 }}>
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
           {formatDateTime(entry.createdAt)}
-        </Text>
-        <Text variant="labelSmall" style={{ marginTop: 4, color: theme.colors.secondary, ...textDir }}>
-          {t(typeKey)}
         </Text>
       </View>
       <View style={{ width: 88, alignItems: isRtl ? 'flex-start' : 'flex-end' }}>

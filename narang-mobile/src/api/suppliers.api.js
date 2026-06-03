@@ -10,3 +10,5 @@ export const deleteSupplierPayment = (supplierId, paymentId) =>
 export const createSupplier = (data) => api.post('/api/v1/suppliers', data);
 export const updateSupplier = (id, data) => api.put(`/api/v1/suppliers/${id}`, data);
 export const deleteSupplier = (id) => api.delete(`/api/v1/suppliers/${id}`);
+export const getSupplierDeletionBlockers = (id) =>
+  api.get(`/api/v1/suppliers/${id}/deletion-blockers`);

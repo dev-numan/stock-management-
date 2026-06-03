@@ -27,6 +27,11 @@ export const deleteCustomer = asyncHandler(async (req, res) => {
   return res.json(new ApiResponse(200, result, 'Customer deleted'));
 });
 
+export const getCustomerDeletionBlockers = asyncHandler(async (req, res) => {
+  const blockers = await customerService.getCustomerDeletionBlockers(req.params.id);
+  return res.json(new ApiResponse(200, blockers, 'Customer deletion blockers fetched'));
+});
+
 export const getCustomerAdvanceEntries = asyncHandler(async (req, res) => {
   const entries = await customerService.getCustomerAdvanceEntries(req.params.id);
   return res.json(new ApiResponse(200, entries, 'Advance entries fetched'));

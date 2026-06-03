@@ -21,6 +21,13 @@ const advanceBody = [
 
 router.get('/', customerController.getAllCustomers);
 router.get('/:id', customerController.getCustomerById);
+router.get(
+  '/:id/deletion-blockers',
+  [param('id').isUUID()],
+  validate,
+  authorize('ADMIN'),
+  customerController.getCustomerDeletionBlockers
+);
 router.get('/:id/advance', customerController.getCustomerAdvanceEntries);
 router.post('/:id/advance', advanceBody, validate, customerController.addCustomerAdvance);
 router.post('/:id/credit-charge', advanceBody, validate, customerController.addCustomerCreditCharge);

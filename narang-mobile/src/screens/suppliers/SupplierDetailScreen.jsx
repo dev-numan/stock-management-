@@ -14,6 +14,7 @@ import {
   addSupplierPayment,
   addSupplierPurchase,
   deleteSupplierPayment,
+  getSupplierDeletionBlockers,
 } from '../../api/suppliers.api';
 import { deletePurchase } from '../../api/purchases.api';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -25,6 +26,7 @@ import SupplierLedgerEntryRow from '../../components/suppliers/SupplierLedgerEnt
 import AddSupplierPaymentModal from '../../components/suppliers/AddSupplierPaymentModal';
 import AddSupplierPurchaseModal from '../../components/suppliers/AddSupplierPurchaseModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import SupplierDeletionBlockedModal from '../../components/suppliers/SupplierDeletionBlockedModal';
 import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
 import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
@@ -34,13 +36,14 @@ import { useSuppliersStore } from '../../stores/suppliersStore';
 import { useDashboardStore } from '../../stores/dashboardStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
-export default function SupplierDetailScreen({ route }) {
+export default function SupplierDetailScreen({ route, navigation }) {
   const theme = useTheme();
   const { supplierId, supplier: initialSupplier } = route.params;
   const { t, isRtl } = useTranslation();
   const { isAdmin } = useAuth();
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
   const upsertSupplier = useSuppliersStore((s) => s.upsertSupplier);
+  const deleteSupplier = useSuppliersStore((s) => s.deleteSupplier);
   const invalidateDashboard = useDashboardStore((s) => s.invalidate);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
 
@@ -55,6 +58,11 @@ export default function SupplierDetailScreen({ route }) {
   const [purchaseSaving, setPurchaseSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteSupplier, setShowDeleteSupplier] = useState(false);
+  const [showDeleteSupplierBlocked, setShowDeleteSupplierBlocked] = useState(false);
+  const [deleteSupplierBlockers, setDeleteSupplierBlockers] = useState({ products: [], purchases: [] });
+  const [deleteSupplierChecking, setDeleteSupplierChecking] = useState(false);
+  const [deletingSupplier, setDeletingSupplier] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -154,6 +162,60 @@ export default function SupplierDetailScreen({ route }) {
     deleteTarget?.type === 'PAYMENT'
       ? t('supplier.deletePaymentConfirmMessage')
       : t('supplier.deletePurchaseConfirmMessage');
+
+  const handleDeleteSupplierPress = async () => {
+    try {
+      setDeleteSupplierChecking(true);
+      setError(null);
+      const { data } = await getSupplierDeletionBlockers(supplierId);
+      const blockers = data.data;
+      if (!blockers?.canDelete) {
+        setDeleteSupplierBlockers({
+          products: blockers?.products || [],
+          purchases: blockers?.purchases || [],
+        });
+        setShowDeleteSupplierBlocked(true);
+        return;
+      }
+      setShowDeleteSupplier(true);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('supplier.deleteFailed')));
+    } finally {
+      setDeleteSupplierChecking(false);
+    }
+  };
+
+  const handleDeleteSupplier = async () => {
+    try {
+      setDeletingSupplier(true);
+      setError(null);
+      await deleteSupplier(supplierId);
+      setShowDeleteSupplier(false);
+      navigation.goBack();
+    } catch (err) {
+      const blockerData = err?.response?.data?.data;
+      if (err?.response?.status === 409 && blockerData) {
+        setDeleteSupplierBlockers({
+          products: blockerData.products || [],
+          purchases: blockerData.purchases || [],
+        });
+        setShowDeleteSupplier(false);
+        setShowDeleteSupplierBlocked(true);
+        return;
+      }
+      setError(getFriendlyErrorMessage(err, t('supplier.deleteFailed')));
+    } finally {
+      setDeletingSupplier(false);
+    }
+  };
+
+  const openBlockedProduct = (product) => {
+    setShowDeleteSupplierBlocked(false);
+    navigation.navigate('Stock', {
+      screen: 'AddEditProduct',
+      params: { product: { id: product.id, name: product.name } },
+    });
+  };
 
   if (loading && !supplier) {
     return (
@@ -294,6 +356,17 @@ export default function SupplierDetailScreen({ route }) {
             ))
           )}
         </Card>
+
+        {isAdmin ? (
+          <AppButton
+            title={t('supplier.delete')}
+            variant="danger"
+            onPress={handleDeleteSupplierPress}
+            loading={deleteSupplierChecking}
+            style={{ marginTop: 16 }}
+            icon="delete-outline"
+          />
+        ) : null}
       </ScrollView>
 
       <View
@@ -354,6 +427,22 @@ export default function SupplierDetailScreen({ route }) {
         onConfirm={handleConfirmDeleteEntry}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
+      />
+      <ConfirmModal
+        visible={showDeleteSupplier}
+        title={t('supplier.deleteConfirmTitle')}
+        message={t('supplier.deleteConfirmMessage')}
+        onConfirm={handleDeleteSupplier}
+        onCancel={() => setShowDeleteSupplier(false)}
+        loading={deletingSupplier}
+      />
+      <SupplierDeletionBlockedModal
+        visible={showDeleteSupplierBlocked}
+        supplierName={supplier?.name}
+        products={deleteSupplierBlockers.products}
+        purchases={deleteSupplierBlockers.purchases}
+        onClose={() => setShowDeleteSupplierBlocked(false)}
+        onOpenProduct={openBlockedProduct}
       />
     </View>
   );

@@ -32,9 +32,35 @@ export const updateCustomer = async (id, data) => {
 };
 
 export const deleteCustomer = async (id) => {
-  await getCustomerById(id);
+  const blockers = await getCustomerDeletionBlockers(id);
+  if (!blockers.canDelete) {
+    throw new ApiError(409, 'Customer is linked to existing sales', {
+      code: 'CUSTOMER_IN_USE',
+      sales: blockers.sales,
+    });
+  }
   await db.customer.delete({ where: { id } });
   return { id };
+};
+
+export const getCustomerDeletionBlockers = async (id) => {
+  await getCustomerById(id);
+
+  const sales = await db.sale.findMany({
+    where: { customerId: id },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      createdAt: true,
+      totalAmount: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return {
+    canDelete: sales.length === 0,
+    sales,
+  };
 };
 
 export const getCustomerAdvanceEntries = async (customerId) => {

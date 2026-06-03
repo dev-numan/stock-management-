@@ -4,6 +4,7 @@ import {
   getCustomers,
   createCustomer as createCustomerApi,
   updateCustomer as updateCustomerApi,
+  deleteCustomer as deleteCustomerApi,
 } from '../api/customers.api';
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { normalizePhone } from '../utils/phone';
@@ -75,6 +76,22 @@ export const useCustomersStore = create(
         set({
           customers: get().customers.map((c) => (c.id === customer.id ? { ...c, ...customer } : c)),
         });
+      },
+
+      removeCustomer: (id) =>
+        set({
+          customers: get().customers.filter((c) => c.id !== id),
+          lastFetched: Date.now(),
+        }),
+
+      deleteCustomer: async (id) => {
+        if (!getIsOnline() || String(id).startsWith('local-')) {
+          get().removeCustomer(id);
+          return { id };
+        }
+        await deleteCustomerApi(id);
+        get().removeCustomer(id);
+        return { id };
       },
 
       createCustomer: async ({ name, phone, address }) => {

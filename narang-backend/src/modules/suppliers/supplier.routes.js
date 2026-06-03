@@ -21,6 +21,13 @@ const ledgerEntryBody = [
 
 router.get('/', supplierController.getAllSuppliers);
 router.get('/:id/ledger', supplierController.getSupplierLedger);
+router.get(
+  '/:id/deletion-blockers',
+  [param('id').isUUID()],
+  validate,
+  authorize('ADMIN'),
+  supplierController.getSupplierDeletionBlockers
+);
 router.post('/:id/payments', ledgerEntryBody, validate, supplierController.addSupplierPayment);
 router.delete(
   '/:id/payments/:paymentId',

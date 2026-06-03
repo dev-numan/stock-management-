@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getSuppliers, createSupplier as apiCreateSupplier } from '../api/suppliers.api';
+import { getSuppliers, createSupplier as apiCreateSupplier, deleteSupplier as deleteSupplierApi } from '../api/suppliers.api';
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getT } from './languageStore';
 
@@ -48,4 +48,10 @@ export const useSuppliersStore = create((set, get) => ({
 
   removeSupplier: (id) =>
     set({ suppliers: get().suppliers.filter((s) => s.id !== id) }),
+
+  deleteSupplier: async (id) => {
+    await deleteSupplierApi(id);
+    get().removeSupplier(id);
+    return { id };
+  },
 }));

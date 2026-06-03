@@ -176,10 +176,44 @@ export const updateSupplier = async (id, data) => {
 };
 
 export const deleteSupplier = async (id) => {
-  const exists = await db.supplier.findUnique({ where: { id } });
-  if (!exists) throw new ApiError(404, 'Supplier not found');
+  const blockers = await getSupplierDeletionBlockers(id);
+  if (!blockers.canDelete) {
+    throw new ApiError(409, 'Supplier is linked to products or purchases', {
+      code: 'SUPPLIER_IN_USE',
+      products: blockers.products,
+      purchases: blockers.purchases,
+    });
+  }
   await db.supplier.delete({ where: { id } });
   return { id };
+};
+
+export const getSupplierDeletionBlockers = async (id) => {
+  await getSupplierById(id);
+
+  const [products, purchases] = await Promise.all([
+    db.product.findMany({
+      where: { supplierId: id },
+      select: { id: true, name: true, currentStock: true },
+      orderBy: { name: 'asc' },
+    }),
+    db.purchase.findMany({
+      where: { supplierId: id },
+      select: {
+        id: true,
+        totalAmount: true,
+        createdAt: true,
+        notes: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  return {
+    canDelete: products.length === 0 && purchases.length === 0,
+    products,
+    purchases,
+  };
 };
 
 export const addSupplierPayment = async (supplierId, { amount, notes }) => {
