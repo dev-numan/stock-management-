@@ -21,6 +21,12 @@ export const PARTY_FILTER_LABEL_KEYS = {
   youWillGive: 'ledger.youWillGive',
 };
 
+export const PARTY_TYPE_FILTER_LABEL_KEYS = {
+  all: 'party.filterAll',
+  customer: 'parties.typeCustomer',
+  supplier: 'parties.typeSupplier',
+};
+
 export const PARTY_SORT_LABEL_KEYS = {
   newest: 'party.sortNewest',
   amountDesc: 'party.sortAmountHigh',
@@ -32,17 +38,29 @@ export const PARTY_SORT_LABEL_KEYS = {
 export function buildListFilterTags({
   t,
   filter,
+  partyType,
   sort,
   search,
   defaultFilter = 'all',
+  defaultPartyType = 'all',
   defaultSort = 'newest',
   filterLabelKeys,
+  partyTypeLabelKeys,
   sortLabelKeys,
   onClearFilter,
+  onClearPartyType,
   onClearSort,
   onClearSearch,
 }) {
   const tags = [];
+
+  if (partyType && partyType !== defaultPartyType && partyTypeLabelKeys?.[partyType]) {
+    tags.push({
+      id: 'partyType',
+      label: t(partyTypeLabelKeys[partyType]),
+      onRemove: onClearPartyType,
+    });
+  }
 
   if (filter && filter !== defaultFilter && filterLabelKeys[filter]) {
     tags.push({

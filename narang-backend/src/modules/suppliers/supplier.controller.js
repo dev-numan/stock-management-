@@ -45,3 +45,11 @@ export const addSupplierPurchase = asyncHandler(async (req, res) => {
   const result = await supplierService.addSupplierPurchase(req.params.id, req.body);
   return res.json(new ApiResponse(201, result, 'Purchase recorded'));
 });
+
+export const deleteSupplierPayment = asyncHandler(async (req, res) => {
+  const result = await supplierService.deleteSupplierPayment(
+    req.params.id,
+    req.params.paymentId
+  );
+  return res.json(new ApiResponse(200, result, 'Payment deleted'));
+});

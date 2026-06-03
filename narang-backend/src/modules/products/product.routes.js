@@ -29,6 +29,7 @@ router.post(
   validate,
   productController.addProductStock
 );
+router.get('/:id/deletion-blockers', idParam, authorize('ADMIN'), validate, productController.getProductDeletionBlockers);
 router.delete('/:id', idParam, authorize('ADMIN'), validate, productController.deleteProduct);
 
 export default router;

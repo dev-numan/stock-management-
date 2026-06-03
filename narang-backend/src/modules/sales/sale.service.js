@@ -193,3 +193,44 @@ export const createSale = async (saleData, userId) => {
     throw err;
   }
 };
+
+export const deleteSale = async (id) => {
+  return db.$transaction(async (tx) => {
+    const sale = await tx.sale.findUnique({
+      where: { id },
+      include: { items: { include: { product: true } } },
+    });
+    if (!sale) throw new ApiError(404, 'Sale not found');
+
+    const stockAdditions = new Map();
+
+    for (const item of sale.items) {
+      const product = item.product;
+      if (!product) continue;
+      const addition = decimal(getStockDeduction(product, item.soldUnit, Number(item.quantity)));
+      const prev = stockAdditions.get(item.productId) ?? decimal(0);
+      stockAdditions.set(item.productId, prev.add(addition));
+    }
+
+    await Promise.all(
+      [...stockAdditions.entries()].map(([productId, addition]) =>
+        tx.product.update({
+          where: { id: productId },
+          data: { currentStock: { increment: addition } },
+        })
+      )
+    );
+
+    if (sale.customerId && sale.paymentMethod === 'CREDIT') {
+      await tx.customer.update({
+        where: { id: sale.customerId },
+        data: { advanceBalance: { increment: sale.totalAmount } },
+      });
+    }
+
+    await tx.customerAdvanceEntry.deleteMany({ where: { saleId: sale.id } });
+    await tx.sale.delete({ where: { id } });
+
+    return { id, customerId: sale.customerId };
+  }, TRANSACTION_OPTS);
+};

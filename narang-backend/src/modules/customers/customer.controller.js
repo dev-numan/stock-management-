@@ -36,3 +36,11 @@ export const addCustomerAdvance = asyncHandler(async (req, res) => {
   const customer = await customerService.addCustomerAdvance(req.params.id, req.body);
   return res.json(new ApiResponse(200, customer, 'Advance payment recorded'));
 });
+
+export const deleteCustomerAdvanceEntry = asyncHandler(async (req, res) => {
+  const customer = await customerService.deleteCustomerAdvanceEntry(
+    req.params.id,
+    req.params.entryId
+  );
+  return res.json(new ApiResponse(200, customer, 'Payment entry deleted'));
+});

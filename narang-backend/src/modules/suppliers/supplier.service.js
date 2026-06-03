@@ -262,3 +262,34 @@ export const addSupplierPurchase = async (supplierId, { amount, notes }) => {
     return { purchase, payableBalance };
   }, TRANSACTION_OPTS);
 };
+
+export const deleteSupplierPayment = async (supplierId, paymentId) => {
+  return db.$transaction(async (tx) => {
+    const payment = await tx.supplierPayment.findFirst({
+      where: { id: paymentId, supplierId },
+    });
+    if (!payment) throw new ApiError(404, 'Payment not found');
+
+    await tx.supplierPayment.delete({ where: { id: paymentId } });
+
+    const payableBalance =
+      toNum(
+        (
+          await tx.purchase.aggregate({
+            where: { supplierId },
+            _sum: { totalAmount: true },
+          })
+        )._sum.totalAmount
+      ) -
+      toNum(
+        (
+          await tx.supplierPayment.aggregate({
+            where: { supplierId },
+            _sum: { amount: true },
+          })
+        )._sum.amount
+      );
+
+    return { id: paymentId, payableBalance };
+  }, TRANSACTION_OPTS);
+};

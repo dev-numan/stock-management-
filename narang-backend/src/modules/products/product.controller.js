@@ -31,6 +31,11 @@ export const deleteProduct = asyncHandler(async (req, res) => {
   return res.json(new ApiResponse(200, result, 'Product deleted'));
 });
 
+export const getProductDeletionBlockers = asyncHandler(async (req, res) => {
+  const blockers = await productService.getProductDeletionBlockers(req.params.id);
+  return res.json(new ApiResponse(200, blockers, 'Product deletion blockers fetched'));
+});
+
 export const addProductStock = asyncHandler(async (req, res) => {
   const result = await productService.addProductStock(req.params.id, req.body);
   return res.json(new ApiResponse(200, result, 'Stock added'));

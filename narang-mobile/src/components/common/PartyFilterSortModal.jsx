@@ -2,14 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Modal, Portal, Text, Chip, RadioButton, Button, IconButton, Card, useTheme } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PARTY_FILTERS, PARTY_SORTS } from '../../utils/partyListFilters';
-import { PARTY_FILTER_LABEL_KEYS, PARTY_SORT_LABEL_KEYS } from '../../utils/filterLabelKeys';
+import { PARTY_FILTERS, PARTY_TYPE_FILTERS, PARTY_SORTS } from '../../utils/partyListFilters';
+import {
+  PARTY_FILTER_LABEL_KEYS,
+  PARTY_TYPE_FILTER_LABEL_KEYS,
+  PARTY_SORT_LABEL_KEYS,
+} from '../../utils/filterLabelKeys';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function PartyFilterSortModal({
   visible,
   filter,
+  partyType = 'all',
   sort,
+  showPartyTypeFilter = false,
   titleKey = 'party.filterTitle',
   onClose,
   onApply,
@@ -19,19 +25,25 @@ export default function PartyFilterSortModal({
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const insets = useSafeAreaInsets();
   const [draftFilter, setDraftFilter] = useState(filter);
+  const [draftPartyType, setDraftPartyType] = useState(partyType);
   const [draftSort, setDraftSort] = useState(sort);
 
   useEffect(() => {
     if (visible) {
       setDraftFilter(filter);
+      setDraftPartyType(partyType);
       setDraftSort(sort);
     }
-  }, [visible, filter, sort]);
+  }, [visible, filter, partyType, sort]);
 
   if (!visible) return null;
 
   const handleApply = () => {
-    onApply({ filter: draftFilter, sort: draftSort });
+    onApply({
+      filter: draftFilter,
+      sort: draftSort,
+      ...(showPartyTypeFilter ? { partyType: draftPartyType } : {}),
+    });
     onClose();
   };
 
@@ -69,8 +81,39 @@ export default function PartyFilterSortModal({
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
         >
+          {showPartyTypeFilter ? (
+            <>
+              <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 10, ...textDir }}>
+                {t('party.typeFilterSection')}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {PARTY_TYPE_FILTERS.map((key) => {
+                  const selected = draftPartyType === key;
+                  return (
+                    <Chip
+                      key={key}
+                      selected={selected}
+                      onPress={() => setDraftPartyType(key)}
+                      mode={selected ? 'flat' : 'outlined'}
+                      showSelectedOverlay
+                      style={{
+                        borderColor: selected ? theme.colors.primary : theme.colors.outline,
+                      }}
+                      textStyle={{
+                        color: selected ? theme.colors.primary : theme.colors.onSurface,
+                        ...textDir,
+                      }}
+                    >
+                      {t(PARTY_TYPE_FILTER_LABEL_KEYS[key])}
+                    </Chip>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
           <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 10, ...textDir }}>
-            {t('party.filterSection')}
+            {t('party.balanceFilterSection')}
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
             {PARTY_FILTERS.map((key) => {

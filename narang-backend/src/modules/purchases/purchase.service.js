@@ -105,3 +105,25 @@ export const createPurchase = async (purchaseData) => {
     return purchase;
   }, TRANSACTION_OPTS);
 };
+
+export const deletePurchase = async (id) => {
+  return db.$transaction(async (tx) => {
+    const purchase = await tx.purchase.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!purchase) throw new ApiError(404, 'Purchase not found');
+
+    await Promise.all(
+      purchase.items.map((item) =>
+        tx.product.update({
+          where: { id: item.productId },
+          data: { currentStock: { decrement: item.quantity } },
+        })
+      )
+    );
+
+    await tx.purchase.delete({ where: { id } });
+    return { id, supplierId: purchase.supplierId };
+  }, TRANSACTION_OPTS);
+};

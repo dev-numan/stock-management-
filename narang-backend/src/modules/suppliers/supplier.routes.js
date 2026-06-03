@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 import { authenticate, authorize } from '../../middleware/auth.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import * as supplierController from './supplier.controller.js';
@@ -22,6 +22,13 @@ const ledgerEntryBody = [
 router.get('/', supplierController.getAllSuppliers);
 router.get('/:id/ledger', supplierController.getSupplierLedger);
 router.post('/:id/payments', ledgerEntryBody, validate, supplierController.addSupplierPayment);
+router.delete(
+  '/:id/payments/:paymentId',
+  [param('id').isUUID(), param('paymentId').isUUID()],
+  validate,
+  authorize('ADMIN'),
+  supplierController.deleteSupplierPayment
+);
 router.post('/:id/purchases', ledgerEntryBody, validate, supplierController.addSupplierPurchase);
 router.get('/:id', supplierController.getSupplierById);
 router.post('/', supplierBody, validate, supplierController.createSupplier);

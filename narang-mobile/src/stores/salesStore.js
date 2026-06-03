@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { getSales } from '../api/sales.api';
+import { getSales, deleteSale as deleteSaleApi } from '../api/sales.api';
 import { isInstantInLocalRange } from '../utils/formatDate';
 import { getIsOnline } from './networkStore';
 import { zustandStorage, isStale } from './storage';
@@ -94,6 +94,30 @@ export const useSalesStore = create(
       },
 
       invalidateAll: () => set({ salesByKey: {}, lastFetchedByKey: {} }),
+
+      removeSaleFromCache: (saleId) => {
+        const { salesByKey } = get();
+        const next = {};
+        for (const [key, list] of Object.entries(salesByKey)) {
+          next[key] = list.filter((s) => s.id !== saleId);
+        }
+        set({ salesByKey: next });
+      },
+
+      deleteSale: async (sale) => {
+        const id = sale?.id;
+        if (sale?.pendingSync) {
+          get().removePendingSale(sale.localId || id);
+          return { id };
+        }
+        if (!getIsOnline()) {
+          throw new Error('Offline — connect to the internet to delete this sale.');
+        }
+        const { data } = await deleteSaleApi(id);
+        get().removeSaleFromCache(id);
+        get().invalidateAll();
+        return data.data;
+      },
     }),
     {
       name: 'narang-sales',

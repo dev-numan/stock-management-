@@ -1,9 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, RefreshControl, Keyboard, Platform } from 'react-native';
 import ViewShot from 'react-native-view-shot';
-import { Text, Card, useTheme } from 'react-native-paper';
+import { Text, Card, IconButton, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getCustomer, getCustomerAdvanceEntries, addCustomerAdvance } from '../../api/customers.api';
+import {
+  getCustomer,
+  getCustomerAdvanceEntries,
+  addCustomerAdvance,
+  deleteCustomerAdvanceEntry,
+} from '../../api/customers.api';
 import { getSales } from '../../api/sales.api';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate, getPeriodQueryParams, getPeriodLabel, isDateInPeriod } from '../../utils/formatDate';
@@ -17,6 +22,8 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import AppButton from '../../components/common/AppButton';
 import AddAdvanceModal from '../../components/customers/AddAdvanceModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import { useAuth } from '../../context/AuthContext';
 import PaymentReminderCard from '../../components/customers/PaymentReminderCard';
 import { APP_NAME_URDU } from '../../constants/branding';
 import {
@@ -60,7 +67,10 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [reminderLoading, setReminderLoading] = useState(null);
   const reminderCaptureRef = useRef(null);
   const { t, isRtl } = useTranslation();
+  const { isAdmin } = useAuth();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState(null);
+  const [deletingPayment, setDeletingPayment] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -153,6 +163,22 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setError(err.message || t('customer.reminderFailed'));
     } finally {
       setReminderLoading(null);
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    if (!deletePaymentTarget) return;
+    try {
+      setDeletingPayment(true);
+      setError(null);
+      const { data } = await deleteCustomerAdvanceEntry(customerId, deletePaymentTarget.id);
+      setCustomer(data.data);
+      setDeletePaymentTarget(null);
+      await load();
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('customer.deletePaymentFailed')));
+    } finally {
+      setDeletingPayment(false);
     }
   };
 
@@ -323,18 +349,47 @@ export default function CustomerDetailScreen({ route, navigation }) {
           {advanceEntries.map((entry) => {
             const amt = Number(entry.amount);
             const isCharge = amt < 0;
+            const linkedSale = entry.saleId || entry.sale?.id;
             return (
               <AppCard key={entry.id} style={{ marginBottom: 8 }}>
-                <Text variant="titleSmall" style={{ fontWeight: '600', color: isCharge ? theme.colors.error : theme.colors.primary }}>
-                  {isCharge ? '−' : '+'}
-                  {formatCurrency(Math.abs(amt))}
-                </Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
-                  {formatDate(entry.createdAt)}
-                </Text>
-                {entry.notes ? (
-                  <Text variant="bodySmall" style={{ marginTop: 4 }}>{entry.notes}</Text>
-                ) : null}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="titleSmall" style={{ fontWeight: '600', color: isCharge ? theme.colors.error : theme.colors.primary }}>
+                      {isCharge ? '−' : '+'}
+                      {formatCurrency(Math.abs(amt))}
+                    </Text>
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
+                      {formatDate(entry.createdAt)}
+                    </Text>
+                    {entry.notes ? (
+                      <Text variant="bodySmall" style={{ marginTop: 4 }}>{entry.notes}</Text>
+                    ) : null}
+                    {linkedSale ? (
+                      <Text
+                        variant="labelSmall"
+                        style={{ marginTop: 6, color: theme.colors.secondary, ...textDir }}
+                        onPress={() =>
+                          navigation.navigate('Invoice', {
+                            saleId: linkedSale,
+                            sale: entry.sale,
+                          })
+                        }
+                      >
+                        {t('customer.paymentLinkedSale', {
+                          invoice: entry.sale?.invoiceNumber || linkedSale,
+                        })}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {isAdmin && !linkedSale && !isCharge ? (
+                    <IconButton
+                      icon="delete-outline"
+                      size={20}
+                      onPress={() => setDeletePaymentTarget(entry)}
+                      accessibilityLabel={t('common.delete')}
+                    />
+                  ) : null}
+                </View>
               </AppCard>
             );
           })}
@@ -347,6 +402,14 @@ export default function CustomerDetailScreen({ route, navigation }) {
         onSubmit={handleAddAdvance}
         onClose={() => setAdvanceModalVisible(false)}
         loading={advanceSaving}
+      />
+      <ConfirmModal
+        visible={Boolean(deletePaymentTarget)}
+        title={t('customer.deletePaymentConfirmTitle')}
+        message={t('customer.deletePaymentConfirmMessage')}
+        onConfirm={handleDeletePayment}
+        onCancel={() => setDeletePaymentTarget(null)}
+        loading={deletingPayment}
       />
 
       {showSalesSkeleton ? (

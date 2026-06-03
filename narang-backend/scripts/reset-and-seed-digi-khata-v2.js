@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const dryRun = process.argv.includes('--dry-run');
 const prisma = new PrismaClient();
 
-const NOTE = 'Opening balance from Digi Khata (02 Jun 2026)';
+const NOTE = 'Opening balance from Digi Khata (03 Jun 2026)';
 const inputPath = join(__dirname, '../data/digi-khata-v2.json');
 
 function normalizePhone(phone) {

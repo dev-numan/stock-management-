@@ -1,12 +1,12 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Text, useTheme } from 'react-native-paper';
+import { Text, IconButton, useTheme } from 'react-native-paper';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
 import { useTranslation } from '../../i18n/useTranslation';
 import { RECEIPT_GREEN } from '../invoice/thermalReceiptShared';
 
-export default function SupplierLedgerEntryRow({ entry }) {
+export default function SupplierLedgerEntryRow({ entry, onDelete, canDelete }) {
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
@@ -41,7 +41,7 @@ export default function SupplierLedgerEntryRow({ entry }) {
           {!isPayment ? formatCurrency(entry.amount) : ' '}
         </Text>
       </View>
-      <View style={{ flex: 1, paddingLeft: 8 }}>
+      <View style={{ flex: 1, paddingLeft: 8, paddingRight: canDelete ? 4 : 0 }}>
         <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
           {formatDateTime(entry.createdAt)}
         </Text>
@@ -63,6 +63,14 @@ export default function SupplierLedgerEntryRow({ entry }) {
           </Text>
         </View>
       </View>
+      {canDelete && onDelete ? (
+        <IconButton
+          icon="delete-outline"
+          size={20}
+          onPress={() => onDelete(entry)}
+          accessibilityLabel={t('common.delete')}
+        />
+      ) : null}
     </View>
   );
 }

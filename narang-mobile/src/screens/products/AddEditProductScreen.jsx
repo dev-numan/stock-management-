@@ -4,7 +4,7 @@ import { Text, Chip, Switch, Card, useTheme } from 'react-native-paper';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getProduct } from '../../api/products.api';
+import { getProduct, getProductDeletionBlockers } from '../../api/products.api';
 import AddStockModal from '../../components/products/AddStockModal';
 import SupplierNameAutocomplete from '../../components/suppliers/SupplierNameAutocomplete';
 import { useSuppliersStore } from '../../stores/suppliersStore';
@@ -15,6 +15,7 @@ import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import ProductDeletionBlockedModal from '../../components/products/ProductDeletionBlockedModal';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
 import {
@@ -58,6 +59,9 @@ export default function AddEditProductScreen({ route, navigation }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showDeleteBlocked, setShowDeleteBlocked] = useState(false);
+  const [deleteChecking, setDeleteChecking] = useState(false);
+  const [deleteBlockers, setDeleteBlockers] = useState({ sales: [], purchases: [] });
   const [displayStock, setDisplayStock] = useState(
     initialProduct ? Number(initialProduct.currentStock ?? 0) : 0
   );
@@ -258,11 +262,52 @@ export default function AddEditProductScreen({ route, navigation }) {
       await deleteProduct(productId);
       navigation.goBack();
     } catch (err) {
+      const blockerData = err?.response?.data?.data;
+      if (err?.response?.status === 409 && blockerData?.sales) {
+        setDeleteBlockers({
+          sales: blockerData.sales || [],
+          purchases: blockerData.purchases || [],
+        });
+        setShowDelete(false);
+        setShowDeleteBlocked(true);
+        return;
+      }
       setError(getFriendlyErrorMessage(err, t('product.deleteFailed')));
     } finally {
       setLoading(false);
       setShowDelete(false);
     }
+  };
+
+  const handleDeletePress = async () => {
+    if (!productId) return;
+    try {
+      setDeleteChecking(true);
+      setError(null);
+      const { data } = await getProductDeletionBlockers(productId);
+      const blockers = data.data;
+      if (!blockers?.canDelete) {
+        setDeleteBlockers({
+          sales: blockers?.sales || [],
+          purchases: blockers?.purchases || [],
+        });
+        setShowDeleteBlocked(true);
+        return;
+      }
+      setShowDelete(true);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('product.deleteFailed')));
+    } finally {
+      setDeleteChecking(false);
+    }
+  };
+
+  const openBlockedSale = (sale) => {
+    setShowDeleteBlocked(false);
+    navigation.navigate('History', {
+      screen: 'Invoice',
+      params: { saleId: sale.id, sale },
+    });
   };
 
   const stockHint =
@@ -513,8 +558,22 @@ export default function AddEditProductScreen({ route, navigation }) {
       ) : null}
       <ErrorMessage message={error} />
       {isEdit && canEdit && (
-        <AppButton title={t('product.delete')} variant="danger" onPress={() => setShowDelete(true)} style={{ marginTop: 8 }} />
+        <AppButton
+          title={t('product.delete')}
+          variant="danger"
+          onPress={handleDeletePress}
+          loading={deleteChecking}
+          style={{ marginTop: 8 }}
+        />
       )}
+      <ProductDeletionBlockedModal
+        visible={showDeleteBlocked}
+        productName={watch('name')}
+        sales={deleteBlockers.sales}
+        purchases={deleteBlockers.purchases}
+        onClose={() => setShowDeleteBlocked(false)}
+        onOpenSale={openBlockedSale}
+      />
       <ConfirmModal
         visible={showDelete}
         title={t('product.deleteConfirmTitle')}

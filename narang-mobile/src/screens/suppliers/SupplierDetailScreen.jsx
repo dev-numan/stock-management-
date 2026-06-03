@@ -8,7 +8,14 @@ import {
 } from 'react-native';
 import { Text, Card, Searchbar, Chip, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getSupplier, getSupplierLedger, addSupplierPayment, addSupplierPurchase } from '../../api/suppliers.api';
+import {
+  getSupplier,
+  getSupplierLedger,
+  addSupplierPayment,
+  addSupplierPurchase,
+  deleteSupplierPayment,
+} from '../../api/suppliers.api';
+import { deletePurchase } from '../../api/purchases.api';
 import { formatCurrency } from '../../utils/formatCurrency';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -17,15 +24,20 @@ import { CustomerDetailSkeleton, SkeletonCard, SkeletonLine } from '../../compon
 import SupplierLedgerEntryRow from '../../components/suppliers/SupplierLedgerEntryRow';
 import AddSupplierPaymentModal from '../../components/suppliers/AddSupplierPaymentModal';
 import AddSupplierPurchaseModal from '../../components/suppliers/AddSupplierPurchaseModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
 import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
+import { useAuth } from '../../context/AuthContext';
+import { useProductsStore } from '../../stores/productsStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SupplierDetailScreen({ route }) {
   const theme = useTheme();
   const { supplierId, supplier: initialSupplier } = route.params;
   const { t, isRtl } = useTranslation();
+  const { isAdmin } = useAuth();
+  const fetchProducts = useProductsStore((s) => s.fetchProducts);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
 
   const [supplier, setSupplier] = useState(initialSupplier);
@@ -37,6 +49,8 @@ export default function SupplierDetailScreen({ route }) {
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [purchaseVisible, setPurchaseVisible] = useState(false);
   const [purchaseSaving, setPurchaseSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -104,6 +118,31 @@ export default function SupplierDetailScreen({ route }) {
       setPurchaseSaving(false);
     }
   };
+
+  const handleConfirmDeleteEntry = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      setError(null);
+      if (deleteTarget.type === 'PAYMENT') {
+        await deleteSupplierPayment(supplierId, deleteTarget.id);
+      } else {
+        await deletePurchase(deleteTarget.id);
+        await fetchProducts(true);
+      }
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('ledgerEntry.deleteFailed')));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteConfirmMessage =
+    deleteTarget?.type === 'PAYMENT'
+      ? t('supplier.deletePaymentConfirmMessage')
+      : t('supplier.deletePurchaseConfirmMessage');
 
   if (loading && !supplier) {
     return (
@@ -234,7 +273,14 @@ export default function SupplierDetailScreen({ route }) {
           ) : ledger.length === 0 ? (
             <EmptyState message={t('supplier.ledgerEmpty')} />
           ) : (
-            ledger.map((entry) => <SupplierLedgerEntryRow key={`${entry.type}-${entry.id}`} entry={entry} />)
+            ledger.map((entry) => (
+              <SupplierLedgerEntryRow
+                key={`${entry.type}-${entry.id}`}
+                entry={entry}
+                canDelete={isAdmin}
+                onDelete={setDeleteTarget}
+              />
+            ))
           )}
         </Card>
       </ScrollView>
@@ -285,6 +331,18 @@ export default function SupplierDetailScreen({ route }) {
         onSubmit={handlePayment}
         onClose={() => setPaymentVisible(false)}
         loading={paymentSaving}
+      />
+      <ConfirmModal
+        visible={Boolean(deleteTarget)}
+        title={
+          deleteTarget?.type === 'PAYMENT'
+            ? t('supplier.deletePaymentConfirmTitle')
+            : t('supplier.deletePurchaseConfirmTitle')
+        }
+        message={deleteConfirmMessage}
+        onConfirm={handleConfirmDeleteEntry}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
       />
     </View>
   );

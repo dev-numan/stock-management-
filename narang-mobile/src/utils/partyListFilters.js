@@ -2,6 +2,8 @@
 
 export const PARTY_FILTERS = ['all', 'youWillGet', 'youWillGive'];
 
+export const PARTY_TYPE_FILTERS = ['all', 'customer', 'supplier'];
+
 export const PARTY_SORTS = ['newest', 'amountDesc', 'oldest', 'amountAsc'];
 
 export function matchesPartyFilter(item, filter, getBalance) {
@@ -9,6 +11,13 @@ export function matchesPartyFilter(item, filter, getBalance) {
   const balance = getBalance(item);
   if (filter === 'youWillGet') return balance < 0;
   if (filter === 'youWillGive') return balance > 0;
+  return true;
+}
+
+export function matchesPartyType(item, partyType) {
+  if (!partyType || partyType === 'all') return true;
+  if (partyType === 'customer') return item.partyType === 'customer';
+  if (partyType === 'supplier') return item.partyType === 'supplier';
   return true;
 }
 
@@ -41,9 +50,12 @@ export function sortParties(list, sort, { getBalance, getCreatedAt = (i) => i.cr
 
 export function filterAndSortParties(
   list,
-  { filter = 'all', sort = 'newest', getBalance, getCreatedAt } = {}
+  { filter = 'all', partyType = 'all', sort = 'newest', getBalance, getCreatedAt } = {}
 ) {
   let result = list;
+  if (partyType && partyType !== 'all') {
+    result = result.filter((item) => matchesPartyType(item, partyType));
+  }
   if (filter && filter !== 'all') {
     result = result.filter((item) => matchesPartyFilter(item, filter, getBalance));
   }

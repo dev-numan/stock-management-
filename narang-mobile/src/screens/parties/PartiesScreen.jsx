@@ -10,6 +10,7 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 import {
   buildListFilterTags,
   PARTY_FILTER_LABEL_KEYS,
+  PARTY_TYPE_FILTER_LABEL_KEYS,
   PARTY_SORT_LABEL_KEYS,
 } from '../../utils/filterLabelKeys';
 import { useCustomersStore } from '../../stores/customersStore';
@@ -27,6 +28,7 @@ export default function PartiesScreen({ navigation }) {
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [partyType, setPartyType] = useState('all');
   const [sort, setSort] = useState('newest');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
@@ -58,7 +60,7 @@ export default function PartiesScreen({ navigation }) {
   }, [fetchCustomers, fetchSuppliers]);
 
   const displayed = useMemo(() => {
-    let list = filterAndSortParties(allRows, { filter, sort, getBalance });
+    let list = filterAndSortParties(allRows, { filter, partyType, sort, getBalance });
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -69,38 +71,45 @@ export default function PartiesScreen({ navigation }) {
       );
     }
     return list;
-  }, [allRows, filter, sort, search, getBalance]);
+  }, [allRows, filter, partyType, sort, search, getBalance]);
 
-  const hasActiveFilters = filter !== 'all' || sort !== 'newest' || Boolean(search.trim());
+  const hasActiveFilters =
+    filter !== 'all' || partyType !== 'all' || sort !== 'newest' || Boolean(search.trim());
 
   const filterTags = useMemo(
     () =>
       buildListFilterTags({
         t,
         filter,
+        partyType,
         sort,
         search,
         filterLabelKeys: PARTY_FILTER_LABEL_KEYS,
+        partyTypeLabelKeys: PARTY_TYPE_FILTER_LABEL_KEYS,
         sortLabelKeys: PARTY_SORT_LABEL_KEYS,
         onClearFilter: () => setFilter('all'),
+        onClearPartyType: () => setPartyType('all'),
         onClearSort: () => setSort('newest'),
         onClearSearch: () => setSearch(''),
       }),
-    [filter, sort, search, t]
+    [filter, partyType, sort, search, t]
   );
 
   const clearAllFilters = useCallback(() => {
     setFilter('all');
+    setPartyType('all');
     setSort('newest');
     setSearch('');
   }, []);
 
   const emptyMessage = useMemo(() => {
     if (search.trim()) return t('parties.noMatch', { query: search.trim() });
+    if (partyType === 'customer') return t('parties.emptyCustomers');
+    if (partyType === 'supplier') return t('parties.emptySuppliers');
     if (filter === 'youWillGet') return t('parties.emptyYouWillGet');
     if (filter === 'youWillGive') return t('parties.emptyYouWillGive');
     return t('parties.empty');
-  }, [filter, search, t]);
+  }, [filter, partyType, search, t]);
 
   const onRefresh = useCallback(() => {
     fetchCustomers(true);
@@ -236,11 +245,14 @@ export default function PartiesScreen({ navigation }) {
       <PartyFilterSortModal
         visible={filterModalVisible}
         filter={filter}
+        partyType={partyType}
+        showPartyTypeFilter
         sort={sort}
         titleKey="parties.filterTitle"
         onClose={() => setFilterModalVisible(false)}
-        onApply={({ filter: nextFilter, sort: nextSort }) => {
+        onApply={({ filter: nextFilter, partyType: nextPartyType, sort: nextSort }) => {
           setFilter(nextFilter);
+          if (nextPartyType !== undefined) setPartyType(nextPartyType);
           setSort(nextSort);
         }}
       />

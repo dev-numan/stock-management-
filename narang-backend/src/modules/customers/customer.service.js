@@ -41,8 +41,32 @@ export const getCustomerAdvanceEntries = async (customerId) => {
   await getCustomerById(customerId);
   return db.customerAdvanceEntry.findMany({
     where: { customerId },
+    include: {
+      sale: { select: { id: true, invoiceNumber: true } },
+    },
     orderBy: { createdAt: 'desc' },
   });
+};
+
+export const deleteCustomerAdvanceEntry = async (customerId, entryId) => {
+  return db.$transaction(async (tx) => {
+    const entry = await tx.customerAdvanceEntry.findFirst({
+      where: { id: entryId, customerId },
+    });
+    if (!entry) throw new ApiError(404, 'Payment entry not found');
+    if (entry.saleId) {
+      throw new ApiError(
+        400,
+        'This payment is linked to a sale. Delete the sale from Sales History first.'
+      );
+    }
+
+    await tx.customerAdvanceEntry.delete({ where: { id: entryId } });
+    return tx.customer.update({
+      where: { id: customerId },
+      data: { advanceBalance: { decrement: entry.amount } },
+    });
+  }, TRANSACTION_OPTS);
 };
 
 export const addCustomerAdvance = async (customerId, { amount, notes }) => {

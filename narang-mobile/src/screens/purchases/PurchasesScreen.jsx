@@ -1,8 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { View, FlatList } from 'react-native';
-import { Card, Text, FAB, useTheme } from 'react-native-paper';
+import { Card, Text, FAB, IconButton, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPurchases } from '../../api/purchases.api';
+import { getPurchases, deletePurchase } from '../../api/purchases.api';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import { useAuth } from '../../context/AuthContext';
+import { useProductsStore } from '../../stores/productsStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -14,9 +17,13 @@ import { useTranslation } from '../../i18n/useTranslation';
 export default function PurchasesScreen({ navigation }) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { isAdmin } = useAuth();
+  const fetchProducts = useProductsStore((s) => s.fetchProducts);
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,6 +40,23 @@ export default function PurchasesScreen({ navigation }) {
         .finally(() => setLoading(false));
     }, [t])
   );
+
+  const handleDeletePurchase = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      setError(null);
+      await deletePurchase(deleteTarget.id);
+      await fetchProducts(true);
+      setDeleteTarget(null);
+      const { data } = await getPurchases();
+      setPurchases(data.data || []);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('purchases.deleteFailed')));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -60,6 +84,14 @@ export default function PurchasesScreen({ navigation }) {
                 <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: '700' }}>
                   {formatCurrency(item.totalAmount)}
                 </Text>
+                {isAdmin ? (
+                  <IconButton
+                    icon="delete-outline"
+                    size={20}
+                    onPress={() => setDeleteTarget(item)}
+                    accessibilityLabel={t('common.delete')}
+                  />
+                ) : null}
               </View>
               <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
                 {t('purchases.itemCount', { count: item.items?.length ?? 0 })}
@@ -74,6 +106,14 @@ export default function PurchasesScreen({ navigation }) {
         style={{ position: 'absolute', right: 16, bottom: 16, backgroundColor: theme.colors.primary }}
         color={theme.colors.onPrimary}
         onPress={() => navigation.navigate('AddPurchase')}
+      />
+      <ConfirmModal
+        visible={Boolean(deleteTarget)}
+        title={t('purchases.deleteConfirmTitle')}
+        message={t('purchases.deleteConfirmMessage')}
+        onConfirm={handleDeletePurchase}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
       />
     </View>
   );

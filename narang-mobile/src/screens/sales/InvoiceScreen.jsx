@@ -8,6 +8,12 @@ import InvoiceReceiptEnglishCard from '../../components/invoice/InvoiceReceiptEn
 import { SHOP_NAME } from '../../constants/branding';
 import { getSale } from '../../api/sales.api';
 import { getSettings } from '../../api/settings.api';
+import { useAuth } from '../../context/AuthContext';
+import { useSalesStore } from '../../stores/salesStore';
+import { useProductsStore } from '../../stores/productsStore';
+import { useCustomersStore } from '../../stores/customersStore';
+import { useDashboardStore } from '../../stores/dashboardStore';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { captureAndShareInvoiceImage } from '../../utils/generateInvoiceImage';
 import { printInvoice, printInvoiceUrdu } from '../../utils/printInvoice';
 import { formatCurrency } from '../../utils/formatCurrency';
@@ -20,9 +26,10 @@ import { getFriendlyErrorMessage, isTechnicalMessage } from '../../utils/apiErro
 import { getIsOnline } from '../../stores/networkStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
-export default function InvoiceScreen({ route }) {
+export default function InvoiceScreen({ route, navigation }) {
   const theme = useTheme();
   const { t, locale, isRtl } = useTranslation();
+  const { isAdmin } = useAuth();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const initialSale = route.params?.sale;
   const saleId = route.params?.saleId;
@@ -33,6 +40,12 @@ export default function InvoiceScreen({ route }) {
   const [printing, setPrinting] = useState(false);
   const [printingUrdu, setPrintingUrdu] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deleteSale = useSalesStore((s) => s.deleteSale);
+  const fetchProducts = useProductsStore((s) => s.fetchProducts);
+  const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const invalidateDashboard = useDashboardStore((s) => s.invalidate);
   const englishCaptureRef = useRef(null);
   const urduCaptureRef = useRef(null);
   const shareCaptureRef = locale === 'ur' ? urduCaptureRef : englishCaptureRef;
@@ -120,6 +133,28 @@ export default function InvoiceScreen({ route }) {
       }
     } finally {
       setPrintingUrdu(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!sale) return;
+    try {
+      setDeleting(true);
+      const result = await deleteSale(sale);
+      await fetchProducts(true);
+      if (result?.customerId || sale.customerId) {
+        await fetchCustomers(true);
+      }
+      invalidateDashboard();
+      setShowDelete(false);
+      navigation.goBack();
+    } catch (err) {
+      Alert.alert(
+        t('sale.deleteFailedTitle'),
+        getFriendlyErrorMessage(err, t('sale.deleteFailed'))
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -239,6 +274,24 @@ export default function InvoiceScreen({ route }) {
           icon="share-variant"
         />
       </View>
+      {isAdmin ? (
+        <AppButton
+          title={t('sale.delete')}
+          variant="danger"
+          onPress={() => setShowDelete(true)}
+          disabled={sharing || printing || printingUrdu || deleting}
+          icon="delete-outline"
+          style={{ marginBottom: 24 }}
+        />
+      ) : null}
+      <ConfirmModal
+        visible={showDelete}
+        title={t('sale.deleteConfirmTitle')}
+        message={t('sale.deleteConfirmMessage')}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+        loading={deleting}
+      />
     </ScrollView>
   );
 }

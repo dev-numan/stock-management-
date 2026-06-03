@@ -252,17 +252,67 @@ export const addProductStock = async (
 };
 
 export const deleteProduct = async (id) => {
-  await getProductById(id);
-  try {
-    await db.product.delete({ where: { id } });
-  } catch (err) {
-    if (err.code === 'P2003') {
-      throw new ApiError(
-        400,
-        'Cannot delete this product because it is used in sales or purchases'
-      );
-    }
-    throw err;
+  const blockers = await getProductDeletionBlockers(id);
+  if (!blockers.canDelete) {
+    throw new ApiError(409, 'Product is linked to existing sales or purchases', {
+      code: 'PRODUCT_IN_USE',
+      sales: blockers.sales,
+      purchases: blockers.purchases,
+    });
   }
+  await db.product.delete({ where: { id } });
   return { id };
+};
+
+export const getProductDeletionBlockers = async (id) => {
+  await getProductById(id);
+
+  const [saleItems, purchaseItems] = await Promise.all([
+    db.saleItem.findMany({
+      where: { productId: id },
+      include: {
+        sale: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            createdAt: true,
+            totalAmount: true,
+          },
+        },
+      },
+    }),
+    db.purchaseItem.findMany({
+      where: { productId: id },
+      include: {
+        purchase: {
+          select: {
+            id: true,
+            createdAt: true,
+            totalAmount: true,
+            supplier: { select: { name: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const salesById = new Map();
+  for (const row of saleItems) {
+    if (row.sale) salesById.set(row.sale.id, row.sale);
+  }
+
+  const purchasesById = new Map();
+  for (const row of purchaseItems) {
+    if (row.purchase) purchasesById.set(row.purchase.id, row.purchase);
+  }
+
+  const sortNewest = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+  const sales = [...salesById.values()].sort(sortNewest);
+  const purchases = [...purchasesById.values()].sort(sortNewest);
+
+  return {
+    canDelete: sales.length === 0 && purchases.length === 0,
+    sales,
+    purchases,
+  };
 };

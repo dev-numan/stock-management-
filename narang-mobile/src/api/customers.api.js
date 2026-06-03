@@ -9,3 +9,7 @@ export const getCustomerAdvanceEntries = (id) =>
   api.get(`/api/v1/customers/${encodeURIComponent(id)}/advance`);
 export const addCustomerAdvance = (id, data) =>
   api.post(`/api/v1/customers/${encodeURIComponent(id)}/advance`, data);
+export const deleteCustomerAdvanceEntry = (customerId, entryId) =>
+  api.delete(
+    `/api/v1/customers/${encodeURIComponent(customerId)}/advance/${encodeURIComponent(entryId)}`
+  );
