@@ -197,46 +197,52 @@ export default function PartiesScreen({ navigation }) {
               style={{ marginBottom: 8, borderRadius: theme.roundness }}
               onPress={() => openRow(item)}
             >
-              <Card.Content style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <Chip compact mode="flat" style={{ alignSelf: 'flex-start' }}>
-                      {isCustomer ? t('parties.typeCustomer') : t('parties.typeSupplier')}
-                    </Chip>
+              <Card.Content>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <Chip compact mode="flat" style={{ alignSelf: 'flex-start' }}>
+                        {isCustomer ? t('parties.typeCustomer') : t('parties.typeSupplier')}
+                      </Chip>
+                    </View>
+                    <Text variant="titleSmall" style={{ fontWeight: '600' }}>
+                      {item.name}
+                    </Text>
+                    {item.phone ? (
+                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                        {formatPhoneDisplay(item.phone)}
+                      </Text>
+                    ) : null}
+                    {isCustomer && item.address ? (
+                      <Text variant="labelSmall" style={{ color: theme.colors.outline, marginTop: 4 }} numberOfLines={1}>
+                        {item.address}
+                      </Text>
+                    ) : null}
+                    {item._local ? (
+                      <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 4, ...textDir }}>
+                        {t('common.pendingSync')}
+                      </Text>
+                    ) : null}
                   </View>
-                  <Text variant="titleSmall" style={{ fontWeight: '600' }}>
-                    {item.name}
-                  </Text>
-                  {item.phone ? (
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                      {formatPhoneDisplay(item.phone)}
-                    </Text>
-                  ) : null}
-                  {isCustomer && item.address ? (
-                    <Text variant="labelSmall" style={{ color: theme.colors.outline, marginTop: 4 }} numberOfLines={1}>
-                      {item.address}
-                    </Text>
-                  ) : null}
                   {balance !== 0 ? (
-                    <Text
-                      variant="labelSmall"
-                      style={{
-                        marginTop: 4,
-                        fontWeight: '600',
-                        color: balance < 0 ? theme.colors.error : theme.colors.primary,
-                      }}
-                    >
-                      {balance < 0 ? t('ledger.youWillGetColon') : t('ledger.youWillGiveColon')}{' '}
-                      {formatCurrency(Math.abs(balance))}
-                    </Text>
-                  ) : null}
-                  {item._local ? (
-                    <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 4, ...textDir }}>
-                      {t('common.pendingSync')}
-                    </Text>
-                  ) : null}
+                    <View style={{ alignItems: isRtl ? 'flex-start' : 'flex-end' }}>
+                      <Text
+                        variant="titleSmall"
+                        style={{
+                          fontWeight: '700',
+                          color: balance < 0 ? theme.colors.error : theme.colors.primary,
+                        }}
+                      >
+                        {formatCurrency(Math.abs(balance))}
+                      </Text>
+                      <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, ...textDir }}>
+                        {balance < 0 ? t('ledger.youWillGetColon') : t('ledger.youWillGiveColon')}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Icon source="chevron-right" size={24} color={theme.colors.outline} />
+                  )}
                 </View>
-                <Icon source="chevron-right" size={24} color={theme.colors.outline} />
               </Card.Content>
             </Card>
           );

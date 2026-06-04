@@ -1,20 +1,21 @@
 import { computeCustomerLedgerTotals } from './creditData';
 import { getEffectiveAdvanceBalance } from './customerBalance';
-import { computeSupplierLedgerTotals } from './supplierLedger';
+import { computeSupplierBalanceTotals } from './supplierLedger';
 
 /**
- * Combined top summary for customers + suppliers:
- * - you'll give = supplier purchases + customer prepaid (you will give)
- * - you'll get = supplier payments + customer receivable (you will get)
+ * Combined top summary: sum of each party's you'll give / you'll get balances.
+ * - you'll give = customer give (positive advance) + supplier give (payable owed)
+ * - you'll get = customer get (they owe you) + supplier get (advance/overpayment)
  */
 export function computeCombinedLedgerSummary(customers = [], suppliers = []) {
   const { youWillGet: customerGet, youWillGive: customerGive } =
     computeCustomerLedgerTotals(customers);
-  const { totalPurchases, totalPayments } = computeSupplierLedgerTotals(suppliers);
+  const { youWillGet: supplierGet, youWillGive: supplierGive } =
+    computeSupplierBalanceTotals(suppliers);
 
   return {
-    youWillGive: totalPurchases + customerGive,
-    youWillGet: totalPayments + customerGet,
+    youWillGive: customerGive + supplierGive,
+    youWillGet: customerGet + supplierGet,
   };
 }
 

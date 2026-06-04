@@ -9,6 +9,18 @@ export function computeSupplierLedgerTotals(suppliers) {
   return { totalPurchases, totalPayments };
 }
 
+/** Sum payable balances: you'll give (owe) and you'll get (advance). */
+export function computeSupplierBalanceTotals(suppliers) {
+  let youWillGet = 0;
+  let youWillGive = 0;
+  for (const s of suppliers) {
+    const balance = Number(s.payableBalance ?? 0);
+    if (balance < 0) youWillGet += Math.abs(balance);
+    else if (balance > 0) youWillGive += balance;
+  }
+  return { youWillGet, youWillGive };
+}
+
 /** Unique product names from purchase ledger entries. */
 export function collectSupplierProductNames(ledgerEntries) {
   const names = new Set();
