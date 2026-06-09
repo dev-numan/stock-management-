@@ -2,7 +2,6 @@ import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { createdAtRange } from '../../utils/dateRange.js';
-import { resolveOrCreateParty } from '../../utils/partyResolve.js';
 
 const toNum = (v) => Number(v ?? 0);
 
@@ -103,13 +102,17 @@ export const getPartyById = async (id) => {
   return enrichParty(party, totals);
 };
 
-export const createParty = async (data) =>
-  resolveOrCreateParty(db, {
-    name: data.name,
-    phone: data.phone,
-    address: data.address,
-    partyType: data.partyType,
+export const createParty = async (data) => {
+  const partyType = data.partyType === 'SUPPLIER' ? 'SUPPLIER' : 'CUSTOMER';
+  return db.party.create({
+    data: {
+      name: data.name,
+      phone: data.phone || null,
+      address: data.address || null,
+      partyType,
+    },
   });
+};
 
 export const updateParty = async (id, data) => {
   await getPartyById(id);
