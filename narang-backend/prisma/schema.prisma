@@ -26,6 +26,11 @@ enum PaymentMethod {
   CREDIT
 }
 
+enum PartyType {
+  CUSTOMER
+  SUPPLIER
+}
+
 model User {
   id        String   @id @default(uuid())
   name      String
@@ -48,50 +53,43 @@ model Settings {
   expiryAlertMonths  Int     @default(3)
 }
 
-model Supplier {
-  id        String            @id @default(uuid())
-  name      String
-  phone     String?
-  address   String?
-  createdAt DateTime          @default(now())
-  products  Product[]
-  purchases Purchase[]
-  payments  SupplierPayment[]
-}
-
-// Cash paid to supplier (reduces payable balance).
-model SupplierPayment {
-  id         String   @id @default(uuid())
-  supplierId String
-  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  amount     Decimal
-  notes      String?
-  createdAt  DateTime @default(now())
-
-  @@index([supplierId])
-}
-
-model Customer {
-  id             String                  @id @default(uuid())
+model Party {
+  id             String              @id @default(uuid())
   name           String
   phone          String?
   address        String?
-  advanceBalance Decimal                 @default(0)
-  createdAt      DateTime                @default(now())
+  partyType      PartyType           @default(CUSTOMER)
+  advanceBalance Decimal             @default(0)
+  createdAt      DateTime            @default(now())
   sales          Sale[]
-  advanceEntries CustomerAdvanceEntry[]
+  advanceEntries PartyAdvanceEntry[]
+  purchases      Purchase[]
+  payments       PartyPayment[]
+  products       Product[]
 }
 
-// Customer account ledger: positive = advance received, negative = credit sale charged.
-model CustomerAdvanceEntry {
-  id         String   @id @default(uuid())
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  saleId     String?
-  sale       Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
-  amount     Decimal
-  notes      String?
-  createdAt  DateTime @default(now())
+model PartyPayment {
+  id        String   @id @default(uuid())
+  partyId   String
+  party     Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  amount    Decimal
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([partyId])
+}
+
+model PartyAdvanceEntry {
+  id        String   @id @default(uuid())
+  partyId   String
+  party     Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  saleId    String?
+  sale      Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  amount    Decimal
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([partyId])
 }
 
 model Product {
@@ -106,32 +104,32 @@ model Product {
   currentStock        Decimal        @default(0)
   minStockAlert       Decimal        @default(10)
   expiryDate          DateTime?
-  supplierId          String?
-  supplier            Supplier?      @relation(fields: [supplierId], references: [id])
+  partyId             String?
+  party               Party?         @relation(fields: [partyId], references: [id])
   createdAt           DateTime       @default(now())
   saleItems           SaleItem[]
   purchaseItems       PurchaseItem[]
 }
 
 model Sale {
-  id            String        @id @default(uuid())
-  clientRequestId String?     @unique
-  invoiceNumber String        @unique
-  customerId    String?
-  customer      Customer?     @relation(fields: [customerId], references: [id])
-  subtotal      Decimal
-  taxPercent    Decimal       @default(0)
-  taxAmount     Decimal       @default(0)
-  discount      Decimal       @default(0)
-  totalAmount   Decimal
-  paymentMethod      PaymentMethod @default(CASH)
+  id                 String                @id @default(uuid())
+  clientRequestId    String?               @unique
+  invoiceNumber      String                @unique
+  partyId            String?
+  party              Party?                @relation(fields: [partyId], references: [id])
+  subtotal           Decimal
+  taxPercent         Decimal               @default(0)
+  taxAmount          Decimal               @default(0)
+  discount           Decimal               @default(0)
+  totalAmount        Decimal
+  paymentMethod      PaymentMethod         @default(CASH)
   promiseReturnDate  DateTime?
   notes              String?
-  createdById   String
-  createdBy     User          @relation(fields: [createdById], references: [id])
-  createdAt     DateTime               @default(now())
-  items         SaleItem[]
-  advanceEntries CustomerAdvanceEntry[]
+  createdById        String
+  createdBy          User                  @relation(fields: [createdById], references: [id])
+  createdAt          DateTime              @default(now())
+  items              SaleItem[]
+  advanceEntries     PartyAdvanceEntry[]
 }
 
 model SaleItem {
@@ -148,8 +146,8 @@ model SaleItem {
 
 model Purchase {
   id          String         @id @default(uuid())
-  supplierId  String?
-  supplier    Supplier?      @relation(fields: [supplierId], references: [id])
+  partyId     String?
+  party       Party?         @relation(fields: [partyId], references: [id])
   totalAmount Decimal
   notes       String?
   createdAt   DateTime       @default(now())

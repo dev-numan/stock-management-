@@ -1,45 +1,44 @@
 import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { resolveSupplierId } from '../../utils/supplierResolve.js';
+import { resolveSupplierId, mapPurchaseWithSupplier } from '../../utils/supplierResolve.js';
 import { createdAtRange } from '../../utils/dateRange.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
 
-export const getAllPurchases = async ({ from, to, supplierId }) => {
+export const getAllPurchases = async ({ from, to, supplierId, partyId }) => {
   const where = {};
-
-  if (supplierId) {
-    where.supplierId = supplierId;
-  }
+  const pid = partyId || supplierId;
+  if (pid) where.partyId = pid;
 
   const range = createdAtRange(from, to);
   if (range) where.createdAt = range;
 
-  return db.purchase.findMany({
+  const purchases = await db.purchase.findMany({
     where,
     include: {
-      supplier: true,
+      party: true,
       items: { include: { product: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
+  return purchases.map(mapPurchaseWithSupplier);
 };
 
 export const getPurchaseById = async (id) => {
   const purchase = await db.purchase.findUnique({
     where: { id },
     include: {
-      supplier: true,
+      party: true,
       items: { include: { product: true } },
     },
   });
   if (!purchase) throw new ApiError(404, 'Purchase not found');
-  return purchase;
+  return mapPurchaseWithSupplier(purchase);
 };
 
 export const createPurchase = async (purchaseData) => {
-  const { items, supplierId, supplierName, notes } = purchaseData;
+  const { items, supplierId, partyId, supplierName, notes } = purchaseData;
 
   if (!items?.length) {
     throw new ApiError(400, 'Purchase must have at least one item');
@@ -72,17 +71,20 @@ export const createPurchase = async (purchaseData) => {
       });
     }
 
-    const resolvedSupplierId = await resolveSupplierId(tx, { supplierId, supplierName });
+    const resolvedPartyId = await resolveSupplierId(tx, {
+      supplierId: partyId || supplierId,
+      supplierName,
+    });
 
     const purchase = await tx.purchase.create({
       data: {
-        supplierId: resolvedSupplierId,
+        partyId: resolvedPartyId,
         totalAmount,
         notes: notes || null,
         items: { create: purchaseItemsData },
       },
       include: {
-        supplier: true,
+        party: true,
         items: { include: { product: true } },
       },
     });
@@ -102,7 +104,7 @@ export const createPurchase = async (purchaseData) => {
       })
     );
 
-    return purchase;
+    return mapPurchaseWithSupplier(purchase);
   }, TRANSACTION_OPTS);
 };
 
@@ -124,6 +126,6 @@ export const deletePurchase = async (id) => {
     );
 
     await tx.purchase.delete({ where: { id } });
-    return { id, supplierId: purchase.supplierId };
+    return { id, supplierId: purchase.partyId, partyId: purchase.partyId };
   }, TRANSACTION_OPTS);
 };

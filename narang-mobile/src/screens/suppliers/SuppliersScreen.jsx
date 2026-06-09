@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, FlatList, RefreshControl, Keyboard, Platform } from 'react-native';
+import { View, FlatList, RefreshControl, Keyboard, Platform, Alert } from 'react-native';
 import { Card, Text, FAB, IconButton, Badge, Searchbar, useTheme } from 'react-native-paper';
 import PartyFilterSortModal from '../../components/common/PartyFilterSortModal';
 import ActiveFilterChips from '../../components/common/ActiveFilterChips';
@@ -16,6 +16,7 @@ import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
 import { useSuppliersStore } from '../../stores/suppliersStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { filterAndSortParties } from '../../utils/partyListFilters';
+import { exportPartyListPdf } from '../../utils/generatePartyListPDF';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SuppliersScreen({ navigation }) {
@@ -26,6 +27,7 @@ export default function SuppliersScreen({ navigation }) {
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const suppliers = useSuppliersStore((s) => s.suppliers);
   const loading = useSuppliersStore((s) => s.loading);
@@ -73,6 +75,17 @@ export default function SuppliersScreen({ navigation }) {
     setSearch('');
   }, []);
 
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportPartyListPdf({ kind: 'supplier', parties: displayed });
+    } catch {
+      Alert.alert(t('partyReport.export'), t('reports.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  }, [displayed, t]);
+
   const emptyMessage = useMemo(() => {
     if (search.trim()) return t('supplier.noMatch', { query: search.trim() });
     if (filter === 'youWillGet') return t('supplier.emptyYouWillGet');
@@ -115,6 +128,14 @@ export default function SuppliersScreen({ navigation }) {
                   />
                 ) : null}
               </View>
+              <IconButton
+                icon="file-pdf-box"
+                mode="contained-tonal"
+                loading={exporting}
+                disabled={exporting || displayed.length === 0}
+                onPress={handleExport}
+                accessibilityLabel={t('partyReport.export')}
+              />
             </View>
             <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
             <SupplierLedgerSummary suppliers={suppliers} />

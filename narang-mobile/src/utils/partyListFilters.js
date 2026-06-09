@@ -16,8 +16,9 @@ export function matchesPartyFilter(item, filter, getBalance) {
 
 export function matchesPartyType(item, partyType) {
   if (!partyType || partyType === 'all') return true;
-  if (partyType === 'customer') return item.partyType === 'customer';
-  if (partyType === 'supplier') return item.partyType === 'supplier';
+  const type = item.activeType || item.partyType;
+  if (partyType === 'customer') return type === 'customer';
+  if (partyType === 'supplier') return type === 'supplier';
   return true;
 }
 

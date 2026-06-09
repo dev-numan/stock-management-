@@ -10,7 +10,18 @@ import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { normalizePhone } from '../utils/phone';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
+import { usePartiesStore } from './partiesStore';
 import { zustandStorage, isStale } from './storage';
+
+const syncToPartiesStore = (customers) => {
+  const parties = usePartiesStore.getState().parties;
+  const others = parties.filter((p) => p.partyType !== 'CUSTOMER');
+  const merged = [
+    ...others,
+    ...customers.map((c) => ({ ...c, partyType: 'CUSTOMER' })),
+  ];
+  usePartiesStore.setState({ parties: merged, lastFetched: Date.now() });
+};
 
 export const useCustomersStore = create(
   persist(
@@ -34,6 +45,7 @@ export const useCustomersStore = create(
           const { data } = await getCustomers();
           const list = data.data || [];
           set({ customers: list, lastFetched: Date.now(), loading: false });
+          syncToPartiesStore(list);
           return list;
         } catch (err) {
           set({
@@ -44,8 +56,11 @@ export const useCustomersStore = create(
         }
       },
 
-      addCustomerLocal: (customer) =>
-        set({ customers: [...get().customers, customer] }),
+      addCustomerLocal: (customer) => {
+        const next = [...get().customers, customer];
+        set({ customers: next });
+        syncToPartiesStore(next);
+      },
 
       findByPhone: (phone) => {
         const key = normalizePhone(phone);
@@ -55,34 +70,36 @@ export const useCustomersStore = create(
 
       updateCustomer: async (id, data) => {
         if (!getIsOnline() || String(id).startsWith('local-')) {
-          set({
-            customers: get().customers.map((c) =>
-              c.id === id ? { ...c, ...data } : c
-            ),
-          });
-          return get().customers.find((c) => c.id === id);
+          const next = get().customers.map((c) => (c.id === id ? { ...c, ...data } : c));
+          set({ customers: next });
+          syncToPartiesStore(next);
+          return next.find((c) => c.id === id);
         }
         const { data: res } = await updateCustomerApi(id, data);
         const updated = res.data;
-        set({
-          customers: get().customers.map((c) => (c.id === id ? updated : c)),
-          lastFetched: Date.now(),
-        });
+        const next = get().customers.map((c) => (c.id === id ? updated : c));
+        set({ customers: next, lastFetched: Date.now() });
+        syncToPartiesStore(next);
+        usePartiesStore.getState().patchParty({ ...updated, partyType: 'CUSTOMER' });
         return updated;
       },
 
       patchCustomer: (customer) => {
         if (!customer?.id) return;
-        set({
-          customers: get().customers.map((c) => (c.id === customer.id ? { ...c, ...customer } : c)),
-        });
+        const next = get().customers.map((c) =>
+          c.id === customer.id ? { ...c, ...customer } : c
+        );
+        set({ customers: next });
+        syncToPartiesStore(next);
+        usePartiesStore.getState().patchParty({ ...customer, partyType: 'CUSTOMER' });
       },
 
-      removeCustomer: (id) =>
-        set({
-          customers: get().customers.filter((c) => c.id !== id),
-          lastFetched: Date.now(),
-        }),
+      removeCustomer: (id) => {
+        const next = get().customers.filter((c) => c.id !== id);
+        set({ customers: next, lastFetched: Date.now() });
+        syncToPartiesStore(next);
+        usePartiesStore.getState().removeParty(id);
+      },
 
       deleteCustomer: async (id) => {
         if (!getIsOnline() || String(id).startsWith('local-')) {
@@ -99,10 +116,17 @@ export const useCustomersStore = create(
 
         if (!getIsOnline()) {
           const localId = `local-customer-${Date.now()}`;
-          const local = { id: localId, name, phone: phone || null, address: address || null, _local: true };
+          const local = {
+            id: localId,
+            name,
+            phone: phone || null,
+            address: address || null,
+            partyType: 'CUSTOMER',
+            _local: true,
+          };
           useSyncStore.getState().enqueue({
-            type: 'CREATE_CUSTOMER',
-            payload: body,
+            type: 'CREATE_PARTY',
+            payload: { ...body, partyType: 'CUSTOMER' },
             localId,
           });
           get().addCustomerLocal(local);
@@ -111,10 +135,9 @@ export const useCustomersStore = create(
 
         const { data } = await createCustomerApi(body);
         const created = data.data;
-        set({
-          customers: [...get().customers.filter((c) => c.id !== created.id), created],
-          lastFetched: Date.now(),
-        });
+        const next = [...get().customers.filter((c) => c.id !== created.id), created];
+        set({ customers: next, lastFetched: Date.now() });
+        syncToPartiesStore(next);
         return created;
       },
     }),

@@ -4,6 +4,7 @@ import { getToken, setToken, getUser, setUser, clearAuth, migrateLegacyAuth } fr
 import { setSessionExpiredHandler } from '../utils/authSession';
 import { useProductsStore } from '../stores/productsStore';
 import { useCustomersStore } from '../stores/customersStore';
+import { usePartiesStore } from '../stores/partiesStore';
 import { useDashboardStore } from '../stores/dashboardStore';
 
 const AuthContext = createContext(null);
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }) => {
           await Promise.all([
             useProductsStore.getState().fetchProducts(true),
             useCustomersStore.getState().fetchCustomers(true),
+            usePartiesStore.getState().fetchParties(true),
           ]);
         } catch {
           await clearAuth();
@@ -54,6 +56,7 @@ export const AuthProvider = ({ children }) => {
     await Promise.all([
       useProductsStore.getState().fetchProducts(true),
       useCustomersStore.getState().fetchCustomers(true),
+      usePartiesStore.getState().fetchParties(true),
     ]);
     return userData;
   };

@@ -9,10 +9,11 @@ export const createSaleValidator = [
   body('items.*.soldUnit').optional().isIn(units).withMessage('Invalid sold unit'),
   body('items.*.unitPrice').optional().isFloat({ min: 0 }),
   body('customerId').optional({ nullable: true }).isUUID(),
+  body('partyId').optional({ nullable: true }).isUUID(),
   body('discount').optional().isFloat({ min: 0 }),
   body('paymentMethod').optional().isIn(['CASH', 'CREDIT']),
   body().custom((_value, { req }) => {
-    if (req.body.paymentMethod === 'CREDIT' && !req.body.customerId) {
+    if (req.body.paymentMethod === 'CREDIT' && !req.body.customerId && !req.body.partyId) {
       throw new Error('Customer is required for credit sales');
     }
     return true;

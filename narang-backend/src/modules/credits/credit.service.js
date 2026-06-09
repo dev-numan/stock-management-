@@ -1,20 +1,20 @@
 import { db } from '../../config/db.js';
+import { mapSaleWithCustomer } from '../parties/party.service.js';
 
 export const getCreditSales = async () => {
   const sales = await db.sale.findMany({
     where: { paymentMethod: 'CREDIT' },
     include: {
-      customer: { select: { id: true, name: true, phone: true } },
+      party: { select: { id: true, name: true, phone: true, advanceBalance: true, partyType: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  /** Net amount customers owe (negative advanceBalance), not sum of all credit sales. */
-  const owingCustomers = await db.customer.findMany({
+  const owingParties = await db.party.findMany({
     where: { advanceBalance: { lt: 0 } },
     select: { advanceBalance: true },
   });
-  const totalOutstanding = owingCustomers.reduce(
+  const totalOutstanding = owingParties.reduce(
     (sum, c) => sum + Math.abs(Number(c.advanceBalance)),
     0
   );
@@ -22,6 +22,6 @@ export const getCreditSales = async () => {
   return {
     totalOutstanding,
     count: sales.length,
-    sales,
+    sales: sales.map(mapSaleWithCustomer),
   };
 };

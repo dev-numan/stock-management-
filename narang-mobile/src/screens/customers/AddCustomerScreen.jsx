@@ -53,7 +53,7 @@ export default function AddCustomerScreen({ navigation }) {
         name="phone"
         render={({ field: { onChange, onBlur, value } }) => (
           <AppInput
-            label={t('customer.phone')}
+            label={t('customer.phoneOptional')}
             value={value}
             onChangeText={onChange}
             onBlur={onBlur}

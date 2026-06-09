@@ -12,6 +12,7 @@ import { ApiError } from './src/utils/ApiError.js';
 import authRoutes from './src/modules/auth/auth.routes.js';
 import supplierRoutes from './src/modules/suppliers/supplier.routes.js';
 import customerRoutes from './src/modules/customers/customer.routes.js';
+import partyRoutes from './src/modules/parties/party.routes.js';
 import productRoutes from './src/modules/products/product.routes.js';
 import saleRoutes from './src/modules/sales/sale.routes.js';
 import purchaseRoutes from './src/modules/purchases/purchase.routes.js';
@@ -58,6 +59,7 @@ app.use('/api/v1', async (req, res, next) => {
 
 const apiRouter = express.Router();
 apiRouter.use('/auth', authRoutes);
+apiRouter.use('/parties', partyRoutes);
 apiRouter.use('/suppliers', supplierRoutes);
 apiRouter.use('/customers', customerRoutes);
 apiRouter.use('/products', productRoutes);

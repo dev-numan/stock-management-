@@ -135,19 +135,25 @@ export const completeSale = async ({
   if (selectedCustomer?.id) {
     customerId = selectedCustomer.id;
     const address = selectedCustomer.address?.trim() || '';
+    const phone = selectedCustomer.phone?.trim() || null;
+    const customerPatch = {
+      name: selectedCustomer.name,
+      address: address || null,
+      phone,
+    };
 
     if (selectedCustomer.id && !String(selectedCustomer.id).startsWith('local-')) {
       try {
         const updated = await useCustomersStore
           .getState()
-          .updateCustomer(selectedCustomer.id, { address });
+          .updateCustomer(selectedCustomer.id, customerPatch);
         customer = updated;
         customerId = updated.id;
       } catch {
         customer = {
           id: selectedCustomer.id,
           name: selectedCustomer.name,
-          phone: selectedCustomer.phone,
+          phone,
           address: address || null,
         };
       }
@@ -155,11 +161,11 @@ export const completeSale = async ({
       customer = {
         id: selectedCustomer.id,
         name: selectedCustomer.name,
-        phone: selectedCustomer.phone,
+        phone,
         address: address || null,
       };
       if (String(selectedCustomer.id).startsWith('local-')) {
-        useCustomersStore.getState().updateCustomer(selectedCustomer.id, { address });
+        useCustomersStore.getState().updateCustomer(selectedCustomer.id, customerPatch);
       }
     }
   }

@@ -20,7 +20,6 @@ import { useSalesStore } from '../../stores/salesStore';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import CustomerContactPickerModal from '../../components/sales/CustomerContactPickerModal';
 import { resolveContactToCustomer } from '../../services/customerContactService';
-import { formatPhoneDisplay } from '../../utils/phone';
 import { hasAlternateSale } from '../../utils/productUnits';
 import { useTranslation } from '../../i18n/useTranslation';
 
@@ -202,9 +201,11 @@ export default function NewSaleScreen({ navigation }) {
       {cart.selectedCustomer ? (
         <>
           <AppInput
-            label={t('common.phone')}
-            value={formatPhoneDisplay(cart.selectedCustomer.phone)}
-            editable={false}
+            label={t('customer.phoneOptional')}
+            value={cart.selectedCustomer.phone || ''}
+            onChangeText={cart.updateSelectedCustomerPhone}
+            keyboardType="phone-pad"
+            placeholder={t('customer.addPhone')}
           />
           <AppInput
             label={t('common.address')}

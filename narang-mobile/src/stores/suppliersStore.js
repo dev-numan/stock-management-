@@ -1,7 +1,22 @@
 import { create } from 'zustand';
-import { getSuppliers, createSupplier as apiCreateSupplier, deleteSupplier as deleteSupplierApi } from '../api/suppliers.api';
+import {
+  getSuppliers,
+  createSupplier as apiCreateSupplier,
+  deleteSupplier as deleteSupplierApi,
+} from '../api/suppliers.api';
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getT } from './languageStore';
+import { usePartiesStore } from './partiesStore';
+
+const syncToPartiesStore = (suppliers) => {
+  const parties = usePartiesStore.getState().parties;
+  const others = parties.filter((p) => p.partyType !== 'SUPPLIER');
+  const merged = [
+    ...others,
+    ...suppliers.map((s) => ({ ...s, partyType: 'SUPPLIER' })),
+  ];
+  usePartiesStore.setState({ parties: merged, lastFetched: Date.now() });
+};
 
 export const useSuppliersStore = create((set, get) => ({
   suppliers: [],
@@ -13,7 +28,9 @@ export const useSuppliersStore = create((set, get) => ({
     try {
       set({ loading: true, error: null });
       const { data } = await getSuppliers();
-      set({ suppliers: data.data || [], loading: false });
+      const list = data.data || [];
+      set({ suppliers: list, loading: false });
+      syncToPartiesStore(list);
     } catch (err) {
       set({
         suppliers: [],
@@ -26,28 +43,30 @@ export const useSuppliersStore = create((set, get) => ({
   createSupplier: async (payload) => {
     const { data } = await apiCreateSupplier(payload);
     const created = data.data;
-    set({ suppliers: [...get().suppliers, { ...created, payableBalance: 0 }] });
+    const next = [...get().suppliers, { ...created, payableBalance: 0, partyType: 'SUPPLIER' }];
+    set({ suppliers: next });
+    syncToPartiesStore(next);
     return created;
   },
 
-  /**
-   * Insert or update a single supplier in the cached list. Used by the detail
-   * screen so the list/summary reflect new balances immediately (e.g. after a
-   * purchase/payment is added or deleted) without waiting for a refetch.
-   */
   upsertSupplier: (supplier) => {
     if (!supplier?.id) return;
     const existing = get().suppliers;
     const found = existing.some((s) => s.id === supplier.id);
-    set({
-      suppliers: found
-        ? existing.map((s) => (s.id === supplier.id ? { ...s, ...supplier } : s))
-        : [...existing, supplier],
-    });
+    const next = found
+      ? existing.map((s) => (s.id === supplier.id ? { ...s, ...supplier } : s))
+      : [...existing, supplier];
+    set({ suppliers: next });
+    syncToPartiesStore(next);
+    usePartiesStore.getState().upsertParty({ ...supplier, partyType: 'SUPPLIER' });
   },
 
-  removeSupplier: (id) =>
-    set({ suppliers: get().suppliers.filter((s) => s.id !== id) }),
+  removeSupplier: (id) => {
+    const next = get().suppliers.filter((s) => s.id !== id);
+    set({ suppliers: next });
+    syncToPartiesStore(next);
+    usePartiesStore.getState().removeParty(id);
+  },
 
   deleteSupplier: async (id) => {
     await deleteSupplierApi(id);

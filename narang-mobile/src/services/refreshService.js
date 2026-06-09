@@ -1,6 +1,7 @@
 import { useDashboardStore } from '../stores/dashboardStore';
 import { useProductsStore } from '../stores/productsStore';
 import { useCustomersStore } from '../stores/customersStore';
+import { usePartiesStore } from '../stores/partiesStore';
 import { useSalesStore } from '../stores/salesStore';
 import { localDataService } from './localDataService';
 import { getIsOnline } from '../stores/networkStore';
@@ -12,7 +13,7 @@ export async function refreshAllData() {
   dashboard.invalidateTrends();
 
   useProductsStore.setState({ lastFetched: null });
-  useCustomersStore.setState({ lastFetched: null });
+  usePartiesStore.setState({ lastFetched: null });
   useSalesStore.getState().invalidateAll();
 
   await localDataService.clearReadCaches();
@@ -25,6 +26,7 @@ export async function refreshAllData() {
     dashboard.fetchDashboard(true),
     useProductsStore.getState().fetchProducts(true),
     useCustomersStore.getState().fetchCustomers(true),
+    usePartiesStore.getState().fetchParties(true),
   ]);
 
   return { offline: false };

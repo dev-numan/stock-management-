@@ -135,6 +135,9 @@ export const CartProvider = ({ children }) => {
         updateSelectedCustomerAddress: (address) => {
           setSelectedCustomer((prev) => (prev ? { ...prev, address } : null));
         },
+        updateSelectedCustomerPhone: (phone) => {
+          setSelectedCustomer((prev) => (prev ? { ...prev, phone: phone || null } : null));
+        },
         clearSelectedCustomer: () => setSelectedCustomer(null),
         setDiscount,
         setPaymentMethod,

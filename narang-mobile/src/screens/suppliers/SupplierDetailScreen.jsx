@@ -38,7 +38,7 @@ import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SupplierDetailScreen({ route, navigation }) {
   const theme = useTheme();
-  const { supplierId, supplier: initialSupplier } = route.params;
+  const { supplierId, supplier: initialSupplier, readOnly = false } = route.params;
   const { t, isRtl } = useTranslation();
   const { isAdmin } = useAuth();
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
@@ -350,14 +350,14 @@ export default function SupplierDetailScreen({ route, navigation }) {
               <SupplierLedgerEntryRow
                 key={`${entry.type}-${entry.id}`}
                 entry={entry}
-                canDelete={isAdmin}
+                canDelete={isAdmin && !readOnly}
                 onDelete={setDeleteTarget}
               />
             ))
           )}
         </Card>
 
-        {isAdmin ? (
+        {isAdmin && !readOnly ? (
           <AppButton
             title={t('supplier.delete')}
             variant="danger"
@@ -369,6 +369,7 @@ export default function SupplierDetailScreen({ route, navigation }) {
         ) : null}
       </ScrollView>
 
+      {!readOnly ? (
       <View
         style={{
           position: 'absolute',
@@ -401,6 +402,7 @@ export default function SupplierDetailScreen({ route, navigation }) {
           </View>
         </View>
       </View>
+      ) : null}
 
       <AddSupplierPurchaseModal
         visible={purchaseVisible}

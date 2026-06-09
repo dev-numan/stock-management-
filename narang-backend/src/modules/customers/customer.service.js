@@ -1,147 +1,51 @@
-import { Prisma } from '@prisma/client';
-import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import * as partyService from '../parties/party.service.js';
 
 export const getAllCustomers = async ({ search }) => {
-  return db.customer.findMany({
-    where: search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : undefined,
-    orderBy: { name: 'asc' },
-  });
+  const parties = await partyService.getAllParties({ type: 'CUSTOMER', search });
+  return parties.map(partyService.asCustomer);
 };
 
 export const getCustomerById = async (id) => {
-  const customer = await db.customer.findUnique({ where: { id } });
-  if (!customer) throw new ApiError(404, 'Customer not found');
-  return customer;
+  const party = await partyService.getPartyById(id);
+  return partyService.asCustomer(party);
 };
 
-export const createCustomer = async (data) => {
-  return db.customer.create({ data });
-};
+export const createCustomer = async (data) =>
+  partyService.createParty({ ...data, partyType: 'CUSTOMER' });
 
-export const updateCustomer = async (id, data) => {
-  await getCustomerById(id);
-  return db.customer.update({ where: { id }, data });
-};
+export const updateCustomer = async (id, data) => partyService.updateParty(id, data);
 
 export const deleteCustomer = async (id) => {
-  const blockers = await getCustomerDeletionBlockers(id);
-  if (!blockers.canDelete) {
+  const blockers = await partyService.getPartyDeletionBlockers(id);
+  if (blockers.sales.length > 0) {
     throw new ApiError(409, 'Customer is linked to existing sales', {
       code: 'CUSTOMER_IN_USE',
       sales: blockers.sales,
     });
   }
-  await db.customer.delete({ where: { id } });
-  return { id };
+  if (!blockers.canDelete) {
+    throw new ApiError(409, 'Customer is linked to existing records', {
+      code: 'CUSTOMER_IN_USE',
+      ...blockers,
+    });
+  }
+  return partyService.deleteParty(id);
 };
 
 export const getCustomerDeletionBlockers = async (id) => {
-  await getCustomerById(id);
-
-  const sales = await db.sale.findMany({
-    where: { customerId: id },
-    select: {
-      id: true,
-      invoiceNumber: true,
-      createdAt: true,
-      totalAmount: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  return {
-    canDelete: sales.length === 0,
-    sales,
-  };
+  const blockers = await partyService.getPartyDeletionBlockers(id);
+  return { canDelete: blockers.sales.length === 0, sales: blockers.sales };
 };
 
-export const getCustomerAdvanceEntries = async (customerId) => {
-  await getCustomerById(customerId);
-  return db.customerAdvanceEntry.findMany({
-    where: { customerId },
-    include: {
-      sale: { select: { id: true, invoiceNumber: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-};
+export const getCustomerAdvanceEntries = async (customerId) =>
+  partyService.getPartyAdvanceEntries(customerId);
 
-export const deleteCustomerAdvanceEntry = async (customerId, entryId) => {
-  return db.$transaction(async (tx) => {
-    const entry = await tx.customerAdvanceEntry.findFirst({
-      where: { id: entryId, customerId },
-    });
-    if (!entry) throw new ApiError(404, 'Payment entry not found');
-    if (entry.saleId) {
-      throw new ApiError(
-        400,
-        'This payment is linked to a sale. Delete the sale from Sales History first.'
-      );
-    }
+export const deleteCustomerAdvanceEntry = async (customerId, entryId) =>
+  partyService.deletePartyAdvanceEntry(customerId, entryId);
 
-    await tx.customerAdvanceEntry.delete({ where: { id: entryId } });
-    return tx.customer.update({
-      where: { id: customerId },
-      data: { advanceBalance: { decrement: entry.amount } },
-    });
-  }, TRANSACTION_OPTS);
-};
+export const addCustomerAdvance = async (customerId, body) =>
+  partyService.addPartyAdvance(customerId, body);
 
-export const addCustomerAdvance = async (customerId, { amount, notes }) => {
-  const value = new Prisma.Decimal(amount);
-  if (value.lte(0)) {
-    throw new ApiError(400, 'Amount must be greater than zero');
-  }
-
-  return db.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({ where: { id: customerId } });
-    if (!customer) throw new ApiError(404, 'Customer not found');
-
-    await tx.customerAdvanceEntry.create({
-      data: {
-        customerId,
-        amount: value,
-        notes: notes?.trim() || null,
-      },
-    });
-
-    return tx.customer.update({
-      where: { id: customerId },
-      data: { advanceBalance: { increment: value } },
-    });
-  }, TRANSACTION_OPTS);
-};
-
-/** Manual credit / amount owed without a product sale. */
-export const addCustomerCreditCharge = async (customerId, { amount, notes }) => {
-  const value = new Prisma.Decimal(amount);
-  if (value.lte(0)) {
-    throw new ApiError(400, 'Amount must be greater than zero');
-  }
-
-  return db.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({ where: { id: customerId } });
-    if (!customer) throw new ApiError(404, 'Customer not found');
-
-    await tx.customerAdvanceEntry.create({
-      data: {
-        customerId,
-        amount: value.neg(),
-        notes: notes?.trim() || null,
-      },
-    });
-
-    return tx.customer.update({
-      where: { id: customerId },
-      data: { advanceBalance: { decrement: value } },
-    });
-  }, TRANSACTION_OPTS);
-};
+export const addCustomerCreditCharge = async (customerId, body) =>
+  partyService.addPartyCreditCharge(customerId, body);

@@ -180,7 +180,6 @@ export const validateSaleCheckout = ({
   }
 
   const name = selectedCustomer?.name?.trim() || '';
-  const phone = selectedCustomer?.phone?.trim() || '';
 
   const deductionByProduct = new Map();
 
@@ -222,8 +221,13 @@ export const validateSaleCheckout = ({
     if (!selectedCustomer || !name) {
       errors.push('Select a customer from contacts for credit sales');
     }
-    if (selectedCustomer && !phone) {
-      errors.push('Selected customer must have a phone number');
+  }
+
+  const phoneRaw = selectedCustomer?.phone?.trim() || '';
+  if (phoneRaw) {
+    const parsed = optionalPhone.safeParse(phoneRaw);
+    if (!parsed.success) {
+      errors.push('Enter a valid phone number');
     }
   }
 

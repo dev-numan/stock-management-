@@ -30,6 +30,7 @@ import ConfirmModal from '../../components/common/ConfirmModal';
 import { buildCustomerAccountHistory } from '../../utils/customerAccountHistory';
 import { useAuth } from '../../context/AuthContext';
 import PaymentReminderCard from '../../components/customers/PaymentReminderCard';
+import EditCustomerPhoneModal from '../../components/customers/EditCustomerPhoneModal';
 import { APP_NAME_URDU } from '../../constants/branding';
 import {
   sendPaymentReminderSms,
@@ -57,7 +58,7 @@ function SummarySkeleton() {
 
 export default function CustomerDetailScreen({ route, navigation }) {
   const theme = useTheme();
-  const { customerId, customer: initialCustomer } = route.params;
+  const { customerId, customer: initialCustomer, readOnly = false } = route.params;
   const [customer, setCustomer] = useState(initialCustomer);
   const [sales, setSales] = useState([]);
   const [advanceEntries, setAdvanceEntries] = useState([]);
@@ -76,6 +77,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const { t, isRtl } = useTranslation();
   const { isAdmin } = useAuth();
   const patchCustomer = useCustomersStore((s) => s.patchCustomer);
+  const updateCustomer = useCustomersStore((s) => s.updateCustomer);
   const deleteCustomer = useCustomersStore((s) => s.deleteCustomer);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [deletePaymentTarget, setDeletePaymentTarget] = useState(null);
@@ -85,6 +87,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [deleteCustomerBlockers, setDeleteCustomerBlockers] = useState({ sales: [] });
   const [deleteCustomerChecking, setDeleteCustomerChecking] = useState(false);
   const [deletingCustomer, setDeletingCustomer] = useState(false);
+  const [phoneModalVisible, setPhoneModalVisible] = useState(false);
+  const [phoneSaving, setPhoneSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -152,6 +156,26 @@ export default function CustomerDetailScreen({ route, navigation }) {
       getPaymentReminderShopSettings().then(setShopSettings);
     }
   }, [canSendMessages]);
+
+  const handleSavePhone = async (phone) => {
+    if (!customer?.id) return;
+    try {
+      setPhoneSaving(true);
+      setError(null);
+      const updated = await updateCustomer(customer.id, {
+        name: customer.name,
+        address: customer.address?.trim() || null,
+        phone,
+      });
+      setCustomer(updated);
+      patchCustomer(updated);
+      setPhoneModalVisible(false);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, t('customer.phoneSaveFailed')));
+    } finally {
+      setPhoneSaving(false);
+    }
+  };
 
   const handleSendReminderSms = async () => {
     try {
@@ -347,7 +371,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
         >
           {formatCurrency(advanceBalance)}
         </Text>
-        {!isLocalCustomer && getIsOnline() ? (
+        {!readOnly && !isLocalCustomer && getIsOnline() ? (
           <View style={{ marginTop: 12, gap: 8 }}>
             <AppButton
               title={t('customer.recordPayment')}
@@ -419,7 +443,17 @@ export default function CustomerDetailScreen({ route, navigation }) {
           </Text>
         ) : null}
         <View style={{ marginTop: 16 }}>
-          <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>{t('common.phone')}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant, ...textDir }}>
+              {t('common.phone')}
+            </Text>
+            <AppButton
+              compact
+              mode="text"
+              title={customer?.phone?.trim() ? t('customer.editPhone') : t('customer.addPhone')}
+              onPress={() => setPhoneModalVisible(true)}
+            />
+          </View>
           <Text variant="bodyLarge" style={{ fontWeight: '500' }}>
             {customer?.phone ? formatPhoneDisplay(customer.phone) : '—'}
           </Text>
@@ -475,7 +509,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
               <CustomerAccountEntryRow
                 key={entry.id}
                 entry={entry}
-                canDelete={isAdmin}
+                canDelete={isAdmin && !readOnly}
                 onDelete={setDeletePaymentTarget}
                 onOpenSale={openSaleFromEntry}
               />
@@ -522,6 +556,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
         sales={deleteCustomerBlockers.sales}
         onClose={() => setShowDeleteCustomerBlocked(false)}
         onOpenSale={openBlockedSale}
+      />
+      <EditCustomerPhoneModal
+        visible={phoneModalVisible}
+        customer={customer}
+        onSubmit={handleSavePhone}
+        onClose={() => setPhoneModalVisible(false)}
+        loading={phoneSaving}
       />
 
       {showSalesSkeleton ? (
@@ -590,7 +631,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
           )}
         </>
       )}
-      {isAdmin && !isLocalCustomer ? (
+      {isAdmin && !isLocalCustomer && !readOnly ? (
         <AppButton
           title={t('customer.delete')}
           variant="danger"

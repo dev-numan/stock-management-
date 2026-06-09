@@ -1,10 +1,22 @@
 import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { resolveSupplierId } from '../../utils/supplierResolve.js';
+import { resolveSupplierId, mapPurchaseWithSupplier } from '../../utils/supplierResolve.js';
 import { isValidProductCategory } from '../../constants/productCategories.js';
 import { parseExpiryDate } from '../../utils/parseExpiryDate.js';
 import { validateAlternateUnitFields, canHaveAlternateUnit } from '../../utils/productUnits.js';
+
+function mapProductWithSupplier(product) {
+  if (!product) return product;
+  const { party, partyId, ...rest } = product;
+  return {
+    ...rest,
+    supplierId: partyId,
+    partyId,
+    supplier: party,
+    party,
+  };
+}
 
 export const getAllProducts = async ({ search, category, lowStock }) => {
   const where = {};
@@ -18,26 +30,26 @@ export const getAllProducts = async ({ search, category, lowStock }) => {
 
   const products = await db.product.findMany({
     where,
-    include: { supplier: true },
+    include: { party: true },
     orderBy: { name: 'asc' },
   });
 
   if (lowStock === 'true') {
-    return products.filter(
-      (p) => Number(p.currentStock) <= Number(p.minStockAlert)
-    );
+    return products
+      .filter((p) => Number(p.currentStock) <= Number(p.minStockAlert))
+      .map(mapProductWithSupplier);
   }
 
-  return products;
+  return products.map(mapProductWithSupplier);
 };
 
 export const getProductById = async (id) => {
   const product = await db.product.findUnique({
     where: { id },
-    include: { supplier: true },
+    include: { party: true },
   });
   if (!product) throw new ApiError(404, 'Product not found');
-  return product;
+  return mapProductWithSupplier(product);
 };
 
 const validateProductNumbers = (data) => {
@@ -87,21 +99,23 @@ export const createProduct = async (data) => {
 
   const alternate = resolveAlternateFields(data, data.unit ?? 'BAG');
 
-  return db.product.create({
-    data: {
-      name: data.name,
-      category: data.category.trim(),
-      unit: data.unit ?? 'BAG',
-      ...(alternate ?? {}),
-      costPrice: new Prisma.Decimal(data.costPrice),
-      salePrice: new Prisma.Decimal(data.salePrice),
-      currentStock: new Prisma.Decimal(0),
-      minStockAlert: new Prisma.Decimal(data.minStockAlert ?? 10),
-      expiryDate: parseExpiryDate(data.expiryDate),
-      supplierId: data.supplierId || null,
-    },
-    include: { supplier: true },
-  });
+  return mapProductWithSupplier(
+    await db.product.create({
+      data: {
+        name: data.name,
+        category: data.category.trim(),
+        unit: data.unit ?? 'BAG',
+        ...(alternate ?? {}),
+        costPrice: new Prisma.Decimal(data.costPrice),
+        salePrice: new Prisma.Decimal(data.salePrice),
+        currentStock: new Prisma.Decimal(0),
+        minStockAlert: new Prisma.Decimal(data.minStockAlert ?? 10),
+        expiryDate: parseExpiryDate(data.expiryDate),
+        partyId: data.partyId || data.supplierId || null,
+      },
+      include: { party: true },
+    })
+  );
 };
 
 export const updateProduct = async (id, data) => {
@@ -155,25 +169,30 @@ export const updateProduct = async (id, data) => {
   // Stock changes only via addProductStock (creates supplier purchase).
   if (data.minStockAlert !== undefined) updateData.minStockAlert = new Prisma.Decimal(data.minStockAlert);
   if (data.expiryDate !== undefined) updateData.expiryDate = parseExpiryDate(data.expiryDate);
-  if (data.supplierId !== undefined) updateData.supplierId = data.supplierId || null;
+  if (data.partyId !== undefined || data.supplierId !== undefined) {
+    updateData.partyId = data.partyId || data.supplierId || null;
+  }
 
-  return db.product.update({
-    where: { id },
-    data: updateData,
-    include: { supplier: true },
-  });
+  return mapProductWithSupplier(
+    await db.product.update({
+      where: { id },
+      data: updateData,
+      include: { party: true },
+    })
+  );
 };
 
 export const addProductStock = async (
   productId,
-  { quantity, supplierId, supplierName, notes, costPrice: costPriceInput, salePrice: salePriceInput }
+  { quantity, partyId, supplierId, supplierName, notes, costPrice: costPriceInput, salePrice: salePriceInput }
 ) => {
   const qty = Number(quantity);
   if (!qty || qty <= 0) {
     throw new ApiError(400, 'Quantity must be greater than zero');
   }
 
-  const hasSupplier = Boolean(supplierId || supplierName?.trim());
+  const resolvedInputId = partyId || supplierId;
+  const hasSupplier = Boolean(resolvedInputId || supplierName?.trim());
 
   return db.$transaction(async (tx) => {
     const product = await tx.product.findUnique({ where: { id: productId } });
@@ -206,13 +225,16 @@ export const addProductStock = async (
       const updated = await tx.product.update({
         where: { id: productId },
         data: productUpdate,
-        include: { supplier: true },
+        include: { party: true },
       });
-      return { product: updated, purchase: null };
+      return { product: mapProductWithSupplier(updated), purchase: null };
     }
 
-    const resolvedSupplierId = await resolveSupplierId(tx, { supplierId, supplierName });
-    if (!resolvedSupplierId) {
+    const resolvedPartyId = await resolveSupplierId(tx, {
+      supplierId: resolvedInputId,
+      supplierName,
+    });
+    if (!resolvedPartyId) {
       throw new ApiError(400, 'Supplier could not be resolved');
     }
 
@@ -220,7 +242,7 @@ export const addProductStock = async (
 
     const purchase = await tx.purchase.create({
       data: {
-        supplierId: resolvedSupplierId,
+        partyId: resolvedPartyId,
         totalAmount,
         notes: notes?.trim() || null,
         items: {
@@ -234,20 +256,23 @@ export const addProductStock = async (
         },
       },
       include: {
-        supplier: true,
+        party: true,
         items: { include: { product: true } },
       },
     });
 
-    productUpdate.supplierId = resolvedSupplierId;
+    productUpdate.partyId = resolvedPartyId;
 
     const updated = await tx.product.update({
       where: { id: productId },
       data: productUpdate,
-      include: { supplier: true },
+      include: { party: true },
     });
 
-    return { product: updated, purchase };
+    return {
+      product: mapProductWithSupplier(updated),
+      purchase: mapPurchaseWithSupplier(purchase),
+    };
   }, TRANSACTION_OPTS);
 };
 
@@ -289,7 +314,7 @@ export const getProductDeletionBlockers = async (id) => {
             id: true,
             createdAt: true,
             totalAmount: true,
-            supplier: { select: { name: true } },
+            party: { select: { name: true } },
           },
         },
       },
@@ -308,7 +333,12 @@ export const getProductDeletionBlockers = async (id) => {
 
   const sortNewest = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
   const sales = [...salesById.values()].sort(sortNewest);
-  const purchases = [...purchasesById.values()].sort(sortNewest);
+  const purchases = [...purchasesById.values()]
+    .sort(sortNewest)
+    .map((p) => {
+      const { party, partyId, ...rest } = p;
+      return { ...rest, supplierId: partyId, partyId, supplier: party, party };
+    });
 
   return {
     canDelete: sales.length === 0 && purchases.length === 0,

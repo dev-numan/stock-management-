@@ -1,4 +1,5 @@
 import { db } from '../../config/db.js';
+import { mapSaleWithCustomer } from '../parties/party.service.js';
 import { clampExpiryAlertMonths } from '../../utils/parseExpiryDate.js';
 import { getStockDeduction } from '../../utils/productUnits.js';
 import { createdAtRange } from '../../utils/dateRange.js';
@@ -45,13 +46,13 @@ export const getDashboard = async () => {
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: {
-          customer: { select: { id: true, name: true, phone: true } },
+          party: { select: { id: true, name: true, phone: true } },
           items: {
             take: 3,
             include: { product: { select: { id: true, name: true, unit: true } } },
           },
         },
-      }),
+      }).then((rows) => rows.map(mapSaleWithCustomer)),
       showLowStockAlert
         ? db.$queryRaw`
             SELECT id, name, "currentStock", "minStockAlert", unit

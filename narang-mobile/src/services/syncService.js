@@ -1,9 +1,11 @@
 import { createSale } from '../api/sales.api';
 import { createCustomer } from '../api/customers.api';
+import { createParty } from '../api/parties.api';
 import { createProduct, updateProduct, deleteProduct } from '../api/products.api';
 import { useSyncStore } from '../stores/syncStore';
 import { useProductsStore } from '../stores/productsStore';
 import { useCustomersStore } from '../stores/customersStore';
+import { usePartiesStore } from '../stores/partiesStore';
 import { useSalesStore } from '../stores/salesStore';
 import { useDashboardStore } from '../stores/dashboardStore';
 import { getIsOnline } from '../stores/networkStore';
@@ -17,18 +19,29 @@ const isLocalId = (id) => typeof id === 'string' && id.startsWith('local-');
 
 // Local→server id maps, populated as offline-created entities are synced.
 const customerIdMap = new Map();
+const partyIdMap = new Map();
 const productIdMap = new Map();
 
-const resolveCustomerId = async (customerPayload, localCustomerId) => {
-  if (!customerPayload?.name) return null;
-  if (localCustomerId && customerIdMap.has(localCustomerId)) {
-    return customerIdMap.get(localCustomerId);
+const resolvePartyId = async (partyPayload, localPartyId) => {
+  if (!partyPayload?.name) return null;
+  if (localPartyId && partyIdMap.has(localPartyId)) {
+    return partyIdMap.get(localPartyId);
   }
-  const { data } = await createCustomer(customerPayload);
+  const createFn =
+    partyPayload.partyType === 'SUPPLIER'
+      ? () => createParty({ ...partyPayload, partyType: 'SUPPLIER' })
+      : () => createCustomer(partyPayload);
+  const { data } = await createFn();
   const id = data.data.id;
-  if (localCustomerId) customerIdMap.set(localCustomerId, id);
+  if (localPartyId) {
+    partyIdMap.set(localPartyId, id);
+    customerIdMap.set(localPartyId, id);
+  }
   return id;
 };
+
+const resolveCustomerId = async (customerPayload, localCustomerId) =>
+  resolvePartyId({ ...customerPayload, partyType: 'CUSTOMER' }, localCustomerId);
 
 /**
  * Map a possibly-local product id to its synced server id. Throws if the
@@ -59,6 +72,7 @@ const processCreateSale = async (payload) => {
     ...salePayload,
     items,
     customerId,
+    partyId: customerId,
   });
   if (localSaleId) {
     useSalesStore.getState().removePendingSale(localSaleId);
@@ -70,20 +84,32 @@ const processCreateSale = async (payload) => {
   return createdSale;
 };
 
-const processCreateCustomer = async (payload, localId) => {
-  const { data } = await createCustomer(payload);
+const processCreateParty = async (payload, localId) => {
+  const { data } = await createParty(payload);
   const created = data.data;
   if (localId) {
+    partyIdMap.set(localId, created.id);
     customerIdMap.set(localId, created.id);
-    useCustomersStore.setState({
-      customers: useCustomersStore
+    usePartiesStore.setState({
+      parties: usePartiesStore
         .getState()
-        .customers.filter((c) => c.id !== localId)
+        .parties.filter((p) => p.id !== localId)
         .concat(created),
     });
+    if (created.partyType === 'CUSTOMER') {
+      useCustomersStore.setState({
+        customers: useCustomersStore
+          .getState()
+          .customers.filter((c) => c.id !== localId)
+          .concat(created),
+      });
+    }
   }
   return created;
 };
+
+const processCreateCustomer = async (payload, localId) =>
+  processCreateParty({ ...payload, partyType: 'CUSTOMER' }, localId);
 
 const processCreateProduct = async (payload, localId) => {
   const { data } = await createProduct(payload);
@@ -104,6 +130,8 @@ const processItem = async (item) => {
   switch (item.type) {
     case 'CREATE_SALE':
       return processCreateSale(item.payload);
+    case 'CREATE_PARTY':
+      return processCreateParty(item.payload, item.localId);
     case 'CREATE_CUSTOMER':
       return processCreateCustomer(item.payload, item.localId);
     case 'CREATE_PRODUCT':
@@ -177,6 +205,7 @@ export const processSyncQueue = async () => {
       await Promise.all([
         useProductsStore.getState().fetchProducts(true),
         useCustomersStore.getState().fetchCustomers(true),
+        usePartiesStore.getState().fetchParties(true),
         useSalesStore.getState().invalidateAll(),
         useDashboardStore.getState().fetchDashboard(true),
       ]);

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, FlatList, RefreshControl, Keyboard, Platform } from 'react-native';
+import { View, FlatList, RefreshControl, Keyboard, Platform, Alert } from 'react-native';
 import { Card, Text, Icon, Chip, IconButton, Badge, Searchbar, useTheme } from 'react-native-paper';
 import PartyFilterSortModal from '../../components/common/PartyFilterSortModal';
 import ActiveFilterChips from '../../components/common/ActiveFilterChips';
@@ -13,13 +13,15 @@ import {
   PARTY_TYPE_FILTER_LABEL_KEYS,
   PARTY_SORT_LABEL_KEYS,
 } from '../../utils/filterLabelKeys';
+import { usePartiesStore } from '../../stores/partiesStore';
 import { useCustomersStore } from '../../stores/customersStore';
 import { useSuppliersStore } from '../../stores/suppliersStore';
 import { useSalesStore } from '../../stores/salesStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatPhoneDisplay } from '../../utils/phone';
 import { filterAndSortParties } from '../../utils/partyListFilters';
-import { buildCombinedPartyRows, getPartyRowBalance } from '../../utils/partyLedgerTotals';
+import { buildPartyRows, getPartyRowBalance } from '../../utils/partyLedgerTotals';
+import { exportCombinedPartyListPdf } from '../../utils/generatePartyListPDF';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function PartiesScreen({ navigation }) {
@@ -31,33 +33,31 @@ export default function PartiesScreen({ navigation }) {
   const [partyType, setPartyType] = useState('all');
   const [sort, setSort] = useState('newest');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const parties = usePartiesStore((s) => s.parties);
+  const partiesLoading = usePartiesStore((s) => s.loading);
+  const partiesError = usePartiesStore((s) => s.error);
+  const fetchParties = usePartiesStore((s) => s.fetchParties);
 
   const customers = useCustomersStore((s) => s.customers);
-  const customersLoading = useCustomersStore((s) => s.loading);
-  const customersError = useCustomersStore((s) => s.error);
   const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
-
-  const suppliers = useSuppliersStore((s) => s.suppliers);
-  const suppliersLoading = useSuppliersStore((s) => s.loading);
-  const suppliersError = useSuppliersStore((s) => s.error);
   const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
 
   const pendingSales = useSalesStore((s) => s.pendingSales);
 
-  const loading = customersLoading || suppliersLoading;
-  const error = customersError || suppliersError;
+  const loading = partiesLoading;
+  const error = partiesError;
 
-  const allRows = useMemo(
-    () => buildCombinedPartyRows(customers, suppliers),
-    [customers, suppliers]
-  );
+  const allRows = useMemo(() => buildPartyRows(parties), [parties]);
 
   const getBalance = useCallback((row) => getPartyRowBalance(row), [pendingSales]);
 
   useEffect(() => {
+    fetchParties();
     fetchCustomers();
     fetchSuppliers(true);
-  }, [fetchCustomers, fetchSuppliers]);
+  }, [fetchParties, fetchCustomers, fetchSuppliers]);
 
   const displayed = useMemo(() => {
     let list = filterAndSortParties(allRows, { filter, partyType, sort, getBalance });
@@ -102,6 +102,35 @@ export default function PartiesScreen({ navigation }) {
     setSearch('');
   }, []);
 
+  const exportCustomers = useMemo(
+    () =>
+      displayed
+        .filter((row) => row.raw?.partyType === 'CUSTOMER')
+        .map((row) => row.raw),
+    [displayed]
+  );
+  const exportSuppliers = useMemo(
+    () =>
+      displayed
+        .filter((row) => row.raw?.partyType === 'SUPPLIER')
+        .map((row) => row.raw),
+    [displayed]
+  );
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportCombinedPartyListPdf({
+        customers: exportCustomers,
+        suppliers: exportSuppliers,
+      });
+    } catch {
+      Alert.alert(t('partyReport.export'), t('reports.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  }, [exportCustomers, exportSuppliers, t]);
+
   const emptyMessage = useMemo(() => {
     if (search.trim()) return t('parties.noMatch', { query: search.trim() });
     if (partyType === 'customer') return t('parties.emptyCustomers');
@@ -112,21 +141,16 @@ export default function PartiesScreen({ navigation }) {
   }, [filter, partyType, search, t]);
 
   const onRefresh = useCallback(() => {
+    fetchParties(true);
     fetchCustomers(true);
     fetchSuppliers(true);
-  }, [fetchCustomers, fetchSuppliers]);
+  }, [fetchParties, fetchCustomers, fetchSuppliers]);
 
   const openRow = (item) => {
-    if (item.partyType === 'customer') {
-      navigation.navigate('CustomerDetail', {
-        customerId: item.id,
-        customer: item.raw,
-      });
-      return;
-    }
-    navigation.navigate('SupplierDetail', {
-      supplierId: item.id,
-      supplier: item.raw,
+    navigation.navigate('PartyDetail', {
+      partyId: item.id,
+      party: item.raw,
+      initialTab: item.activeType,
     });
   };
 
@@ -155,9 +179,17 @@ export default function PartiesScreen({ navigation }) {
             />
           ) : null}
         </View>
+        <IconButton
+          icon="file-pdf-box"
+          mode="contained-tonal"
+          loading={exporting}
+          disabled={exporting || displayed.length === 0}
+          onPress={handleExport}
+          accessibilityLabel={t('partyReport.export')}
+        />
       </View>
       <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
-      <PartyLedgerSummary customers={customers} suppliers={suppliers} />
+      <PartyLedgerSummary customers={customers} suppliers={parties.filter((p) => p.partyType === 'SUPPLIER')} />
       {hasActiveFilters ? (
         <Text
           variant="bodySmall"
@@ -174,7 +206,7 @@ export default function PartiesScreen({ navigation }) {
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <FlatList
         data={showSkeleton ? [] : displayed}
-        keyExtractor={(item) => `${item.partyType}-${item.id}`}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}
         keyboardShouldPersistTaps="handled"
@@ -190,7 +222,7 @@ export default function PartiesScreen({ navigation }) {
         }
         renderItem={({ item }) => {
           const balance = getPartyRowBalance(item);
-          const isCustomer = item.partyType === 'customer';
+          const isCustomer = item.activeType === 'customer';
           return (
             <Card
               mode="elevated"

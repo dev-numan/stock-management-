@@ -8,65 +8,69 @@ import {
   getUnitPrice,
   resolveSoldUnit,
 } from '../../utils/productUnits.js';
+import { mapSaleWithCustomer } from '../parties/party.service.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
-/** Round a Decimal money value to 2 places (half-up), matching the mobile client. */
 const round2 = (v) => decimal(v).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
-export const getAllSales = async ({ from, to, customerId, paymentMethod }) => {
-  const where = {};
+const saleInclude = {
+  party: true,
+  items: { include: { product: true } },
+  createdBy: { select: { id: true, name: true, email: true } },
+};
 
+export const getAllSales = async ({ from, to, customerId, partyId, paymentMethod }) => {
+  const where = {};
   const range = createdAtRange(from, to);
   if (range) where.createdAt = range;
-  if (customerId) where.customerId = customerId;
+  const pid = partyId || customerId;
+  if (pid) where.partyId = pid;
   if (paymentMethod) where.paymentMethod = paymentMethod;
 
-  return db.sale.findMany({
+  const sales = await db.sale.findMany({
     where,
-    include: {
-      customer: true,
-      createdBy: { select: { id: true, name: true, email: true } },
-      items: { include: { product: true } },
-    },
+    include: saleInclude,
     orderBy: { createdAt: 'desc' },
   });
+  return sales.map(mapSaleWithCustomer);
 };
 
 export const getSaleById = async (id) => {
   const sale = await db.sale.findUnique({
     where: { id },
-    include: {
-      customer: true,
-      createdBy: { select: { id: true, name: true, email: true } },
-      items: { include: { product: true } },
-    },
+    include: saleInclude,
   });
   if (!sale) throw new ApiError(404, 'Sale not found');
-  return sale;
-};
-
-const saleInclude = {
-  customer: true,
-  items: { include: { product: true } },
-  createdBy: { select: { id: true, name: true, email: true } },
+  return mapSaleWithCustomer(sale);
 };
 
 export const createSale = async (saleData, userId) => {
   const {
     items,
     customerId,
+    partyId: rawPartyId,
     discount = 0,
     paymentMethod = 'CASH',
     notes,
     clientRequestId: rawClientRequestId,
   } = saleData;
 
+  const partyId = rawPartyId || customerId || null;
+
   if (!items?.length) {
     throw new ApiError(400, 'Sale must have at least one item');
   }
 
-  if (paymentMethod === 'CREDIT' && !customerId) {
+  if (paymentMethod === 'CREDIT' && !partyId) {
     throw new ApiError(400, 'Customer is required for credit sales');
+  }
+
+  if (partyId && paymentMethod === 'CREDIT') {
+    const party = await db.party.findUnique({ where: { id: partyId } });
+    if (!party) throw new ApiError(404, 'Customer not found');
+    if (party.partyType !== 'CUSTOMER') {
+      throw new ApiError(400, 'Party must be a customer for credit sales. Move to customer list first.');
+    }
   }
 
   const clientRequestId = rawClientRequestId?.trim() || null;
@@ -76,129 +80,122 @@ export const createSale = async (saleData, userId) => {
       where: { clientRequestId },
       include: saleInclude,
     });
-    if (existing) return existing;
+    if (existing) return mapSaleWithCustomer(existing);
   }
 
   const productIds = [...new Set(items.map((i) => i.productId))];
 
   try {
     return await db.$transaction(async (tx) => {
-    if (clientRequestId) {
-      const race = await tx.sale.findUnique({
-        where: { clientRequestId },
+      if (clientRequestId) {
+        const race = await tx.sale.findUnique({
+          where: { clientRequestId },
+          include: saleInclude,
+        });
+        if (race) return mapSaleWithCustomer(race);
+      }
+      const [invoiceNumber, products] = await Promise.all([
+        generateInvoiceNumber(tx),
+        tx.product.findMany({ where: { id: { in: productIds } } }),
+      ]);
+
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      let subtotal = decimal(0);
+      const saleItemsData = [];
+      const stockDeductions = new Map();
+
+      for (const item of items) {
+        const product = productMap.get(item.productId);
+        if (!product) {
+          throw new ApiError(404, `Product not found: ${item.productId}`);
+        }
+
+        const soldUnit = resolveSoldUnit(product, item.soldUnit);
+        if (!soldUnit) {
+          throw new ApiError(400, `Invalid sale unit for ${product.name}`);
+        }
+
+        const qty = decimal(item.quantity);
+        const deduction = decimal(getStockDeduction(product, soldUnit, Number(item.quantity)));
+        const prevDeduction = stockDeductions.get(item.productId) ?? decimal(0);
+        const totalDeduction = prevDeduction.add(deduction);
+
+        if (Number(product.currentStock) < Number(totalDeduction)) {
+          throw new ApiError(400, `Insufficient stock for ${product.name}`);
+        }
+        stockDeductions.set(item.productId, totalDeduction);
+
+        const unitPrice = round2(getUnitPrice(product, soldUnit));
+        const lineTotal = round2(unitPrice.mul(qty));
+        subtotal = subtotal.add(lineTotal);
+
+        saleItemsData.push({
+          productId: item.productId,
+          soldUnit,
+          quantity: qty,
+          unitPrice,
+          total: lineTotal,
+        });
+      }
+
+      subtotal = round2(subtotal);
+      const discountDec = round2(discount);
+      if (discountDec.greaterThan(subtotal)) {
+        throw new ApiError(400, 'Discount cannot be greater than the subtotal');
+      }
+      const totalAmount = round2(subtotal.sub(discountDec));
+
+      const sale = await tx.sale.create({
+        data: {
+          clientRequestId,
+          invoiceNumber,
+          partyId: partyId || null,
+          subtotal,
+          taxPercent: 0,
+          taxAmount: 0,
+          discount: discountDec,
+          totalAmount,
+          paymentMethod,
+          notes: notes || null,
+          createdById: userId,
+          items: { create: saleItemsData },
+        },
         include: saleInclude,
       });
-      if (race) return race;
-    }
-    const [invoiceNumber, products] = await Promise.all([
-      generateInvoiceNumber(tx),
-      tx.product.findMany({ where: { id: { in: productIds } } }),
-    ]);
 
-    const productMap = new Map(products.map((p) => [p.id, p]));
-
-    let subtotal = decimal(0);
-    const saleItemsData = [];
-    const stockDeductions = new Map();
-
-    for (const item of items) {
-      const product = productMap.get(item.productId);
-      if (!product) {
-        throw new ApiError(404, `Product not found: ${item.productId}`);
+      const decrementedProducts = await Promise.all(
+        [...stockDeductions.entries()].map(([productId, deduction]) =>
+          tx.product.update({
+            where: { id: productId },
+            data: { currentStock: { decrement: deduction } },
+          })
+        )
+      );
+      for (const p of decrementedProducts) {
+        if (decimal(p.currentStock).lessThan(0)) {
+          throw new ApiError(400, `Insufficient stock for ${p.name}`);
+        }
       }
 
-      const soldUnit = resolveSoldUnit(product, item.soldUnit);
-      if (!soldUnit) {
-        throw new ApiError(400, `Invalid sale unit for ${product.name}`);
+      if (partyId && paymentMethod === 'CREDIT') {
+        await tx.partyAdvanceEntry.create({
+          data: {
+            partyId,
+            saleId: sale.id,
+            amount: totalAmount.neg(),
+            notes: `Credit sale ${invoiceNumber}`,
+          },
+        });
+        await tx.party.update({
+          where: { id: partyId },
+          data: { advanceBalance: { decrement: totalAmount } },
+        });
+        const updatedParty = await tx.party.findUnique({ where: { id: partyId } });
+        return mapSaleWithCustomer({ ...sale, party: updatedParty });
       }
 
-      const qty = decimal(item.quantity);
-      const deduction = decimal(getStockDeduction(product, soldUnit, Number(item.quantity)));
-      const prevDeduction = stockDeductions.get(item.productId) ?? decimal(0);
-      const totalDeduction = prevDeduction.add(deduction);
-
-      if (Number(product.currentStock) < Number(totalDeduction)) {
-        throw new ApiError(400, `Insufficient stock for ${product.name}`);
-      }
-      stockDeductions.set(item.productId, totalDeduction);
-
-      // Always price server-side from the product — never trust a client-sent
-      // unitPrice (otherwise a tampered client could set any price).
-      const unitPrice = round2(getUnitPrice(product, soldUnit));
-      const lineTotal = round2(unitPrice.mul(qty));
-      subtotal = subtotal.add(lineTotal);
-
-      saleItemsData.push({
-        productId: item.productId,
-        soldUnit,
-        quantity: qty,
-        unitPrice,
-        total: lineTotal,
-      });
-    }
-
-    subtotal = round2(subtotal);
-    const discountDec = round2(discount);
-    // A discount cannot exceed the subtotal — otherwise the total goes negative
-    // and a "sale" would credit the customer instead of charging them.
-    if (discountDec.greaterThan(subtotal)) {
-      throw new ApiError(400, 'Discount cannot be greater than the subtotal');
-    }
-    const totalAmount = round2(subtotal.sub(discountDec));
-
-    const sale = await tx.sale.create({
-      data: {
-        clientRequestId,
-        invoiceNumber,
-        customerId: customerId || null,
-        subtotal,
-        taxPercent: 0,
-        taxAmount: 0,
-        discount: discountDec,
-        totalAmount,
-        paymentMethod,
-        notes: notes || null,
-        createdById: userId,
-        items: { create: saleItemsData },
-      },
-      include: saleInclude,
-    });
-
-    // The DB decrement is atomic and the row lock serialises concurrent sales,
-    // so re-checking the post-decrement value here catches an oversell race
-    // (two cashiers selling the last units at once) and rolls the sale back.
-    const decrementedProducts = await Promise.all(
-      [...stockDeductions.entries()].map(([productId, deduction]) =>
-        tx.product.update({
-          where: { id: productId },
-          data: { currentStock: { decrement: deduction } },
-        })
-      )
-    );
-    for (const p of decrementedProducts) {
-      if (decimal(p.currentStock).lessThan(0)) {
-        throw new ApiError(400, `Insufficient stock for ${p.name}`);
-      }
-    }
-
-    if (customerId && paymentMethod === 'CREDIT') {
-      await tx.customerAdvanceEntry.create({
-        data: {
-          customerId,
-          saleId: sale.id,
-          amount: totalAmount.neg(),
-          notes: `Credit sale ${invoiceNumber}`,
-        },
-      });
-      await tx.customer.update({
-        where: { id: customerId },
-        data: { advanceBalance: { decrement: totalAmount } },
-      });
-      const updatedCustomer = await tx.customer.findUnique({ where: { id: customerId } });
-      return { ...sale, customer: updatedCustomer };
-    }
-
-    return sale;
+      return mapSaleWithCustomer(sale);
     }, TRANSACTION_OPTS);
   } catch (err) {
     if (clientRequestId && err?.code === 'P2002') {
@@ -206,7 +203,7 @@ export const createSale = async (saleData, userId) => {
         where: { clientRequestId },
         include: saleInclude,
       });
-      if (existing) return existing;
+      if (existing) return mapSaleWithCustomer(existing);
     }
     throw err;
   }
@@ -239,16 +236,16 @@ export const deleteSale = async (id) => {
       )
     );
 
-    if (sale.customerId && sale.paymentMethod === 'CREDIT') {
-      await tx.customer.update({
-        where: { id: sale.customerId },
+    if (sale.partyId && sale.paymentMethod === 'CREDIT') {
+      await tx.party.update({
+        where: { id: sale.partyId },
         data: { advanceBalance: { increment: sale.totalAmount } },
       });
     }
 
-    await tx.customerAdvanceEntry.deleteMany({ where: { saleId: sale.id } });
+    await tx.partyAdvanceEntry.deleteMany({ where: { saleId: sale.id } });
     await tx.sale.delete({ where: { id } });
 
-    return { id, customerId: sale.customerId };
+    return { id, customerId: sale.partyId, partyId: sale.partyId };
   }, TRANSACTION_OPTS);
 };

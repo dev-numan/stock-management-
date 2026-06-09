@@ -19,7 +19,8 @@
     "db:remove-products-no-supplier:force": "node scripts/remove-products-without-supplier.js --force",
     "db:remove-products-no-supplier:force:dry": "node scripts/remove-products-without-supplier.js --force --dry-run",
     "db:reset": "prisma migrate reset --force",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:backup": "node scripts/backup-db.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

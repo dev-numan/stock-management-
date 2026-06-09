@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, FlatList, RefreshControl, Keyboard, Platform } from 'react-native';
+import { View, FlatList, RefreshControl, Keyboard, Platform, Alert } from 'react-native';
 import { Card, Text, Icon, FAB, IconButton, Badge, Searchbar, useTheme } from 'react-native-paper';
 import PartyFilterSortModal from '../../components/common/PartyFilterSortModal';
 import ActiveFilterChips from '../../components/common/ActiveFilterChips';
@@ -17,6 +17,7 @@ import { useSalesStore } from '../../stores/salesStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import { filterAndSortParties } from '../../utils/partyListFilters';
+import { exportPartyListPdf } from '../../utils/generatePartyListPDF';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CustomersScreen({ navigation }) {
@@ -27,6 +28,7 @@ export default function CustomersScreen({ navigation }) {
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const customers = useCustomersStore((s) => s.customers);
   const loading = useCustomersStore((s) => s.loading);
@@ -78,6 +80,17 @@ export default function CustomersScreen({ navigation }) {
     setSearch('');
   }, []);
 
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportPartyListPdf({ kind: 'customer', parties: displayedCustomers });
+    } catch {
+      Alert.alert(t('partyReport.export'), t('reports.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  }, [displayedCustomers, t]);
+
   const emptyMessage = useMemo(() => {
     if (search.trim()) return t('customers.noMatch', { query: search.trim() });
     if (filter === 'youWillGet') return t('customers.emptyYouWillGet');
@@ -110,6 +123,14 @@ export default function CustomersScreen({ navigation }) {
             />
           ) : null}
         </View>
+        <IconButton
+          icon="file-pdf-box"
+          mode="contained-tonal"
+          loading={exporting}
+          disabled={exporting || displayedCustomers.length === 0}
+          onPress={handleExport}
+          accessibilityLabel={t('partyReport.export')}
+        />
       </View>
       <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
       <CustomerLedgerSummary customers={customers} />
