@@ -1,25 +1,18 @@
 import { ApiError } from './ApiError.js';
+import { findPartyByIdentity } from './partyResolve.js';
 
-/** Find or create supplier party inside a Prisma transaction. */
-export async function resolveSupplierId(tx, { supplierId, supplierName }) {
+/** Find or create party for a supplier link inside a Prisma transaction. */
+export async function resolveSupplierId(tx, { supplierId, supplierName, supplierPhone }) {
   if (supplierId) {
     const party = await tx.party.findUnique({ where: { id: supplierId } });
     if (!party) throw new ApiError(404, 'Supplier not found');
-    if (party.partyType !== 'SUPPLIER') {
-      throw new ApiError(400, 'Party must be a supplier. Move to supplier list first.');
-    }
     return supplierId;
   }
 
   const name = supplierName?.trim();
   if (!name) return null;
 
-  const existing = await tx.party.findFirst({
-    where: {
-      partyType: 'SUPPLIER',
-      name: { equals: name, mode: 'insensitive' },
-    },
-  });
+  const existing = await findPartyByIdentity(tx, { phone: supplierPhone, name });
   if (existing) return existing.id;
 
   const created = await tx.party.create({
