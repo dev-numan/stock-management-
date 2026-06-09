@@ -1,3 +1,4 @@
+import { usePartiesStore } from '../stores/partiesStore';
 import { useCustomersStore } from '../stores/customersStore';
 import { normalizePhone } from '../utils/phone';
 import { formatContactAddress, getContactPrimaryPhone, getContactDisplayName } from '../utils/contactFormat';
@@ -11,7 +12,7 @@ export const contactToCustomerPayload = (contact) => {
 };
 
 /**
- * Match contact to app customer by phone, or create a new customer.
+ * Match contact to an existing party by phone, or create a new customer party.
  */
 export const resolveContactToCustomer = async (contact) => {
   const { name, phone, address } = contactToCustomerPayload(contact);
@@ -23,18 +24,22 @@ export const resolveContactToCustomer = async (contact) => {
     throw new Error('Selected contact has no name');
   }
 
-  await useCustomersStore.getState().fetchCustomers(true);
-  const existing = useCustomersStore.getState().findByPhone(phone);
+  await usePartiesStore.getState().fetchParties(true);
+  const existing = usePartiesStore.getState().findByPhone(phone);
 
   if (existing) {
     if (address && !existing.address && existing.id && !String(existing.id).startsWith('local-')) {
       try {
-        await useCustomersStore.getState().updateCustomer(existing.id, { address });
+        await usePartiesStore.getState().updateParty(existing.id, {
+          name: existing.name,
+          phone: existing.phone,
+          address,
+        });
       } catch {
         // keep existing record if update fails
       }
     }
-    return { ...useCustomersStore.getState().findByPhone(phone), isExisting: true };
+    return { ...usePartiesStore.getState().findByPhone(phone), isExisting: true };
   }
 
   const created = await useCustomersStore.getState().createCustomer({
@@ -46,5 +51,5 @@ export const resolveContactToCustomer = async (contact) => {
 };
 
 export const findAppCustomerByPhone = (phone) => {
-  return useCustomersStore.getState().findByPhone(phone);
+  return usePartiesStore.getState().findByPhone(phone);
 };

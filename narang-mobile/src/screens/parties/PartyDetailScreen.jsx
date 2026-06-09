@@ -116,11 +116,6 @@ export default function PartyDetailScreen({ route, navigation }) {
     );
   }
 
-  const isCustomerActive = party?.partyType === 'CUSTOMER';
-  const isSupplierActive = party?.partyType === 'SUPPLIER';
-  const readOnlyCustomer = !isCustomerActive;
-  const readOnlySupplier = !isSupplierActive;
-
   const nestedRoute = {
     params: {
       partyId,
@@ -129,7 +124,7 @@ export default function PartyDetailScreen({ route, navigation }) {
       customer: party,
       supplier: party,
       party,
-      readOnly: activeTab === 'customer' ? readOnlyCustomer : readOnlySupplier,
+      readOnly: false,
     },
   };
 
@@ -146,16 +141,6 @@ export default function PartyDetailScreen({ route, navigation }) {
           ]}
           style={{ marginBottom: 8 }}
         />
-        {activeTab === 'customer' && readOnlyCustomer ? (
-          <Text variant="labelSmall" style={{ color: theme.colors.outline, marginBottom: 4, ...textDir }}>
-            {t('partyDetail.historicalCustomer')}
-          </Text>
-        ) : null}
-        {activeTab === 'supplier' && readOnlySupplier ? (
-          <Text variant="labelSmall" style={{ color: theme.colors.outline, marginBottom: 4, ...textDir }}>
-            {t('partyDetail.historicalSupplier')}
-          </Text>
-        ) : null}
         {!String(partyId).startsWith('local-') ? (
           <AppButton
             title={convertLabel}

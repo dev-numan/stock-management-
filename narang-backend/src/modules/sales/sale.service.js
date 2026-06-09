@@ -68,9 +68,6 @@ export const createSale = async (saleData, userId) => {
   if (partyId && paymentMethod === 'CREDIT') {
     const party = await db.party.findUnique({ where: { id: partyId } });
     if (!party) throw new ApiError(404, 'Customer not found');
-    if (party.partyType !== 'CUSTOMER') {
-      throw new ApiError(400, 'Party must be a customer for credit sales. Move to customer list first.');
-    }
   }
 
   const clientRequestId = rawClientRequestId?.trim() || null;

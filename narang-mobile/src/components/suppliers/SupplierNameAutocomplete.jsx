@@ -4,8 +4,8 @@ import { Text, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppInput from '../common/AppInput';
 import SupplierPickerModal from './SupplierPickerModal';
-import { useSuppliersStore } from '../../stores/suppliersStore';
-import { findSupplierByExactName } from '../../utils/supplierLedger';
+import { usePartiesStore } from '../../stores/partiesStore';
+import { findPartyByExactName } from '../../utils/partyPickerItems';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SupplierNameAutocomplete({
@@ -20,17 +20,18 @@ export default function SupplierNameAutocomplete({
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
-  const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
+  const fetchParties = usePartiesStore((s) => s.fetchParties);
+  const parties = usePartiesStore((s) => s.parties);
   const [pickerVisible, setPickerVisible] = useState(false);
 
   useEffect(() => {
-    fetchSuppliers();
-  }, [fetchSuppliers]);
+    fetchParties();
+  }, [fetchParties]);
 
   const showNewHint =
     !disabled &&
     value.trim().length > 0 &&
-    !findSupplierByExactName(useSuppliersStore.getState().suppliers, value) &&
+    !findPartyByExactName(parties, value) &&
     !selectedSupplierId;
 
   const openPicker = () => {

@@ -5,6 +5,8 @@ import { useSalesStore } from '../stores/salesStore';
 import { useSyncStore } from '../stores/syncStore';
 import { useDashboardStore } from '../stores/dashboardStore';
 import { useCustomersStore } from '../stores/customersStore';
+import { usePartiesStore } from '../stores/partiesStore';
+import { useSuppliersStore } from '../stores/suppliersStore';
 import { createClientRequestId } from '../utils/clientRequestId';
 import { shouldQueueOffline } from '../utils/connectivity';
 import { roundMoney } from '../utils/money';
@@ -23,7 +25,12 @@ const applySuccessfulSale = (sale, items) => {
   useDashboardStore.getState().fetchDashboard(true);
 
   if (sale.customer) {
-    useCustomersStore.getState().patchCustomer(sale.customer);
+    usePartiesStore.getState().patchParty(sale.customer);
+    if (sale.customer.partyType === 'SUPPLIER') {
+      useSuppliersStore.getState().upsertSupplier(sale.customer);
+    } else {
+      useCustomersStore.getState().patchCustomer(sale.customer);
+    }
   }
 
   return sale;

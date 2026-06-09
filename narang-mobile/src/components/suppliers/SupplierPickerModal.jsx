@@ -1,10 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, FlatList, Keyboard, Platform, useWindowDimensions } from 'react-native';
-import { Modal, Portal, Text, Searchbar, Card, IconButton, ActivityIndicator, Button, useTheme } from 'react-native-paper';
+import {
+  Modal,
+  Portal,
+  Text,
+  Searchbar,
+  Card,
+  Chip,
+  IconButton,
+  ActivityIndicator,
+  Button,
+  useTheme,
+} from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Contacts from 'expo-contacts';
+import { getContactDisplayName, getContactPrimaryPhone } from '../../utils/contactFormat';
+import { formatPhoneDisplay, normalizePhone } from '../../utils/phone';
+import { usePartiesStore } from '../../stores/partiesStore';
 import { useSuppliersStore } from '../../stores/suppliersStore';
-import { filterSuppliersForPicker, findSupplierByExactName } from '../../utils/supplierLedger';
-import { formatPhoneDisplay } from '../../utils/phone';
+import {
+  buildPartyContactPickerItems,
+  filterPartyPickerItems,
+  findPartyByExactName,
+} from '../../utils/partyPickerItems';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function SupplierPickerModal({ visible, onClose, onSelect }) {
@@ -14,43 +32,128 @@ export default function SupplierPickerModal({ visible, onClose, onSelect }) {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [contactsError, setContactsError] = useState(null);
+  const [creating, setCreating] = useState(false);
 
-  const suppliers = useSuppliersStore((s) => s.suppliers);
-  const loading = useSuppliersStore((s) => s.loading);
-  const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
+  const parties = usePartiesStore((s) => s.parties);
+  const partiesLoading = usePartiesStore((s) => s.loading);
+  const fetchParties = usePartiesStore((s) => s.fetchParties);
+  const createSupplier = useSuppliersStore((s) => s.createSupplier);
+
+  const loadContacts = useCallback(async () => {
+    setContactsLoading(true);
+    setContactsError(null);
+    setPermissionDenied(false);
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        setPermissionDenied(true);
+        setContacts([]);
+        return;
+      }
+
+      const { data } = await Contacts.getContactsAsync({
+        fields: [
+          Contacts.Fields.Name,
+          Contacts.Fields.FirstName,
+          Contacts.Fields.LastName,
+          Contacts.Fields.PhoneNumbers,
+          Contacts.Fields.Addresses,
+        ],
+        sort: Contacts.SortTypes.FirstName,
+      });
+
+      setContacts(data.filter((c) => getContactPrimaryPhone(c)));
+    } catch (err) {
+      setContactsError(err.message || t('customer.contactsLoadFailed'));
+    } finally {
+      setContactsLoading(false);
+    }
+  }, [t]);
 
   useEffect(() => {
     if (!visible) {
       setSearch('');
       return;
     }
-    fetchSuppliers(true);
-  }, [visible, fetchSuppliers]);
+    fetchParties(true);
+    loadContacts();
+  }, [visible, fetchParties, loadContacts]);
 
-  const filtered = useMemo(
-    () => filterSuppliersForPicker(suppliers, search),
-    [suppliers, search]
+  const pickerItems = useMemo(
+    () => buildPartyContactPickerItems(parties, contacts),
+    [parties, contacts]
   );
 
+  const filtered = useMemo(() => filterPartyPickerItems(pickerItems, search), [pickerItems, search]);
+
   const trimmedSearch = search.trim();
-  const canUseNewName =
-    trimmedSearch.length > 0 && !findSupplierByExactName(suppliers, trimmedSearch);
+  const exactAppMatch = useMemo(() => {
+    if (!trimmedSearch) return null;
+    return findPartyByExactName(parties, trimmedSearch);
+  }, [parties, trimmedSearch]);
+
+  const canUseNewName = trimmedSearch.length > 0 && !exactAppMatch;
 
   const topOffset = insets.top + 48;
   const sheetHeight = windowHeight - topOffset;
+  const loading = partiesLoading || contactsLoading;
+  const showSpinner = loading && parties.length === 0 && contacts.length === 0;
 
   const emptyLabel = trimmedSearch
     ? t('supplier.noMatch', { query: trimmedSearch })
-    : t('supplier.empty');
+    : permissionDenied
+      ? t('customer.noContactsPermission')
+      : t('supplier.empty');
 
-  const handlePick = (supplier) => {
-    onSelect(supplier);
+  const handlePickApp = (party) => {
+    onSelect(party);
     onClose();
   };
 
-  const handleUseNewName = () => {
-    onSelect({ id: null, name: trimmedSearch, isNew: true });
-    onClose();
+  const handlePickContact = async (contact) => {
+    const phone = getContactPrimaryPhone(contact);
+    const name = getContactDisplayName(contact);
+    if (!name) return;
+
+    const existing = phone
+      ? parties.find((p) => normalizePhone(p.phone) === normalizePhone(phone))
+      : null;
+    if (existing) {
+      handlePickApp(existing);
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const created = await createSupplier({ name, ...(phone ? { phone } : {}) });
+      handlePickApp(created);
+    } catch (err) {
+      setContactsError(err.message || t('supplier.loadFailed'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleUseNewName = async () => {
+    const existing = findPartyByExactName(parties, trimmedSearch);
+    if (existing) {
+      handlePickApp(existing);
+      return;
+    }
+    try {
+      setCreating(true);
+      const created = await createSupplier({ name: trimmedSearch });
+      onSelect(created);
+      onClose();
+    } catch (err) {
+      setContactsError(err.message || t('supplier.loadFailed'));
+    } finally {
+      setCreating(false);
+    }
   };
 
   if (!visible) return null;
@@ -100,14 +203,22 @@ export default function SupplierPickerModal({ visible, onClose, onSelect }) {
             mode="outlined"
             icon="plus"
             onPress={handleUseNewName}
+            loading={creating}
+            disabled={creating}
             style={{ marginBottom: 12, borderRadius: theme.roundness }}
           >
             {t('supplier.useNewName', { name: trimmedSearch })}
           </Button>
         ) : null}
 
+        {contactsError ? (
+          <Text variant="bodySmall" style={{ color: theme.colors.error, marginBottom: 8 }}>
+            {contactsError}
+          </Text>
+        ) : null}
+
         <View style={{ flex: 1, minHeight: 0 }}>
-          {loading && suppliers.length === 0 ? (
+          {showSpinner ? (
             <ActivityIndicator animating size="large" color={theme.colors.primary} style={{ marginTop: 32 }} />
           ) : (
             <FlatList
@@ -132,17 +243,32 @@ export default function SupplierPickerModal({ visible, onClose, onSelect }) {
                 <Card
                   mode="elevated"
                   style={{ marginBottom: 8, borderRadius: theme.roundness }}
-                  onPress={() => handlePick(item)}
+                  onPress={() => {
+                    if (creating) return;
+                    if (item.source === 'app') handlePickApp(item.rawParty);
+                    else handlePickContact(item.rawContact);
+                  }}
                 >
                   <Card.Content>
-                    <Text variant="titleSmall" style={{ fontWeight: '600' }}>
-                      {item.name}
-                    </Text>
-                    {item.phone ? (
-                      <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                        {formatPhoneDisplay(item.phone)}
-                      </Text>
-                    ) : null}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text variant="titleSmall" style={{ fontWeight: '600' }}>
+                          {item.name}
+                        </Text>
+                        {item.phone ? (
+                          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                            {formatPhoneDisplay(item.phone)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Chip compact mode="flat">
+                        {item.source === 'app'
+                          ? item.partyType === 'CUSTOMER'
+                            ? t('parties.typeCustomer')
+                            : t('parties.typeSupplier')
+                          : t('customer.contact')}
+                      </Chip>
+                    </View>
                   </Card.Content>
                 </Card>
               )}

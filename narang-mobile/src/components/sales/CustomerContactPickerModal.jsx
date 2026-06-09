@@ -4,56 +4,16 @@ import { Modal, Portal, Text, Searchbar, Card, Chip, IconButton, ActivityIndicat
 import AddCustomerQuickModal from '../customers/AddCustomerQuickModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Contacts from 'expo-contacts';
-import { formatContactAddress, getContactDisplayName, getContactPrimaryPhone } from '../../utils/contactFormat';
-import { formatPhoneDisplay, normalizePhone } from '../../utils/phone';
+import { getContactDisplayName, getContactPrimaryPhone } from '../../utils/contactFormat';
+import { formatPhoneDisplay } from '../../utils/phone';
+import { usePartiesStore } from '../../stores/partiesStore';
 import { useCustomersStore } from '../../stores/customersStore';
+import {
+  buildPartyContactPickerItems,
+  filterPartyPickerItems,
+  findPartyByExactName,
+} from '../../utils/partyPickerItems';
 import { useTranslation } from '../../i18n/useTranslation';
-
-function buildPickerItems(appCustomers, contacts) {
-  const items = [];
-  const phonesInApp = new Set();
-
-  for (const customer of appCustomers) {
-    const phone = customer.phone || '';
-    if (phone) phonesInApp.add(normalizePhone(phone));
-    items.push({
-      id: `app-${customer.id}`,
-      name: customer.name,
-      phone,
-      address: customer.address || '',
-      source: 'app',
-      rawCustomer: customer,
-    });
-  }
-
-  for (const contact of contacts) {
-    const phone = getContactPrimaryPhone(contact);
-    const phoneKey = normalizePhone(phone);
-    if (phoneKey && phonesInApp.has(phoneKey)) continue;
-
-    items.push({
-      id: `contact-${contact.id || phoneKey || getContactDisplayName(contact)}`,
-      name: getContactDisplayName(contact),
-      phone,
-      address: formatContactAddress(contact.addresses?.[0]),
-      source: 'contact',
-      rawContact: contact,
-    });
-  }
-
-  return items.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function filterPickerItems(items, query) {
-  const q = query.trim().toLowerCase();
-  if (!q) return items;
-  const qDigits = q.replace(/\D/g, '');
-  return items.filter((item) => {
-    const name = item.name.toLowerCase();
-    const phone = item.phone.replace(/\D/g, '');
-    return name.includes(q) || (qDigits.length > 0 && phone.includes(qDigits));
-  });
-}
 
 export default function CustomerContactPickerModal({ visible, onClose, onSelect, resolving }) {
   const theme = useTheme();
@@ -67,8 +27,8 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [contactsError, setContactsError] = useState(null);
 
-  const appCustomers = useCustomersStore((s) => s.customers);
-  const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const parties = usePartiesStore((s) => s.parties);
+  const fetchParties = usePartiesStore((s) => s.fetchParties);
   const createCustomer = useCustomersStore((s) => s.createCustomer);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -109,31 +69,28 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
       setSearch('');
       return;
     }
-    fetchCustomers(true);
+    fetchParties(true);
     loadContacts();
-  }, [visible, fetchCustomers, loadContacts]);
+  }, [visible, fetchParties, loadContacts]);
 
-  // Purely local search: filter the saved customers (from the store) and the
-  // loaded phone contacts as the user types — no per-keystroke network calls.
   const pickerItems = useMemo(
-    () => buildPickerItems(appCustomers, contacts),
-    [appCustomers, contacts]
+    () => buildPartyContactPickerItems(parties, contacts),
+    [parties, contacts]
   );
 
-  const filtered = useMemo(() => filterPickerItems(pickerItems, search), [pickerItems, search]);
+  const filtered = useMemo(() => filterPartyPickerItems(pickerItems, search), [pickerItems, search]);
 
   const trimmedSearch = search.trim();
   const exactAppMatch = useMemo(() => {
     if (!trimmedSearch) return null;
-    const q = trimmedSearch.toLowerCase();
-    return appCustomers.find((c) => c.name.trim().toLowerCase() === q) || null;
-  }, [appCustomers, trimmedSearch]);
+    return findPartyByExactName(parties, trimmedSearch);
+  }, [parties, trimmedSearch]);
 
   const canAddNew = trimmedSearch.length > 0 && !exactAppMatch;
 
   const topOffset = insets.top + 48;
   const sheetHeight = windowHeight - topOffset;
-  const showContactsSpinner = contactsLoading && contacts.length === 0 && appCustomers.length === 0;
+  const showContactsSpinner = contactsLoading && contacts.length === 0 && parties.length === 0;
 
   const emptyLabel = search.trim()
     ? t('customer.noMatch', { query: search.trim() })
@@ -144,7 +101,7 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
   const handleSelect = (item) => {
     if (resolving || creating) return;
     if (item.source === 'app') {
-      onSelect({ type: 'app', customer: item.rawCustomer });
+      onSelect({ type: 'app', customer: item.rawParty });
       return;
     }
     onSelect({ type: 'contact', contact: item.rawContact });
@@ -289,7 +246,11 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
                             item.source === 'app' ? theme.colors.primaryContainer : theme.colors.secondaryContainer,
                         }}
                       >
-                        {item.source === 'app' ? t('customer.saved') : t('customer.contact')}
+                        {item.source === 'app'
+                          ? item.partyType === 'SUPPLIER'
+                            ? t('parties.typeSupplier')
+                            : t('parties.typeCustomer')
+                          : t('customer.contact')}
                       </Chip>
                     </View>
                   </Card.Content>
