@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import AppInput from '../../components/common/AppInput';
@@ -11,7 +12,11 @@ import { contactToCustomerPayload } from '../../services/customerContactService'
 import { supplierSchema } from '../../utils/validation';
 import { useSuppliersStore } from '../../stores/suppliersStore';
 import { usePartiesStore } from '../../stores/partiesStore';
-import { findDuplicateParty } from '../../utils/partySearch';
+import {
+  findPartyByPhoneEverywhere,
+  phoneDuplicateMessage,
+  isDuplicatePhoneError,
+} from '../../utils/partyDuplicatePhone';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function AddSupplierScreen({ navigation, route }) {
@@ -22,7 +27,7 @@ export default function AddSupplierScreen({ navigation, route }) {
   const [apiError, setApiError] = useState(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm({
+  const { control, handleSubmit, setValue, setError, clearErrors, formState: { errors } } = useForm({
     resolver: zodResolver(supplierSchema),
     mode: 'onChange',
     defaultValues: { name: '', phone: '', address: '' },
@@ -69,21 +74,32 @@ export default function AddSupplierScreen({ navigation, route }) {
     if (prefill.address) setValue('address', prefill.address, { shouldValidate: true });
   }, [route.params?.prefill, setValue]);
 
+  const showDuplicatePhoneError = (existing, serverMessage) => {
+    const message = serverMessage || phoneDuplicateMessage(t, existing);
+    setError('phone', { type: 'manual', message });
+    setApiError(message);
+    Alert.alert(t('party.duplicatePhoneTitle'), message);
+  };
+
   const onSubmit = async (formData) => {
     try {
       setSaving(true);
       setApiError(null);
-      await fetchParties(true);
-      const duplicate = findDuplicateParty(usePartiesStore.getState().parties, {
-        phone: formData.phone,
-      });
-      if (duplicate) {
-        setApiError(t('supplier.alreadySaved'));
-        return;
+      clearErrors('phone');
+
+      const phone = formData.phone?.trim();
+      if (phone) {
+        await fetchParties(true);
+        const duplicate = findPartyByPhoneEverywhere(phone);
+        if (duplicate) {
+          showDuplicatePhoneError(duplicate);
+          return;
+        }
       }
+
       const created = await createSupplier({
         name: formData.name,
-        phone: formData.phone || undefined,
+        phone: phone || undefined,
         address: formData.address || undefined,
       });
       navigation.replace('PartyDetail', {
@@ -92,7 +108,12 @@ export default function AddSupplierScreen({ navigation, route }) {
         initialTab: 'supplier',
       });
     } catch (err) {
-      setApiError(getFriendlyErrorMessage(err, t('supplier.addFailed')));
+      const friendly = getFriendlyErrorMessage(err, t('supplier.addFailed'));
+      if (isDuplicatePhoneError(friendly)) {
+        showDuplicatePhoneError(null, friendly);
+      } else {
+        setApiError(friendly);
+      }
     } finally {
       setSaving(false);
     }
@@ -136,12 +157,12 @@ export default function AddSupplierScreen({ navigation, route }) {
             <AppInput label={t('common.address')} value={value} onChangeText={onChange} onBlur={onBlur} error={errors.address?.message} />
           )}
         />
+        <ErrorMessage message={apiError} />
         <AppButton
           title={t('supplier.add')}
           onPress={handleSubmit(onSubmit, () => setApiError(t('common.fixErrors')))}
           loading={saving}
         />
-        <ErrorMessage message={apiError} />
       </KeyboardFormView>
       <SupplierPickerModal
         visible={pickerVisible}

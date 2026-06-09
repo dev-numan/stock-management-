@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, FlatList, RefreshControl, Keyboard, Platform, Alert } from 'react-native';
-import { Text, FAB, IconButton, Badge, Searchbar, useTheme } from 'react-native-paper';
+import { Card, Text, Icon, FAB, IconButton, Badge, Searchbar, useTheme } from 'react-native-paper';
 import PartyFilterSortModal from '../../components/common/PartyFilterSortModal';
 import ActiveFilterChips from '../../components/common/ActiveFilterChips';
 import {
@@ -11,13 +11,15 @@ import {
 import { CustomerListSkeleton } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorMessage from '../../components/common/ErrorMessage';
-import PartyLedgerSummary from '../../components/parties/PartyLedgerSummary';
-import PartyContactListItem from '../../components/parties/PartyContactListItem';
-import { usePartyContactList } from '../../hooks/usePartyContactList';
-import { contactToCustomerPayload } from '../../services/customerContactService';
+import CustomerLedgerSummary from '../../components/customers/CustomerLedgerSummary';
+import { useCustomersStore } from '../../stores/customersStore';
+import { useSalesStore } from '../../stores/salesStore';
+import { formatCurrency } from '../../utils/formatCurrency';
+import { formatPhoneDisplay } from '../../utils/phone';
+import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import { filterAndSortParties } from '../../utils/partyListFilters';
 import { matchesPartySearch } from '../../utils/partySearch';
-import { exportCombinedPartyListPdf } from '../../utils/generatePartyListPDF';
+import { exportPartyListPdf } from '../../utils/generatePartyListPDF';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CustomersScreen({ navigation }) {
@@ -30,24 +32,25 @@ export default function CustomersScreen({ navigation }) {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const { rows, parties, loading, error, permissionDenied, refresh, getBalance } = usePartyContactList();
+  const customers = useCustomersStore((s) => s.customers);
+  const loading = useCustomersStore((s) => s.loading);
+  const error = useCustomersStore((s) => s.error);
+  const fetchCustomers = useCustomersStore((s) => s.fetchCustomers);
+  const pendingSales = useSalesStore((s) => s.pendingSales);
 
-  const customerParties = useMemo(
-    () => parties.filter((p) => p.partyType === 'CUSTOMER'),
-    [parties]
-  );
-  const supplierParties = useMemo(
-    () => parties.filter((p) => p.partyType === 'SUPPLIER'),
-    [parties]
-  );
+  const getBalance = useCallback((c) => getEffectiveAdvanceBalance(c), [pendingSales]);
 
-  const displayed = useMemo(() => {
-    let list = filterAndSortParties(rows, { filter, sort, getBalance });
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
+  const displayedCustomers = useMemo(() => {
+    let list = filterAndSortParties(customers, { filter, sort, getBalance });
     if (search.trim()) {
       list = list.filter((row) => matchesPartySearch(row, search));
     }
     return list;
-  }, [rows, filter, sort, search, getBalance]);
+  }, [customers, filter, sort, search, getBalance]);
 
   const hasActiveFilters = filter !== 'all' || sort !== 'newest' || Boolean(search.trim());
 
@@ -74,52 +77,41 @@ export default function CustomersScreen({ navigation }) {
   }, []);
 
   const handleExport = useCallback(async () => {
-    const appRows = displayed.filter((row) => row.source === 'app');
     setExporting(true);
     try {
-      await exportCombinedPartyListPdf({
-        customers: appRows.filter((r) => r.partyType !== 'SUPPLIER').map((r) => r.rawParty),
-        suppliers: appRows.filter((r) => r.partyType === 'SUPPLIER').map((r) => r.rawParty),
-      });
+      await exportPartyListPdf({ kind: 'customer', parties: displayedCustomers });
     } catch {
       Alert.alert(t('partyReport.export'), t('reports.exportFailed'));
     } finally {
       setExporting(false);
     }
-  }, [displayed, t]);
+  }, [displayedCustomers, t]);
 
   const emptyMessage = useMemo(() => {
     if (search.trim()) return t('customers.noMatch', { query: search.trim() });
-    if (permissionDenied) return t('customer.noContactsPermission');
     if (filter === 'youWillGet') return t('customers.emptyYouWillGet');
     if (filter === 'youWillGive') return t('customers.emptyYouWillGive');
-    return t('customer.emptyPicker');
-  }, [filter, search, permissionDenied, t]);
+    return t('customers.empty');
+  }, [filter, search, t]);
 
-  const openRow = useCallback(
-    (item) => {
-      if (item.source === 'app') {
-        navigation.navigate('PartyDetail', {
-          partyId: item.rawParty.id,
-          party: item.rawParty,
-          initialTab: item.partyType === 'SUPPLIER' ? 'supplier' : 'customer',
-        });
-        return;
-      }
-      navigation.navigate('AddCustomer', {
-        prefill: contactToCustomerPayload(item.rawContact),
+  const openCustomer = useCallback(
+    (customer) => {
+      navigation.navigate('PartyDetail', {
+        partyId: customer.id,
+        party: { ...customer, partyType: 'CUSTOMER' },
+        initialTab: 'customer',
       });
     },
     [navigation]
   );
 
-  const showSkeleton = loading && rows.length === 0;
+  const showSkeleton = loading && customers.length === 0;
 
   const ListHeader = (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
         <Searchbar
-          placeholder={t('customer.selectHint')}
+          placeholder={t('customers.searchPlaceholder')}
           value={search}
           onChangeText={setSearch}
           style={{ flex: 1, borderRadius: theme.roundness }}
@@ -142,19 +134,19 @@ export default function CustomersScreen({ navigation }) {
           icon="file-pdf-box"
           mode="contained-tonal"
           loading={exporting}
-          disabled={exporting || displayed.filter((r) => r.source === 'app').length === 0}
+          disabled={exporting || displayedCustomers.length === 0}
           onPress={handleExport}
           accessibilityLabel={t('partyReport.export')}
         />
       </View>
       <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
-      <PartyLedgerSummary customers={customerParties} suppliers={supplierParties} />
+      <CustomerLedgerSummary customers={customers} />
       {hasActiveFilters ? (
         <Text
           variant="bodySmall"
           style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8, ...textDir }}
         >
-          {t('customers.resultsCount', { count: displayed.length })}
+          {t('customers.resultsCount', { count: displayedCustomers.length })}
         </Text>
       ) : null}
       <ErrorMessage message={error} />
@@ -164,10 +156,10 @@ export default function CustomersScreen({ navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <FlatList
-        data={showSkeleton ? [] : displayed}
+        data={showSkeleton ? [] : displayedCustomers}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 88 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => fetchCustomers(true)} />}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         automaticallyAdjustKeyboardInsets
@@ -176,7 +168,53 @@ export default function CustomersScreen({ navigation }) {
         ListEmptyComponent={
           showSkeleton ? <CustomerListSkeleton count={6} /> : <EmptyState message={emptyMessage} />
         }
-        renderItem={({ item }) => <PartyContactListItem item={item} onPress={openRow} />}
+        renderItem={({ item }) => {
+          const balance = getEffectiveAdvanceBalance(item);
+          return (
+            <Card
+              mode="elevated"
+              style={{ marginBottom: 8, borderRadius: theme.roundness }}
+              onPress={() => openCustomer(item)}
+            >
+              <Card.Content style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="titleSmall" style={{ fontWeight: '600' }}>
+                    {item.name}
+                  </Text>
+                  {item.phone ? (
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
+                      {formatPhoneDisplay(item.phone)}
+                    </Text>
+                  ) : null}
+                  {item.address ? (
+                    <Text variant="labelSmall" style={{ color: theme.colors.outline, marginTop: 4 }} numberOfLines={1}>
+                      {item.address}
+                    </Text>
+                  ) : null}
+                  {balance !== 0 ? (
+                    <Text
+                      variant="labelSmall"
+                      style={{
+                        marginTop: 4,
+                        fontWeight: '600',
+                        color: balance < 0 ? theme.colors.error : theme.colors.primary,
+                      }}
+                    >
+                      {balance < 0 ? t('ledger.youWillGetColon') : t('ledger.youWillGiveColon')}{' '}
+                      {formatCurrency(Math.abs(balance))}
+                    </Text>
+                  ) : null}
+                  {item._local ? (
+                    <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 4, ...textDir }}>
+                      {t('common.pendingSync')}
+                    </Text>
+                  ) : null}
+                </View>
+                <Icon source="chevron-right" size={24} color={theme.colors.outline} />
+              </Card.Content>
+            </Card>
+          );
+        }}
       />
       <PartyFilterSortModal
         visible={filterModalVisible}

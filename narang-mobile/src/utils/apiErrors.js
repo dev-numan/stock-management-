@@ -15,6 +15,8 @@ const SAFE_SERVER_PATTERNS = [
   /^invalid token/i,
   /^insufficient stock/i,
   /^out of stock/i,
+  /already saved in the list/i,
+  /with this phone/i,
 ];
 
 const TECHNICAL_PATTERNS = [

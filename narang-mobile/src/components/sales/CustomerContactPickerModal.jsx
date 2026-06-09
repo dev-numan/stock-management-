@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, FlatList, Keyboard, Platform, useWindowDimensions } from 'react-native';
+import { View, FlatList, Keyboard, Platform, Alert, useWindowDimensions } from 'react-native';
 import { Modal, Portal, Text, Searchbar, Card, Chip, IconButton, ActivityIndicator, Button, useTheme } from 'react-native-paper';
 import AddCustomerQuickModal from '../customers/AddCustomerQuickModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,12 @@ import { getContactDisplayName, getContactPrimaryPhone } from '../../utils/conta
 import { formatPhoneDisplay } from '../../utils/phone';
 import { usePartiesStore } from '../../stores/partiesStore';
 import { useCustomersStore } from '../../stores/customersStore';
+import {
+  findPartyByPhoneEverywhere,
+  phoneDuplicateMessage,
+  isDuplicatePhoneError,
+} from '../../utils/partyDuplicatePhone';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import {
   buildPartyContactPickerItems,
   filterPartyPickerItems,
@@ -110,14 +116,32 @@ export default function CustomerContactPickerModal({ visible, onClose, onSelect,
   const handleQuickAdd = async ({ name, phone }) => {
     try {
       setCreating(true);
+      setContactsError(null);
+      const trimmedPhone = phone?.trim();
+      if (trimmedPhone) {
+        await fetchParties(true);
+        const duplicate = findPartyByPhoneEverywhere(trimmedPhone);
+        if (duplicate) {
+          const message = phoneDuplicateMessage(t, duplicate);
+          setContactsError(message);
+          Alert.alert(t('party.duplicatePhoneTitle'), message);
+          return;
+        }
+      }
       const created = await createCustomer({
         name,
-        ...(phone ? { phone } : {}),
+        ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       });
       setQuickAddVisible(false);
       onSelect({ type: 'app', customer: created });
     } catch (err) {
-      setContactsError(err.message || t('customer.addFailed'));
+      const friendly = getFriendlyErrorMessage(err, t('customer.addFailed'));
+      if (isDuplicatePhoneError(friendly)) {
+        setContactsError(friendly);
+        Alert.alert(t('party.duplicatePhoneTitle'), friendly);
+      } else {
+        setContactsError(friendly);
+      }
     } finally {
       setCreating(false);
     }
