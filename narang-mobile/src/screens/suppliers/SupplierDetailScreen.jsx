@@ -27,6 +27,7 @@ import AddSupplierPaymentModal from '../../components/suppliers/AddSupplierPayme
 import AddSupplierPurchaseModal from '../../components/suppliers/AddSupplierPurchaseModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import SupplierDeletionBlockedModal from '../../components/suppliers/SupplierDeletionBlockedModal';
+import PartyNetBalanceCard from '../../components/parties/PartyNetBalanceCard';
 import { RECEIPT_GREEN } from '../../components/invoice/thermalReceiptShared';
 import { collectSupplierProductNames } from '../../utils/supplierLedger';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
@@ -236,37 +237,7 @@ export default function SupplierDetailScreen({ route, navigation }) {
       >
         <ErrorMessage message={error} />
 
-        <Card
-          mode="elevated"
-          style={{
-            marginBottom: 12,
-            borderRadius: theme.roundness,
-            backgroundColor: theme.colors.primaryContainer,
-          }}
-        >
-          <Card.Content style={{ alignItems: 'center', paddingVertical: 16 }}>
-            <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.primary, ...textDir }}>
-              {t('supplier.balance')}
-            </Text>
-            <Text
-              variant="headlineLarge"
-              style={{
-                fontWeight: '800',
-                color: payableBalance < 0 ? RECEIPT_GREEN : theme.colors.primary,
-                marginTop: 4,
-              }}
-            >
-              {formatCurrency(Math.abs(payableBalance))}
-            </Text>
-            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, ...textDir }}>
-              {payableBalance < 0
-                ? t('supplier.col.payment')
-                : payableBalance > 0
-                  ? t('supplier.col.purchase')
-                  : t('supplier.balance')}
-            </Text>
-          </Card.Content>
-        </Card>
+        <PartyNetBalanceCard party={supplier} />
 
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           <Card mode="elevated" style={{ flex: 1, borderRadius: theme.roundness }}>

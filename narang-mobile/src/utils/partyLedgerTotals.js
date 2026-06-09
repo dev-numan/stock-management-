@@ -1,5 +1,6 @@
 import { computeCustomerLedgerTotals } from './creditData';
 import { getEffectiveAdvanceBalance } from './customerBalance';
+import { computePartyNetBalance, getPartyNetDisplayBalance } from './partyNetBalance';
 import { computeSupplierBalanceTotals } from './supplierLedger';
 
 /**
@@ -69,9 +70,5 @@ export function buildCombinedPartyRows(customers = [], suppliers = []) {
 }
 
 export function getPartyRowBalance(row) {
-  const raw = row.raw;
-  if (row.activeType === 'supplier' || raw?.partyType === 'SUPPLIER') {
-    return Number(raw.payableBalance ?? 0);
-  }
-  return getEffectiveAdvanceBalance(raw);
+  return getPartyNetDisplayBalance(row.raw);
 }

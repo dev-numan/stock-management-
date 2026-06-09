@@ -21,6 +21,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import { formatPhoneDisplay } from '../../utils/phone';
 import { filterAndSortParties } from '../../utils/partyListFilters';
 import { buildPartyRows, getPartyRowBalance } from '../../utils/partyLedgerTotals';
+import { matchesPartySearch } from '../../utils/partySearch';
 import { exportCombinedPartyListPdf } from '../../utils/generatePartyListPDF';
 import { useTranslation } from '../../i18n/useTranslation';
 
@@ -62,13 +63,7 @@ export default function PartiesScreen({ navigation }) {
   const displayed = useMemo(() => {
     let list = filterAndSortParties(allRows, { filter, partyType, sort, getBalance });
     if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(
-        (row) =>
-          row.name?.toLowerCase().includes(q) ||
-          row.phone?.toLowerCase().includes(q) ||
-          row.address?.toLowerCase().includes(q)
-      );
+      list = list.filter((row) => matchesPartySearch(row, search));
     }
     return list;
   }, [allRows, filter, partyType, sort, search, getBalance]);

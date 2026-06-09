@@ -7,6 +7,7 @@ import {
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getT } from './languageStore';
 import { usePartiesStore } from './partiesStore';
+import { removePartyEverywhere } from '../utils/partyStoreActions';
 
 const syncToPartiesStore = (suppliers) => {
   const parties = usePartiesStore.getState().parties;
@@ -62,10 +63,7 @@ export const useSuppliersStore = create((set, get) => ({
   },
 
   removeSupplier: (id) => {
-    const next = get().suppliers.filter((s) => s.id !== id);
-    set({ suppliers: next });
-    syncToPartiesStore(next);
-    usePartiesStore.getState().removeParty(id);
+    removePartyEverywhere(id);
   },
 
   deleteSupplier: async (id) => {

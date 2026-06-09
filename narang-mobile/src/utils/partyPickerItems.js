@@ -1,5 +1,6 @@
 import { normalizePhone } from './phone';
 import { getContactPrimaryPhone, getContactDisplayName, formatContactAddress } from './contactFormat';
+import { matchesPartySearch } from './partySearch';
 
 /** Build searchable picker rows from saved parties + phone contacts. */
 export function buildPartyContactPickerItems(parties = [], contacts = []) {
@@ -40,14 +41,8 @@ export function buildPartyContactPickerItems(parties = [], contacts = []) {
 }
 
 export function filterPartyPickerItems(items, query) {
-  const q = query.trim().toLowerCase();
-  if (!q) return items;
-  const qDigits = q.replace(/\D/g, '');
-  return items.filter((item) => {
-    const name = item.name.toLowerCase();
-    const phone = (item.phone || '').replace(/\D/g, '');
-    return name.includes(q) || (qDigits.length > 0 && phone.includes(qDigits));
-  });
+  if (!query.trim()) return items;
+  return items.filter((item) => matchesPartySearch(item, query));
 }
 
 export function findPartyByExactName(parties, name) {

@@ -12,6 +12,7 @@ import { normalizePhone } from '../utils/phone';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
 import { zustandStorage, isStale } from './storage';
+import { removePartyEverywhere } from '../utils/partyStoreActions';
 
 export const usePartiesStore = create(
   persist(
@@ -142,11 +143,11 @@ export const usePartiesStore = create(
 
       deleteParty: async (id) => {
         if (!getIsOnline() || String(id).startsWith('local-')) {
-          get().removeParty(id);
+          removePartyEverywhere(id);
           return { id };
         }
         await deletePartyApi(id);
-        get().removeParty(id);
+        removePartyEverywhere(id);
         return { id };
       },
     }),

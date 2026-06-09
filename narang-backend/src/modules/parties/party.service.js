@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { createdAtRange } from '../../utils/dateRange.js';
+import { normalizePhone } from '../../utils/phone.js';
 
 const toNum = (v) => Number(v ?? 0);
 
@@ -11,9 +12,11 @@ function partyWhere(type, search) {
     where.partyType = type;
   }
   if (search?.trim()) {
+    const s = search.trim();
     where.OR = [
-      { name: { contains: search.trim(), mode: 'insensitive' } },
-      { phone: { contains: search.trim(), mode: 'insensitive' } },
+      { name: { contains: s, mode: 'insensitive' } },
+      { phone: { contains: s, mode: 'insensitive' } },
+      { id: { contains: s, mode: 'insensitive' } },
     ];
   }
   return where;
@@ -104,6 +107,18 @@ export const getPartyById = async (id) => {
 
 export const createParty = async (data) => {
   const partyType = data.partyType === 'SUPPLIER' ? 'SUPPLIER' : 'CUSTOMER';
+  const phoneKey = normalizePhone(data.phone);
+  if (phoneKey) {
+    const withPhone = await db.party.findMany({
+      where: { phone: { not: null } },
+      select: { id: true, phone: true },
+    });
+    const duplicate = withPhone.find((p) => normalizePhone(p.phone) === phoneKey);
+    if (duplicate) {
+      const label = partyType === 'SUPPLIER' ? 'Supplier' : 'Customer';
+      throw new ApiError(409, `${label} with this phone is already saved in the list`);
+    }
+  }
   return db.party.create({
     data: {
       name: data.name,

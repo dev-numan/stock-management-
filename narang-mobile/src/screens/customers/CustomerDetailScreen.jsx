@@ -31,6 +31,7 @@ import { buildCustomerAccountHistory } from '../../utils/customerAccountHistory'
 import { useAuth } from '../../context/AuthContext';
 import PaymentReminderCard from '../../components/customers/PaymentReminderCard';
 import EditCustomerPhoneModal from '../../components/customers/EditCustomerPhoneModal';
+import PartyNetBalanceCard from '../../components/parties/PartyNetBalanceCard';
 import { APP_NAME_URDU } from '../../constants/branding';
 import {
   sendPaymentReminderSms,
@@ -348,31 +349,18 @@ export default function CustomerDetailScreen({ route, navigation }) {
       onScrollBeginDrag={Keyboard.dismiss}
     >
       <ErrorMessage message={error} />
+      <PartyNetBalanceCard party={customer} style={{ marginTop: 16 }} />
+      {!readOnly || canSendMessages ? (
       <Card
         mode="elevated"
         style={{
-          marginTop: 16,
           marginBottom: 12,
           borderRadius: theme.roundness,
-          backgroundColor: advanceBalance < 0 ? theme.colors.errorContainer : theme.colors.primaryContainer,
         }}
       >
         <Card.Content>
-        <Text variant="titleMedium" style={{ fontWeight: '700', color: advanceBalance < 0 ? theme.colors.error : theme.colors.primary }}>
-          {t('customer.balance')}
-        </Text>
-        <Text
-          variant="headlineMedium"
-          style={{
-            fontWeight: '700',
-            marginTop: 4,
-            color: advanceBalance < 0 ? theme.colors.error : theme.colors.primary,
-          }}
-        >
-          {formatCurrency(advanceBalance)}
-        </Text>
         {!readOnly && !isLocalCustomer && getIsOnline() ? (
-          <View style={{ marginTop: 12, gap: 8 }}>
+          <View style={{ gap: 8 }}>
             <AppButton
               title={t('customer.recordPayment')}
               variant="outline"
@@ -387,7 +375,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
             />
           </View>
         ) : isLocalCustomer ? (
-          <Text variant="labelSmall" style={{ color: theme.colors.secondary, marginTop: 8 }}>
+          <Text variant="labelSmall" style={{ color: theme.colors.secondary }}>
             {t('customer.syncBeforeAdvance')}
           </Text>
         ) : null}
@@ -420,6 +408,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
         ) : null}
         </Card.Content>
       </Card>
+      ) : null}
 
       {canSendMessages ? (
         <View style={{ position: 'absolute', left: -2000, top: 0, opacity: 0, width: 360 }} pointerEvents="none">

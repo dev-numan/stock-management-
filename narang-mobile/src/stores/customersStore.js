@@ -11,6 +11,7 @@ import { normalizePhone } from '../utils/phone';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
 import { usePartiesStore } from './partiesStore';
+import { removePartyEverywhere } from '../utils/partyStoreActions';
 import { zustandStorage, isStale } from './storage';
 
 const syncToPartiesStore = (customers) => {
@@ -95,10 +96,7 @@ export const useCustomersStore = create(
       },
 
       removeCustomer: (id) => {
-        const next = get().customers.filter((c) => c.id !== id);
-        set({ customers: next, lastFetched: Date.now() });
-        syncToPartiesStore(next);
-        usePartiesStore.getState().removeParty(id);
+        removePartyEverywhere(id);
       },
 
       deleteCustomer: async (id) => {

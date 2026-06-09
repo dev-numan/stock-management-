@@ -25,7 +25,7 @@ import {
 } from '../../utils/partyPickerItems';
 import { useTranslation } from '../../i18n/useTranslation';
 
-export default function SupplierPickerModal({ visible, onClose, onSelect }) {
+export default function SupplierPickerModal({ visible, onClose, onSelect, fillFormOnly = false }) {
   const theme = useTheme();
   const { t, isRtl } = useTranslation();
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
@@ -110,7 +110,11 @@ export default function SupplierPickerModal({ visible, onClose, onSelect }) {
       : t('supplier.empty');
 
   const handlePickApp = (party) => {
-    onSelect(party);
+    if (fillFormOnly) {
+      onSelect({ type: 'app', party });
+    } else {
+      onSelect(party);
+    }
     onClose();
   };
 
@@ -124,6 +128,12 @@ export default function SupplierPickerModal({ visible, onClose, onSelect }) {
       : null;
     if (existing) {
       handlePickApp(existing);
+      return;
+    }
+
+    if (fillFormOnly) {
+      onSelect({ type: 'contact', contact });
+      onClose();
       return;
     }
 
@@ -142,6 +152,11 @@ export default function SupplierPickerModal({ visible, onClose, onSelect }) {
     const existing = findPartyByExactName(parties, trimmedSearch);
     if (existing) {
       handlePickApp(existing);
+      return;
+    }
+    if (fillFormOnly) {
+      onSelect({ type: 'new', name: trimmedSearch });
+      onClose();
       return;
     }
     try {
