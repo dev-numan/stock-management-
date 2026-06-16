@@ -9,6 +9,15 @@ import { useDashboardStore } from '../stores/dashboardStore';
 
 const AuthContext = createContext(null);
 
+// Force-refresh the core caches without blocking navigation. Screens already
+// render from persisted store state, so the user lands instantly and fresh
+// data fills in when (and if) the network responds.
+const refreshDataInBackground = () => {
+  useProductsStore.getState().fetchProducts(true);
+  useCustomersStore.getState().fetchCustomers(true);
+  usePartiesStore.getState().fetchParties(true);
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUserState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,20 +35,21 @@ export const AuthProvider = ({ children }) => {
         const storedUser = await getUser();
         if (!token || !storedUser) return;
 
-        try {
-          const { data } = await getMe();
-          const userData = data.data;
-          await setUser(userData);
-          setUserState(userData);
-          await Promise.all([
-            useProductsStore.getState().fetchProducts(true),
-            useCustomersStore.getState().fetchCustomers(true),
-            usePartiesStore.getState().fetchParties(true),
-          ]);
-        } catch {
-          await clearAuth();
-          setUserState(null);
-        }
+        // Stay logged in: render the app immediately from the stored session
+        // and persisted store data, even with no/slow internet. We do NOT wait
+        // on the network here and we never log the user out on a network error
+        // — only a genuine 401 (handled by the axios interceptor) clears auth.
+        setUserState(storedUser);
+
+        // Refresh profile + caches in the background; failures are non-fatal.
+        getMe()
+          .then(async ({ data }) => {
+            const userData = data.data;
+            await setUser(userData);
+            setUserState(userData);
+          })
+          .catch(() => {});
+        refreshDataInBackground();
       } finally {
         setLoading(false);
       }
@@ -53,11 +63,9 @@ export const AuthProvider = ({ children }) => {
     await setToken(token);
     await setUser(userData);
     setUserState(userData);
-    await Promise.all([
-      useProductsStore.getState().fetchProducts(true),
-      useCustomersStore.getState().fetchCustomers(true),
-      usePartiesStore.getState().fetchParties(true),
-    ]);
+    // Don't block entry into the app on the initial data load — refresh in the
+    // background so login feels instant even on a slow connection.
+    refreshDataInBackground();
     return userData;
   };
 

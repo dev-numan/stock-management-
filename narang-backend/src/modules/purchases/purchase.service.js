@@ -3,6 +3,7 @@ import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { resolveSupplierId, mapPurchaseWithSupplier } from '../../utils/supplierResolve.js';
 import { createdAtRange } from '../../utils/dateRange.js';
+import { runIdempotent } from '../../utils/idempotency.js';
 
 const decimal = (v) => new Prisma.Decimal(v);
 
@@ -38,7 +39,7 @@ export const getPurchaseById = async (id) => {
 };
 
 export const createPurchase = async (purchaseData) => {
-  const { items, supplierId, partyId, supplierName, notes } = purchaseData;
+  const { items, supplierId, partyId, supplierName, notes, clientRequestId } = purchaseData;
 
   if (!items?.length) {
     throw new ApiError(400, 'Purchase must have at least one item');
@@ -46,7 +47,7 @@ export const createPurchase = async (purchaseData) => {
 
   const productIds = [...new Set(items.map((i) => i.productId))];
 
-  return db.$transaction(async (tx) => {
+  return runIdempotent(db, clientRequestId, async (tx) => {
     const products = await tx.product.findMany({ where: { id: { in: productIds } } });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -105,7 +106,7 @@ export const createPurchase = async (purchaseData) => {
     );
 
     return mapPurchaseWithSupplier(purchase);
-  }, TRANSACTION_OPTS);
+  }, () => ({ duplicate: true }), TRANSACTION_OPTS);
 };
 
 export const deletePurchase = async (id) => {
@@ -116,14 +117,21 @@ export const deletePurchase = async (id) => {
     });
     if (!purchase) throw new ApiError(404, 'Purchase not found');
 
-    await Promise.all(
-      purchase.items.map((item) =>
-        tx.product.update({
-          where: { id: item.productId },
-          data: { currentStock: { decrement: item.quantity } },
-        })
-      )
-    );
+    // Reversing a purchase removes the stock it added. Guard in the WHERE clause
+    // so we never drive stock negative when some of it was already sold — a
+    // zero-row match means the reversal isn't possible.
+    for (const item of purchase.items) {
+      const { count } = await tx.product.updateMany({
+        where: { id: item.productId, currentStock: { gte: item.quantity } },
+        data: { currentStock: { decrement: item.quantity } },
+      });
+      if (count === 0) {
+        throw new ApiError(
+          400,
+          'Cannot delete this purchase: some of its stock has already been sold.'
+        );
+      }
+    }
 
     await tx.purchase.delete({ where: { id } });
     return { id, supplierId: purchase.partyId, partyId: purchase.partyId };

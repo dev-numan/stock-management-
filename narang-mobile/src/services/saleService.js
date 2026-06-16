@@ -177,7 +177,7 @@ export const completeSale = async ({
     }
   }
 
-  const clientRequestId = createClientRequestId();
+  const clientRequestId = createClientRequestId('sale');
   const salePayload = {
     clientRequestId,
     customerId: customerId && !String(customerId).startsWith('local-') ? customerId : null,

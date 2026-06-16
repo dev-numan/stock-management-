@@ -5,18 +5,15 @@ import {
   RefreshControl,
   Platform,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { Text, Card, Searchbar, Chip, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getSupplier,
   getSupplierLedger,
-  addSupplierPayment,
-  addSupplierPurchase,
-  deleteSupplierPayment,
   getSupplierDeletionBlockers,
 } from '../../api/suppliers.api';
-import { deletePurchase } from '../../api/purchases.api';
 import { formatCurrency } from '../../utils/formatCurrency';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -34,8 +31,10 @@ import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
 import { useSuppliersStore } from '../../stores/suppliersStore';
+import { usePurchasesStore } from '../../stores/purchasesStore';
 import { useDashboardStore } from '../../stores/dashboardStore';
 import { useTranslation } from '../../i18n/useTranslation';
+import { exportSupplierLedgerPdf } from '../../utils/generateDetailPDF';
 
 export default function SupplierDetailScreen({ route, navigation }) {
   const theme = useTheme();
@@ -45,6 +44,10 @@ export default function SupplierDetailScreen({ route, navigation }) {
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
   const upsertSupplier = useSuppliersStore((s) => s.upsertSupplier);
   const deleteSupplier = useSuppliersStore((s) => s.deleteSupplier);
+  const addPayment = useSuppliersStore((s) => s.addPayment);
+  const addPurchase = useSuppliersStore((s) => s.addPurchase);
+  const deletePayment = useSuppliersStore((s) => s.deletePayment);
+  const deletePurchaseEntry = usePurchasesStore((s) => s.deletePurchase);
   const invalidateDashboard = useDashboardStore((s) => s.invalidate);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
 
@@ -64,6 +67,7 @@ export default function SupplierDetailScreen({ route, navigation }) {
   const [deleteSupplierBlockers, setDeleteSupplierBlockers] = useState({ products: [], purchases: [] });
   const [deleteSupplierChecking, setDeleteSupplierChecking] = useState(false);
   const [deletingSupplier, setDeletingSupplier] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -108,13 +112,42 @@ export default function SupplierDetailScreen({ route, navigation }) {
   const totalPurchases = Number(supplier?.totalPurchases ?? 0);
   const totalPayments = Number(supplier?.totalPayments ?? 0);
 
+  // Reflect a queued (offline) ledger change on this screen immediately, since
+  // the server ledger can't be re-fetched until we're back online.
+  const applyLocalLedger = (type, amount, notes) => {
+    const purchase = type === 'PURCHASE' ? Number(amount) : 0;
+    const payment = type === 'PAYMENT' ? Number(amount) : 0;
+    setSupplier((s) =>
+      s
+        ? {
+            ...s,
+            totalPurchases: Number(s.totalPurchases ?? 0) + purchase,
+            totalPayments: Number(s.totalPayments ?? 0) + payment,
+            payableBalance: Number(s.payableBalance ?? 0) + purchase - payment,
+          }
+        : s
+    );
+    setAllLedger((prev) => [
+      {
+        id: `local-ledger-${Date.now()}`,
+        type,
+        amount: Number(amount),
+        notes: notes || null,
+        createdAt: new Date().toISOString(),
+        _pending: true,
+      },
+      ...prev,
+    ]);
+  };
+
   const handlePayment = async ({ amount, notes }) => {
     try {
       setPaymentSaving(true);
       setError(null);
-      await addSupplierPayment(supplierId, { amount, notes });
+      const { queued } = await addPayment(supplierId, { amount, notes });
       setPaymentVisible(false);
-      await load();
+      if (queued) applyLocalLedger('PAYMENT', amount, notes);
+      else await load();
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('supplier.paymentFailed')));
     } finally {
@@ -126,9 +159,10 @@ export default function SupplierDetailScreen({ route, navigation }) {
     try {
       setPurchaseSaving(true);
       setError(null);
-      await addSupplierPurchase(supplierId, { amount, notes });
+      const { queued } = await addPurchase(supplierId, { amount, notes });
       setPurchaseVisible(false);
-      await load();
+      if (queued) applyLocalLedger('PURCHASE', amount, notes);
+      else await load();
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('supplier.purchaseFailed')));
     } finally {
@@ -141,17 +175,27 @@ export default function SupplierDetailScreen({ route, navigation }) {
     try {
       setDeleting(true);
       setError(null);
+      let queued = false;
       if (deleteTarget.type === 'PAYMENT') {
-        await deleteSupplierPayment(supplierId, deleteTarget.id);
+        ({ queued } = await deletePayment(supplierId, deleteTarget.id, Number(deleteTarget.amount ?? 0)));
       } else {
-        await deletePurchase(deleteTarget.id);
+        ({ queued } = await deletePurchaseEntry(deleteTarget.id, {
+          supplierId,
+          amount: Number(deleteTarget.amount ?? 0),
+        }));
         // Deleting a stock purchase reverses stock — refresh products and let
         // the dashboard recompute inventory valuation / low-stock counts.
-        await fetchProducts(true);
+        if (!queued) await fetchProducts(true);
         invalidateDashboard();
       }
+      const removedId = deleteTarget.id;
       setDeleteTarget(null);
-      await load();
+      if (queued) {
+        // Offline: drop the row locally; server ledger refreshes on reconnect.
+        setAllLedger((prev) => prev.filter((e) => e.id !== removedId));
+      } else {
+        await load();
+      }
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('ledgerEntry.deleteFailed')));
     } finally {
@@ -218,6 +262,18 @@ export default function SupplierDetailScreen({ route, navigation }) {
     });
   };
 
+  const handleExportPdf = useCallback(async () => {
+    if (!supplier) return;
+    setExportingPdf(true);
+    try {
+      await exportSupplierLedgerPdf({ supplier, ledger: allLedger });
+    } catch {
+      Alert.alert(t('ledgerReport.export'), t('reports.exportFailed'));
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [supplier, allLedger, t]);
+
   if (loading && !supplier) {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: theme.colors.background }} contentContainerStyle={{ padding: 16 }}>
@@ -238,6 +294,16 @@ export default function SupplierDetailScreen({ route, navigation }) {
         <ErrorMessage message={error} />
 
         <PartyNetBalanceCard party={supplier} />
+
+        <AppButton
+          title={t('ledgerReport.export')}
+          variant="outline"
+          icon="file-pdf-box"
+          loading={exportingPdf}
+          disabled={exportingPdf}
+          onPress={handleExportPdf}
+          style={{ marginTop: 12, marginBottom: 12 }}
+        />
 
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           <Card mode="elevated" style={{ flex: 1, borderRadius: theme.roundness }}>

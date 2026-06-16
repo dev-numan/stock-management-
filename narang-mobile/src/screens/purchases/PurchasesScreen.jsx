@@ -2,10 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { View, FlatList } from 'react-native';
 import { Card, Text, FAB, IconButton, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getPurchases, deletePurchase } from '../../api/purchases.api';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
+import { usePurchasesStore } from '../../stores/purchasesStore';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDateTime } from '../../utils/formatDate';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -19,26 +19,19 @@ export default function PurchasesScreen({ navigation }) {
   const { t } = useTranslation();
   const { isAdmin } = useAuth();
   const fetchProducts = useProductsStore((s) => s.fetchProducts);
-  const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const purchases = usePurchasesStore((s) => s.purchases);
+  const fetchPurchases = usePurchasesStore((s) => s.fetchPurchases);
+  const deletePurchase = usePurchasesStore((s) => s.deletePurchase);
+  const storeLoading = usePurchasesStore((s) => s.loading);
   const [error, setError] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
       setError(null);
-      getPurchases()
-        .then(({ data }) => {
-          setPurchases(data.data || []);
-        })
-        .catch((err) => {
-          setError(getFriendlyErrorMessage(err, t('purchases.loadFailed')));
-          setPurchases([]);
-        })
-        .finally(() => setLoading(false));
-    }, [t])
+      fetchPurchases();
+    }, [fetchPurchases])
   );
 
   const handleDeletePurchase = async () => {
@@ -46,11 +39,12 @@ export default function PurchasesScreen({ navigation }) {
     try {
       setDeleting(true);
       setError(null);
-      await deletePurchase(deleteTarget.id);
-      await fetchProducts(true);
+      const { queued } = await deletePurchase(deleteTarget.id, {
+        supplierId: deleteTarget.supplierId || deleteTarget.supplier?.id,
+        amount: Number(deleteTarget.totalAmount ?? 0),
+      });
+      if (!queued) await fetchProducts(true);
       setDeleteTarget(null);
-      const { data } = await getPurchases();
-      setPurchases(data.data || []);
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('purchases.deleteFailed')));
     } finally {
@@ -58,7 +52,7 @@ export default function PurchasesScreen({ navigation }) {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (storeLoading && purchases.length === 0) return <LoadingSpinner />;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>

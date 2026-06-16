@@ -4,7 +4,7 @@ import { Card, Text, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getExpenses, createExpense } from '../../api/expenses.api';
+import { useExpensesStore } from '../../stores/expensesStore';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -15,14 +15,15 @@ import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatDate } from '../../utils/formatDate';
 import { expenseSchema, sanitizeAmountInput } from '../../utils/validation';
-import { useDashboardStore } from '../../stores/dashboardStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function ExpensesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [expenses, setExpenses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const expenses = useExpensesStore((s) => s.expenses);
+  const fetchExpenses = useExpensesStore((s) => s.fetchExpenses);
+  const createExpense = useExpensesStore((s) => s.createExpense);
+  const storeLoading = useExpensesStore((s) => s.loading);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState(null);
 
@@ -34,31 +35,16 @@ export default function ExpensesScreen() {
     defaultValues: { title: '', amount: '', category: '', date: '', notes: '' },
   });
 
-  const fetch = async () => {
-    try {
-      setLoading(true);
-      setApiError(null);
-      const { data } = await getExpenses({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
-      setExpenses(data.data || []);
-    } catch (err) {
-      setApiError(getFriendlyErrorMessage(err, t('expense.loadFailed')));
-      setExpenses([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useFocusEffect(useCallback(() => { fetch(); }, []));
+  useFocusEffect(useCallback(() => { fetchExpenses(); }, [fetchExpenses]));
 
   const onSubmit = async (formData) => {
     try {
       setSaving(true);
       setApiError(null);
+      // Store handles online vs offline (queues + optimistic local add) and
+      // invalidates the dashboard's profit/expense totals.
       await createExpense(formData);
-      // Expenses feed the dashboard's profit/expense totals — refresh on return.
-      useDashboardStore.getState().invalidate();
       reset({ title: '', amount: '', category: '', date: '', notes: '' });
-      fetch();
     } catch (err) {
       setApiError(getFriendlyErrorMessage(err, t('expense.addFailed')));
     } finally {
@@ -66,7 +52,7 @@ export default function ExpensesScreen() {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (storeLoading && expenses.length === 0) return <LoadingSpinner />;
 
   return (
     <KeyboardFormView insideTab>

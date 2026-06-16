@@ -122,6 +122,10 @@ export const usePartiesStore = create(
           set({
             parties: get().parties.map((p) => (p.id === id ? { ...p, ...data } : p)),
           });
+          useSyncStore.getState().enqueue({
+            type: 'UPDATE_PARTY',
+            payload: { id, body: data },
+          });
           return get().parties.find((p) => p.id === id);
         }
         const { data: res } = await updatePartyApi(id, data);
@@ -134,6 +138,14 @@ export const usePartiesStore = create(
       },
 
       convertPartyType: async (id, partyType) => {
+        if (!getIsOnline() || String(id).startsWith('local-')) {
+          get().patchParty({ id, partyType });
+          useSyncStore.getState().enqueue({
+            type: 'CONVERT_PARTY',
+            payload: { id, partyType },
+          });
+          return get().parties.find((p) => p.id === id);
+        }
         const { data } = await convertPartyApi(id, partyType);
         const updated = data.data;
         get().upsertParty(updated);
@@ -143,6 +155,10 @@ export const usePartiesStore = create(
 
       deleteParty: async (id) => {
         if (!getIsOnline() || String(id).startsWith('local-')) {
+          const cancelledLocal = useSyncStore.getState().removeByLocalId(id);
+          if (!cancelledLocal) {
+            useSyncStore.getState().enqueue({ type: 'DELETE_PARTY', payload: { id } });
+          }
           removePartyEverywhere(id);
           return { id };
         }

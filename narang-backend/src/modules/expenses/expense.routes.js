@@ -10,7 +10,7 @@ router.use(authenticate);
 
 const expenseBody = [
   body('title').trim().notEmpty().withMessage('Title is required'),
-  body('amount').isFloat({ min: 0 }).withMessage('Valid amount is required'),
+  body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than zero'),
   body('category').trim().notEmpty().withMessage('Category is required'),
   body('date').isISO8601().withMessage('Valid date is required'),
   body('notes').optional().trim(),

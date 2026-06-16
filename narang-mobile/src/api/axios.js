@@ -14,7 +14,9 @@ const api = axios.create({
     'Content-Type': 'application/json',
     ...(isNgrok ? { 'ngrok-skip-browser-warning': 'true' } : {}),
   },
-  timeout: 30000,
+  // Fail fast on weak/dead links so reads fall back to cache and writes fall
+  // back to the offline queue instead of hanging the UI for half a minute.
+  timeout: 8000,
 });
 
 api.interceptors.response.use(

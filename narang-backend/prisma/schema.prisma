@@ -173,3 +173,13 @@ model Expense {
   notes     String?
   createdAt DateTime @default(now())
 }
+
+// Dedup key for offline-replayed mutations. The mobile client retries queued
+// writes on reconnect; stamping each with a clientRequestId and recording it
+// here (in the same transaction as the write) makes every replay apply at most
+// once. Used by purchases, party payments/advances/charges, stock-ins and
+// expenses. Sales have their own clientRequestId column on the Sale table.
+model IdempotencyKey {
+  key       String   @id
+  createdAt DateTime @default(now())
+}

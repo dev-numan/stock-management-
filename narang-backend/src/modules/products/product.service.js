@@ -5,6 +5,7 @@ import { resolveSupplierId, mapPurchaseWithSupplier } from '../../utils/supplier
 import { isValidProductCategory } from '../../constants/productCategories.js';
 import { parseExpiryDate } from '../../utils/parseExpiryDate.js';
 import { validateAlternateUnitFields, canHaveAlternateUnit } from '../../utils/productUnits.js';
+import { runIdempotent } from '../../utils/idempotency.js';
 
 function mapProductWithSupplier(product) {
   if (!product) return product;
@@ -184,7 +185,7 @@ export const updateProduct = async (id, data) => {
 
 export const addProductStock = async (
   productId,
-  { quantity, partyId, supplierId, supplierName, notes, costPrice: costPriceInput, salePrice: salePriceInput }
+  { quantity, partyId, supplierId, supplierName, notes, costPrice: costPriceInput, salePrice: salePriceInput, clientRequestId }
 ) => {
   const qty = Number(quantity);
   if (!qty || qty <= 0) {
@@ -194,7 +195,7 @@ export const addProductStock = async (
   const resolvedInputId = partyId || supplierId;
   const hasSupplier = Boolean(resolvedInputId || supplierName?.trim());
 
-  return db.$transaction(async (tx) => {
+  return runIdempotent(db, clientRequestId, async (tx) => {
     const product = await tx.product.findUnique({ where: { id: productId } });
     if (!product) throw new ApiError(404, 'Product not found');
 
@@ -273,6 +274,12 @@ export const addProductStock = async (
       product: mapProductWithSupplier(updated),
       purchase: mapPurchaseWithSupplier(purchase),
     };
+  }, async (database) => {
+    const current = await database.product.findUnique({
+      where: { id: productId },
+      include: { party: true },
+    });
+    return { product: mapProductWithSupplier(current), purchase: null, duplicate: true };
   }, TRANSACTION_OPTS);
 };
 

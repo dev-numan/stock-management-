@@ -11,6 +11,8 @@ import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { getT } from './languageStore';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
+import { queueOrRun } from '../services/offlineMutation';
+import { createClientRequestId } from '../utils/clientRequestId';
 import { useDashboardStore } from './dashboardStore';
 import { zustandStorage, isStale } from './storage';
 import { filterAndSortProducts } from '../utils/productListFilters';
@@ -103,24 +105,35 @@ export const useProductsStore = create(
       },
 
       addProductStock: async (productId, { quantity, supplierId, supplierName, notes, costPrice, salePrice }) => {
-        if (!getIsOnline()) {
-          throw new Error(getT()('products.offlineHint'));
-        }
-        const { data: res } = await addProductStockApi(productId, {
-          quantity,
-          supplierId,
-          supplierName,
-          notes,
-          costPrice,
-          salePrice,
+        const body = {
+          quantity, supplierId, supplierName, notes, costPrice, salePrice,
+          clientRequestId: createClientRequestId('stock'),
+        };
+        const { queued, result } = await queueOrRun({
+          online: async () => {
+            const { data: res } = await addProductStockApi(productId, body);
+            const updated = res.data?.product;
+            if (updated) {
+              get().patchProduct(productId, updated);
+              set({ lastFetched: Date.now() });
+              invalidateDashboard();
+            }
+            return updated;
+          },
+          type: 'ADD_PRODUCT_STOCK',
+          payload: { productId, body },
+          optimistic: () => {
+            // Reflect the incoming stock (and any new prices) immediately. Stock
+            // is a count, not money — do not round it.
+            const p = get().getById(productId);
+            const patch = { currentStock: Number(p?.currentStock ?? 0) + Number(quantity) };
+            if (costPrice != null) patch.costPrice = costPrice;
+            if (salePrice != null) patch.salePrice = salePrice;
+            get().patchProduct(productId, patch);
+            invalidateDashboard();
+          },
         });
-        const updated = res.data?.product;
-        if (updated) {
-          get().patchProduct(productId, updated);
-          set({ lastFetched: Date.now() });
-          invalidateDashboard();
-        }
-        return updated;
+        return queued ? get().getById(productId) : result;
       },
 
       createProduct: async (data) => {

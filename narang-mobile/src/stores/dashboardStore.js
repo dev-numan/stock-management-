@@ -6,6 +6,7 @@ import { getIsOnline } from './networkStore';
 import { useSalesStore } from './salesStore';
 import { zustandStorage, isStale } from './storage';
 import { computeSaleGrossProfit } from '../utils/saleProfit';
+import { roundMoney } from '../utils/money';
 import { getTrendYearRange, getYearDateRange } from '../utils/formatDate';
 
 const trendKey = (mode, year) => `${mode}-${year}`;
@@ -76,9 +77,9 @@ export const useDashboardStore = create(
 
         return {
           ...data,
-          todaySalesTotal: Number(data.todaySalesTotal || 0) + pendingTotal,
+          todaySalesTotal: roundMoney(Number(data.todaySalesTotal || 0) + pendingTotal),
           todaySalesCount: (data.todaySalesCount || 0) + todayPending.length,
-          todayGrossProfit: Number(data.todayGrossProfit || 0) + pendingProfit,
+          todayGrossProfit: roundMoney(Number(data.todayGrossProfit || 0) + pendingProfit),
           recentSales,
         };
       },

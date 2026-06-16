@@ -161,17 +161,20 @@ export const createSale = async (saleData, userId) => {
         include: saleInclude,
       });
 
-      const decrementedProducts = await Promise.all(
-        [...stockDeductions.entries()].map(([productId, deduction]) =>
-          tx.product.update({
-            where: { id: productId },
-            data: { currentStock: { decrement: deduction } },
-          })
-        )
-      );
-      for (const p of decrementedProducts) {
-        if (decimal(p.currentStock).lessThan(0)) {
-          throw new ApiError(400, `Insufficient stock for ${p.name}`);
+      // Decrement atomically with a guard in the WHERE clause. This is a single
+      // conditional UPDATE per product, so two concurrent sales of the same
+      // item can't both pass an earlier read-time check and oversell — the
+      // second sees the already-decremented stock and matches zero rows. The
+      // pre-loop check above is just an early, friendly error; this is the real
+      // guarantee that stock can never go negative.
+      for (const [productId, deduction] of stockDeductions.entries()) {
+        const { count } = await tx.product.updateMany({
+          where: { id: productId, currentStock: { gte: deduction } },
+          data: { currentStock: { decrement: deduction } },
+        });
+        if (count === 0) {
+          const p = productMap.get(productId);
+          throw new ApiError(400, `Insufficient stock for ${p?.name || productId}`);
         }
       }
 

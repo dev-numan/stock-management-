@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Text, Button, useTheme } from 'react-native-paper';
-import { createPurchase } from '../../api/purchases.api';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import SupplierNameAutocomplete from '../../components/suppliers/SupplierNameAutocomplete';
 import { useSuppliersStore } from '../../stores/suppliersStore';
+import { usePurchasesStore } from '../../stores/purchasesStore';
+import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import ProductSearchModal from '../../components/sales/ProductSearchModal';
 import KeyboardFormView from '../../components/common/KeyboardFormView';
 import { sanitizeAmountInput, validatePurchaseItems } from '../../utils/validation';
@@ -17,6 +18,7 @@ export default function AddPurchaseScreen({ navigation, route }) {
   const presetSupplierId = route.params?.supplierId;
   const presetSupplier = route.params?.supplier;
   const fetchSuppliers = useSuppliersStore((s) => s.fetchSuppliers);
+  const createPurchase = usePurchasesStore((s) => s.createPurchase);
 
   const [items, setItems] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -77,7 +79,7 @@ export default function AddPurchaseScreen({ navigation, route }) {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await createPurchase({
+      const { queued, result: purchase } = await createPurchase({
         supplierId,
         supplierName: supplierNamePayload,
         notes,
@@ -89,8 +91,7 @@ export default function AddPurchaseScreen({ navigation, route }) {
           ),
         })),
       });
-      const purchase = data.data;
-      await fetchSuppliers(true);
+      if (!queued) await fetchSuppliers(true);
       const resolvedId = purchase?.supplierId || supplierId || presetSupplierId;
       if (resolvedId) {
         navigation.navigate('SupplierDetail', {

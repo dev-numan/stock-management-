@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { db } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { runIdempotent } from '../../utils/idempotency.js';
 
 export const getAllExpenses = async ({ month, year }) => {
   const where = {};
@@ -22,15 +23,24 @@ export const getAllExpenses = async ({ month, year }) => {
 };
 
 export const createExpense = async (data) => {
-  return db.expense.create({
-    data: {
-      title: data.title,
-      amount: new Prisma.Decimal(data.amount),
-      category: data.category,
-      date: new Date(data.date),
-      notes: data.notes || null,
-    },
-  });
+  if (Number(data.amount) <= 0) {
+    throw new ApiError(400, 'Amount must be greater than zero');
+  }
+  return runIdempotent(
+    db,
+    data.clientRequestId,
+    (tx) =>
+      tx.expense.create({
+        data: {
+          title: data.title,
+          amount: new Prisma.Decimal(data.amount),
+          category: data.category,
+          date: new Date(data.date),
+          notes: data.notes || null,
+        },
+      }),
+    () => ({ duplicate: true })
+  );
 };
 
 export const deleteExpense = async (id) => {

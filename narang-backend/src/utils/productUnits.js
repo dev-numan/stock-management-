@@ -53,7 +53,10 @@ export const getStockDeduction = (product, soldUnit, quantity) => {
   const perStock = getUnitsPerStockUnit(product);
   if (!perStock || soldUnit !== product.alternateSaleUnit) return qty;
 
-  return qty / perStock;
+  // Round to 6 dp so a non-terminating ratio (e.g. 1/3 of a bag) is a fixed,
+  // deterministic value. This keeps create/delete reversals exact and bounds
+  // the stock drift that raw float division would accumulate over many sales.
+  return Math.round((qty / perStock) * 1e6) / 1e6;
 };
 
 /** Max quantity sellable in soldUnit */

@@ -3,6 +3,7 @@ import { Card, Text, useTheme } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getSettings, updateSettings } from '../../api/settings.api';
+import { queueOrRun } from '../../services/offlineMutation';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -63,7 +64,13 @@ export default function SettingsScreen() {
       setSaving(true);
       setError(null);
       setSuccess(false);
-      await updateSettings(formData);
+      await queueOrRun({
+        online: async () => {
+          await updateSettings(formData);
+        },
+        type: 'UPDATE_SETTINGS',
+        payload: formData,
+      });
       useDashboardStore.getState().invalidate();
       setSuccess(true);
     } catch (err) {

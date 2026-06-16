@@ -5,7 +5,7 @@ import {
   PRODUCT_FILTER_LABEL_KEYS,
   PRODUCT_SORT_LABEL_KEYS,
 } from '../../utils/filterLabelKeys';
-import { View, FlatList, RefreshControl } from 'react-native';
+import { View, FlatList, RefreshControl, Alert } from 'react-native';
 import { Searchbar, FAB, Text, IconButton, Badge, useTheme } from 'react-native-paper';
 import ProductFilterSortModal from '../../components/products/ProductFilterSortModal';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
 import { useNetworkStore } from '../../stores/networkStore';
 import { useTranslation } from '../../i18n/useTranslation';
+import { exportProductListPdf } from '../../utils/generateDetailPDF';
 
 export default function ProductsScreen({ navigation, route }) {
   const theme = useTheme();
@@ -30,6 +31,7 @@ export default function ProductsScreen({ navigation, route }) {
   const [sort, setSort] = useState('newest');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const isOnline = useNetworkStore((s) => s.isOnline);
 
   const products = useProductsStore((s) => s.products);
@@ -88,6 +90,17 @@ export default function ProductsScreen({ navigation, route }) {
     setSearch('');
   }, []);
 
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportProductListPdf(filtered);
+    } catch {
+      Alert.alert(t('productReport.title'), t('reports.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  }, [filtered, t]);
+
   const emptyMessage = useMemo(() => {
     if (search.trim()) return t('products.noMatch', { query: search.trim() });
     if (filter === 'lowStock') return t('products.emptyLowStock');
@@ -121,6 +134,14 @@ export default function ProductsScreen({ navigation, route }) {
               />
             ) : null}
           </View>
+          <IconButton
+            icon="file-pdf-box"
+            mode="contained-tonal"
+            loading={exporting}
+            disabled={exporting || filtered.length === 0}
+            onPress={handleExport}
+            accessibilityLabel={t('reports.exportPdf')}
+          />
         </View>
         <ActiveFilterChips tags={filterTags} onClearAll={clearAllFilters} />
         <StockValuationSummary products={filtered} />

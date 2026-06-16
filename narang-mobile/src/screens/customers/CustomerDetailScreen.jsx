@@ -1,14 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { View, ScrollView, RefreshControl, Keyboard, Platform } from 'react-native';
+import { View, ScrollView, RefreshControl, Keyboard, Platform, Alert } from 'react-native';
 import ViewShot from 'react-native-view-shot';
 import { Text, Card, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   getCustomer,
   getCustomerAdvanceEntries,
-  addCustomerAdvance,
-  addCustomerCreditCharge,
-  deleteCustomerAdvanceEntry,
   getCustomerDeletionBlockers,
 } from '../../api/customers.api';
 import { getSales } from '../../api/sales.api';
@@ -42,7 +39,9 @@ import { useSalesStore } from '../../stores/salesStore';
 import { useCustomersStore } from '../../stores/customersStore';
 import { getIsOnline } from '../../stores/networkStore';
 import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
+import { sumMoney } from '../../utils/money';
 import { useTranslation } from '../../i18n/useTranslation';
+import { exportCustomerLedgerPdf } from '../../utils/generateDetailPDF';
 
 const now = new Date();
 
@@ -80,6 +79,9 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const patchCustomer = useCustomersStore((s) => s.patchCustomer);
   const updateCustomer = useCustomersStore((s) => s.updateCustomer);
   const deleteCustomer = useCustomersStore((s) => s.deleteCustomer);
+  const addAdvance = useCustomersStore((s) => s.addAdvance);
+  const addCreditCharge = useCustomersStore((s) => s.addCreditCharge);
+  const deleteAdvanceEntry = useCustomersStore((s) => s.deleteAdvanceEntry);
   const textDir = { writingDirection: isRtl ? 'rtl' : 'ltr' };
   const [deletePaymentTarget, setDeletePaymentTarget] = useState(null);
   const [deletingPayment, setDeletingPayment] = useState(false);
@@ -90,6 +92,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [deletingCustomer, setDeletingCustomer] = useState(false);
   const [phoneModalVisible, setPhoneModalVisible] = useState(false);
   const [phoneSaving, setPhoneSaving] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -141,9 +144,9 @@ export default function CustomerDetailScreen({ route, navigation }) {
     }, [load])
   );
 
-  const totalSpent = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
+  const totalSpent = sumMoney(sales.map((s) => s.totalAmount));
   const creditSales = sales.filter((s) => s.paymentMethod === 'CREDIT');
-  const creditTotal = creditSales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
+  const creditTotal = sumMoney(creditSales.map((s) => s.totalAmount));
   const advanceBalance = customer ? getEffectiveAdvanceBalance(customer) : 0;
   const accountHistory = useMemo(
     () => buildCustomerAccountHistory(advanceEntries),
@@ -154,7 +157,9 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
   useEffect(() => {
     if (canSendMessages) {
-      getPaymentReminderShopSettings().then(setShopSettings);
+      getPaymentReminderShopSettings()
+        .then(setShopSettings)
+        .catch(() => setShopSettings(null));
     }
   }, [canSendMessages]);
 
@@ -213,14 +218,21 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
   const handleDeletePayment = async () => {
     if (!deletePaymentTarget) return;
+    // Deleting an entry undoes its signed effect on the running balance.
+    const reversal = -Number(deletePaymentTarget.amount ?? 0);
+    const removedId = deletePaymentTarget.id;
     try {
       setDeletingPayment(true);
       setError(null);
-      const { data } = await deleteCustomerAdvanceEntry(customerId, deletePaymentTarget.id);
-      setCustomer(data.data);
-      patchCustomer(data.data);
+      const { queued, result } = await deleteAdvanceEntry(customerId, removedId, reversal);
       setDeletePaymentTarget(null);
-      await load();
+      if (queued) {
+        setCustomer((c) => (c ? { ...c, advanceBalance: Number(c.advanceBalance ?? 0) + reversal } : c));
+        setAdvanceEntries((prev) => prev.filter((e) => e.id !== removedId));
+      } else {
+        if (result) setCustomer(result);
+        await load();
+      }
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('customer.deletePaymentFailed')));
     } finally {
@@ -232,11 +244,14 @@ export default function CustomerDetailScreen({ route, navigation }) {
     try {
       setAdvanceSaving(true);
       setError(null);
-      const { data } = await addCustomerAdvance(customerId, { amount, notes });
-      setCustomer(data.data);
-      patchCustomer(data.data);
+      const { queued, result } = await addAdvance(customerId, { amount, notes });
       setAdvanceModalVisible(false);
-      await load();
+      if (queued) {
+        setCustomer((c) => (c ? { ...c, advanceBalance: Number(c.advanceBalance ?? 0) + Number(amount) } : c));
+      } else {
+        setCustomer(result);
+        await load();
+      }
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('customer.advanceFailed')));
     } finally {
@@ -248,11 +263,14 @@ export default function CustomerDetailScreen({ route, navigation }) {
     try {
       setAdvanceSaving(true);
       setError(null);
-      const { data } = await addCustomerCreditCharge(customerId, { amount, notes });
-      setCustomer(data.data);
-      patchCustomer(data.data);
+      const { queued, result } = await addCreditCharge(customerId, { amount, notes });
       setCreditModalVisible(false);
-      await load();
+      if (queued) {
+        setCustomer((c) => (c ? { ...c, advanceBalance: Number(c.advanceBalance ?? 0) - Number(amount) } : c));
+      } else {
+        setCustomer(result);
+        await load();
+      }
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('customer.creditChargeFailed')));
     } finally {
@@ -320,6 +338,23 @@ export default function CustomerDetailScreen({ route, navigation }) {
       ? `${sales.length} sale(s) · ${formatCurrency(totalSpent)}`
       : `${periodLabel} · ${sales.length} sale(s) · ${formatCurrency(totalSpent)}`;
 
+  const handleExportPdf = useCallback(async () => {
+    if (!customer) return;
+    setExportingPdf(true);
+    try {
+      await exportCustomerLedgerPdf({
+        customer,
+        sales,
+        accountHistory,
+        periodLabel: mode === 'all' ? '' : periodLabel,
+      });
+    } catch {
+      Alert.alert(t('ledgerReport.export'), t('reports.exportFailed'));
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [customer, sales, accountHistory, mode, periodLabel, t]);
+
   const showFullSkeleton = loading && !customer;
   const showSalesSkeleton = loading && sales.length === 0;
 
@@ -350,6 +385,17 @@ export default function CustomerDetailScreen({ route, navigation }) {
     >
       <ErrorMessage message={error} />
       <PartyNetBalanceCard party={customer} style={{ marginTop: 16 }} />
+      {!isLocalCustomer ? (
+        <AppButton
+          title={t('ledgerReport.export')}
+          variant="outline"
+          icon="file-pdf-box"
+          loading={exportingPdf}
+          disabled={exportingPdf}
+          onPress={handleExportPdf}
+          style={{ marginTop: 12, marginBottom: 4 }}
+        />
+      ) : null}
       {!readOnly || canSendMessages ? (
       <Card
         mode="elevated"
@@ -359,7 +405,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
         }}
       >
         <Card.Content>
-        {!readOnly && !isLocalCustomer && getIsOnline() ? (
+        {!readOnly && !isLocalCustomer ? (
           <View style={{ gap: 8 }}>
             <AppButton
               title={t('customer.recordPayment')}

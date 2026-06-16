@@ -3,6 +3,7 @@ import { db, TRANSACTION_OPTS } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { createdAtRange } from '../../utils/dateRange.js';
 import { normalizePhone } from '../../utils/phone.js';
+import { runIdempotent } from '../../utils/idempotency.js';
 
 const toNum = (v) => Number(v ?? 0);
 
@@ -225,50 +226,62 @@ export const deletePartyAdvanceEntry = async (partyId, entryId) => {
   }, TRANSACTION_OPTS);
 };
 
-export const addPartyAdvance = async (partyId, { amount, notes }) => {
+export const addPartyAdvance = async (partyId, { amount, notes, clientRequestId }) => {
   const value = new Prisma.Decimal(amount);
   if (value.lte(0)) throw new ApiError(400, 'Amount must be greater than zero');
 
-  return db.$transaction(async (tx) => {
-    const party = await tx.party.findUnique({ where: { id: partyId } });
-    if (!party) throw new ApiError(404, 'Party not found');
+  return runIdempotent(
+    db,
+    clientRequestId,
+    async (tx) => {
+      const party = await tx.party.findUnique({ where: { id: partyId } });
+      if (!party) throw new ApiError(404, 'Party not found');
 
-    await tx.partyAdvanceEntry.create({
-      data: {
-        partyId,
-        amount: value,
-        notes: notes?.trim() || null,
-      },
-    });
+      await tx.partyAdvanceEntry.create({
+        data: {
+          partyId,
+          amount: value,
+          notes: notes?.trim() || null,
+        },
+      });
 
-    return tx.party.update({
-      where: { id: partyId },
-      data: { advanceBalance: { increment: value } },
-    });
-  }, TRANSACTION_OPTS);
+      return tx.party.update({
+        where: { id: partyId },
+        data: { advanceBalance: { increment: value } },
+      });
+    },
+    (database) => database.party.findUnique({ where: { id: partyId } }),
+    TRANSACTION_OPTS
+  );
 };
 
-export const addPartyCreditCharge = async (partyId, { amount, notes }) => {
+export const addPartyCreditCharge = async (partyId, { amount, notes, clientRequestId }) => {
   const value = new Prisma.Decimal(amount);
   if (value.lte(0)) throw new ApiError(400, 'Amount must be greater than zero');
 
-  return db.$transaction(async (tx) => {
-    const party = await tx.party.findUnique({ where: { id: partyId } });
-    if (!party) throw new ApiError(404, 'Party not found');
+  return runIdempotent(
+    db,
+    clientRequestId,
+    async (tx) => {
+      const party = await tx.party.findUnique({ where: { id: partyId } });
+      if (!party) throw new ApiError(404, 'Party not found');
 
-    await tx.partyAdvanceEntry.create({
-      data: {
-        partyId,
-        amount: value.neg(),
-        notes: notes?.trim() || null,
-      },
-    });
+      await tx.partyAdvanceEntry.create({
+        data: {
+          partyId,
+          amount: value.neg(),
+          notes: notes?.trim() || null,
+        },
+      });
 
-    return tx.party.update({
-      where: { id: partyId },
-      data: { advanceBalance: { decrement: value } },
-    });
-  }, TRANSACTION_OPTS);
+      return tx.party.update({
+        where: { id: partyId },
+        data: { advanceBalance: { decrement: value } },
+      });
+    },
+    (database) => database.party.findUnique({ where: { id: partyId } }),
+    TRANSACTION_OPTS
+  );
 };
 
 export async function getPartySupplierLedger(partyId, { from, to, search } = {}) {
@@ -341,46 +354,64 @@ export async function getPartySupplierLedger(partyId, { from, to, search } = {})
   return filtered.reverse();
 }
 
-export const addPartyPayment = async (partyId, { amount, notes }) => {
+export const addPartyPayment = async (partyId, { amount, notes, clientRequestId }) => {
   const value = new Prisma.Decimal(amount);
   if (value.lte(0)) throw new ApiError(400, 'Amount must be greater than zero');
 
-  return db.$transaction(async (tx) => {
-    const party = await tx.party.findUnique({ where: { id: partyId } });
-    if (!party) throw new ApiError(404, 'Party not found');
+  return runIdempotent(
+    db,
+    clientRequestId,
+    async (tx) => {
+      const party = await tx.party.findUnique({ where: { id: partyId } });
+      if (!party) throw new ApiError(404, 'Party not found');
 
-    const payment = await tx.partyPayment.create({
-      data: {
-        partyId,
-        amount: value,
-        notes: notes?.trim() || null,
-      },
-    });
+      const payment = await tx.partyPayment.create({
+        data: {
+          partyId,
+          amount: value,
+          notes: notes?.trim() || null,
+        },
+      });
 
-    const { payableBalance } = await getPartySupplierTotals(partyId);
-    return { payment, payableBalance };
-  }, TRANSACTION_OPTS);
+      const { payableBalance } = await getPartySupplierTotals(partyId);
+      return { payment, payableBalance };
+    },
+    async (database) => {
+      const { payableBalance } = await getPartySupplierTotals(partyId);
+      return { duplicate: true, payableBalance };
+    },
+    TRANSACTION_OPTS
+  );
 };
 
-export const addPartyPurchase = async (partyId, { amount, notes }) => {
+export const addPartyPurchase = async (partyId, { amount, notes, clientRequestId }) => {
   const value = new Prisma.Decimal(amount);
   if (value.lte(0)) throw new ApiError(400, 'Amount must be greater than zero');
 
-  return db.$transaction(async (tx) => {
-    const party = await tx.party.findUnique({ where: { id: partyId } });
-    if (!party) throw new ApiError(404, 'Party not found');
+  return runIdempotent(
+    db,
+    clientRequestId,
+    async (tx) => {
+      const party = await tx.party.findUnique({ where: { id: partyId } });
+      if (!party) throw new ApiError(404, 'Party not found');
 
-    const purchase = await tx.purchase.create({
-      data: {
-        partyId,
-        totalAmount: value,
-        notes: notes?.trim() || null,
-      },
-    });
+      const purchase = await tx.purchase.create({
+        data: {
+          partyId,
+          totalAmount: value,
+          notes: notes?.trim() || null,
+        },
+      });
 
-    const { payableBalance } = await getPartySupplierTotals(partyId);
-    return { purchase, payableBalance };
-  }, TRANSACTION_OPTS);
+      const { payableBalance } = await getPartySupplierTotals(partyId);
+      return { purchase, payableBalance };
+    },
+    async (database) => {
+      const { payableBalance } = await getPartySupplierTotals(partyId);
+      return { duplicate: true, payableBalance };
+    },
+    TRANSACTION_OPTS
+  );
 };
 
 export const deletePartyPayment = async (partyId, paymentId) => {

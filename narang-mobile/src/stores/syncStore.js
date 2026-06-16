@@ -57,6 +57,19 @@ export const useSyncStore = create((set, get) => ({
     get().setQueue(next);
   },
 
+  // Drop every queued op tied to an offline-created entity. Used when a
+  // local-only entity (never synced) is deleted/cancelled: there's no point
+  // creating it on the server just to delete it. Returns true if anything
+  // was removed (i.e. a pending CREATE existed for this localId).
+  removeByLocalId: (localId) => {
+    if (!localId) return false;
+    const { queue } = get();
+    const next = queue.filter((q) => q.localId !== localId);
+    if (next.length === queue.length) return false;
+    get().setQueue(next);
+    return true;
+  },
+
   updateItem: (id, patch) => {
     const next = get().queue.map((q) => (q.id === id ? { ...q, ...patch } : q));
     get().setQueue(next);
