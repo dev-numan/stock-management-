@@ -88,6 +88,10 @@ export default function AddCustomerScreen({ navigation, route }) {
       });
       navigation.goBack();
     } catch (err) {
+      if (err?.code === 'DUPLICATE_PHONE' || err?.name === 'OfflineValidationError') {
+        showDuplicatePhoneError(null, err.message);
+        return;
+      }
       const friendly = getFriendlyErrorMessage(err, t('customer.addFailed'));
       if (isDuplicatePhoneError(friendly)) {
         showDuplicatePhoneError(null, friendly);

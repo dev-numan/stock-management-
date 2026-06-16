@@ -108,6 +108,10 @@ export default function AddSupplierScreen({ navigation, route }) {
         initialTab: 'supplier',
       });
     } catch (err) {
+      if (err?.code === 'DUPLICATE_PHONE' || err?.name === 'OfflineValidationError') {
+        showDuplicatePhoneError(null, err.message);
+        return;
+      }
       const friendly = getFriendlyErrorMessage(err, t('supplier.addFailed'));
       if (isDuplicatePhoneError(friendly)) {
         showDuplicatePhoneError(null, friendly);

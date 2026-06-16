@@ -45,7 +45,7 @@ export const createExpense = async (data) => {
 
 export const deleteExpense = async (id) => {
   const expense = await db.expense.findUnique({ where: { id } });
-  if (!expense) throw new ApiError(404, 'Expense not found');
+  if (!expense) return { id, alreadyDeleted: true };
   await db.expense.delete({ where: { id } });
   return { id };
 };

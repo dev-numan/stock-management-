@@ -7,7 +7,8 @@ import InvoiceReceiptUrduCard from '../../components/invoice/InvoiceReceiptUrduC
 import InvoiceReceiptEnglishCard from '../../components/invoice/InvoiceReceiptEnglishCard';
 import { SHOP_NAME } from '../../constants/branding';
 import { getSale } from '../../api/sales.api';
-import { getSettings } from '../../api/settings.api';
+import { getCachedSettings, useSettingsStore } from '../../stores/settingsStore';
+import { useOfflineCacheStore } from '../../stores/offlineCacheStore';
 import { useAuth } from '../../context/AuthContext';
 import { useSalesStore } from '../../stores/salesStore';
 import { useProductsStore } from '../../stores/productsStore';
@@ -53,27 +54,38 @@ export default function InvoiceScreen({ route, navigation }) {
   useEffect(() => {
     const load = async () => {
       try {
+        const cachedSettings = getCachedSettings();
+
         if (initialSale?.pendingSync) {
           setSale(initialSale);
-          if (getIsOnline()) {
-            try {
-              const settingsRes = await getSettings();
-              setSettings(settingsRes.data.data);
-            } catch {
-              setSettings({ shopName: SHOP_NAME });
-            }
+          setSettings(cachedSettings);
+          return;
+        }
+
+        if (!getIsOnline()) {
+          const cached =
+            initialSale ||
+            useSalesStore.getState().findSaleById(saleId) ||
+            useOfflineCacheStore.getState().getSaleById(saleId);
+          setSale(cached);
+          setSettings(cachedSettings);
+          if (!cached) {
+            setLoadError(t('invoice.loadFailed'));
           } else {
-            setSettings({ shopName: SHOP_NAME });
+            setLoadError(null);
           }
           return;
         }
 
         const [saleRes, settingsRes] = await Promise.all([
           saleId ? getSale(saleId) : Promise.resolve({ data: { data: initialSale } }),
-          getSettings(),
+          useSettingsStore.getState().fetchSettings(true),
         ]);
         setSale(saleRes.data.data);
-        setSettings(settingsRes.data.data);
+        setSettings(settingsRes);
+        if (saleRes.data.data?.id) {
+          useOfflineCacheStore.getState().upsertSale(saleRes.data.data);
+        }
         setLoadError(null);
       } catch (err) {
         if (!initialSale) {
@@ -85,7 +97,7 @@ export default function InvoiceScreen({ route, navigation }) {
       }
     };
     load();
-  }, [saleId, initialSale]);
+  }, [saleId, initialSale, t]);
 
   const handleShare = async () => {
     try {

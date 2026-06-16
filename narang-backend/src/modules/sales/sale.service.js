@@ -215,7 +215,7 @@ export const deleteSale = async (id) => {
       where: { id },
       include: { items: { include: { product: true } } },
     });
-    if (!sale) throw new ApiError(404, 'Sale not found');
+    if (!sale) return { id, alreadyDeleted: true };
 
     const stockAdditions = new Map();
 

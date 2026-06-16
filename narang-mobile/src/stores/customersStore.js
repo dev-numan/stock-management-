@@ -19,6 +19,8 @@ import { usePartiesStore } from './partiesStore';
 import { removePartyEverywhere } from '../utils/partyStoreActions';
 import { zustandStorage, isStale } from './storage';
 import { roundMoney } from '../utils/money';
+import { mergeServerWithLocal, pendingLocalsFromQueue } from '../utils/mergeLocalEntities';
+import { validatePartyPhoneUnique } from '../utils/offlineValidation';
 
 const syncToPartiesStore = (customers) => {
   const parties = usePartiesStore.getState().parties;
@@ -50,10 +52,13 @@ export const useCustomersStore = create(
         set({ loading: true, error: null });
         try {
           const { data } = await getCustomers();
-          const list = data.data || [];
-          set({ customers: list, lastFetched: Date.now(), loading: false });
-          syncToPartiesStore(list);
-          return list;
+          const serverList = data.data || [];
+          const merged = mergeServerWithLocal(serverList, customers, {
+            pendingFromQueue: pendingLocalsFromQueue(['CREATE_PARTY', 'CREATE_CUSTOMER']),
+          });
+          set({ customers: merged, lastFetched: Date.now(), loading: false });
+          syncToPartiesStore(merged);
+          return merged;
         } catch (err) {
           set({
             loading: false,
@@ -76,25 +81,29 @@ export const useCustomersStore = create(
       },
 
       updateCustomer: async (id, data) => {
-        if (!getIsOnline() || String(id).startsWith('local-')) {
-          const next = get().customers.map((c) => (c.id === id ? { ...c, ...data } : c));
-          set({ customers: next });
-          syncToPartiesStore(next);
-          // Queue the edit so it reaches the server on reconnect. For a still-
-          // local contact the id resolves to its server id once its CREATE syncs.
-          useSyncStore.getState().enqueue({
-            type: 'UPDATE_CUSTOMER',
-            payload: { id, body: data },
-          });
-          return next.find((c) => c.id === id);
+        if (data.phone != null) {
+          validatePartyPhoneUnique(data.phone, id);
         }
-        const { data: res } = await updateCustomerApi(id, data);
-        const updated = res.data;
-        const next = get().customers.map((c) => (c.id === id ? updated : c));
-        set({ customers: next, lastFetched: Date.now() });
-        syncToPartiesStore(next);
-        usePartiesStore.getState().patchParty({ ...updated, partyType: 'CUSTOMER' });
-        return updated;
+        const body = { ...data };
+        const { queued, result } = await queueOrRun({
+          online: async () => {
+            const { data: res } = await updateCustomerApi(id, body);
+            const updated = res.data;
+            const next = get().customers.map((c) => (c.id === id ? updated : c));
+            set({ customers: next, lastFetched: Date.now() });
+            syncToPartiesStore(next);
+            usePartiesStore.getState().patchParty({ ...updated, partyType: 'CUSTOMER' });
+            return updated;
+          },
+          type: 'UPDATE_CUSTOMER',
+          payload: { id, body },
+          optimistic: () => {
+            const next = get().customers.map((c) => (c.id === id ? { ...c, ...body } : c));
+            set({ customers: next });
+            syncToPartiesStore(next);
+          },
+        });
+        return queued ? get().customers.find((c) => c.id === id) : result;
       },
 
       // Shift a customer's running account balance so the ledger reflects a
@@ -190,7 +199,16 @@ export const useCustomersStore = create(
       },
 
       createCustomer: async ({ name, phone, address }) => {
-        const body = { name, ...(phone ? { phone } : {}), ...(address ? { address } : {}) };
+        validatePartyPhoneUnique(phone);
+
+        const clientRequestId = createClientRequestId('party');
+        const body = {
+          name,
+          partyType: 'CUSTOMER',
+          clientRequestId,
+          ...(phone ? { phone } : {}),
+          ...(address ? { address } : {}),
+        };
 
         if (!getIsOnline()) {
           const localId = `local-customer-${Date.now()}`;
@@ -200,14 +218,16 @@ export const useCustomersStore = create(
             phone: phone || null,
             address: address || null,
             partyType: 'CUSTOMER',
+            clientRequestId,
             _local: true,
           };
           useSyncStore.getState().enqueue({
             type: 'CREATE_PARTY',
-            payload: { ...body, partyType: 'CUSTOMER' },
+            payload: body,
             localId,
           });
           get().addCustomerLocal(local);
+          usePartiesStore.getState().upsertParty(local);
           return local;
         }
 

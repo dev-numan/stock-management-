@@ -42,6 +42,8 @@ import { getEffectiveAdvanceBalance } from '../../utils/customerBalance';
 import { sumMoney } from '../../utils/money';
 import { useTranslation } from '../../i18n/useTranslation';
 import { exportCustomerLedgerPdf } from '../../utils/generateDetailPDF';
+import { useOfflineCacheStore } from '../../stores/offlineCacheStore';
+import { mergePendingAdvanceEntries } from '../../utils/pendingLedgerMerge';
 
 const now = new Date();
 
@@ -106,9 +108,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
         const { data } = await getCustomer(customerId);
         detail = data.data;
         setCustomer(detail);
-        // Keep the customers list balance in sync with the fresh detail.
         patchCustomer(detail);
       } else {
+        if (!detail) {
+          detail = useCustomersStore.getState().customers.find((c) => c.id === customerId);
+        }
         setCustomer(detail);
       }
 
@@ -123,6 +127,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
         ]);
         apiSales = salesRes.data.data || [];
         entries = advanceRes.data.data || [];
+        useOfflineCacheStore.getState().setAdvanceEntries(customerId, entries);
+      } else if (!isLocal) {
+        entries = mergePendingAdvanceEntries(
+          customerId,
+          useOfflineCacheStore.getState().getAdvanceEntries(customerId)
+        );
+        apiSales = useSalesStore.getState().getSalesForCustomer(customerId);
       }
       setAdvanceEntries(entries);
 
@@ -229,6 +240,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       if (queued) {
         setCustomer((c) => (c ? { ...c, advanceBalance: Number(c.advanceBalance ?? 0) + reversal } : c));
         setAdvanceEntries((prev) => prev.filter((e) => e.id !== removedId));
+        useOfflineCacheStore.getState().removeAdvanceEntry(customerId, removedId);
       } else {
         if (result) setCustomer(result);
         await load();
@@ -248,6 +260,15 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setAdvanceModalVisible(false);
       if (queued) {
         setCustomer((c) => (c ? { ...c, advanceBalance: Number(c.advanceBalance ?? 0) + Number(amount) } : c));
+        const entry = {
+          id: `local-advance-${Date.now()}`,
+          amount: Number(amount),
+          notes: notes?.trim() || null,
+          createdAt: new Date().toISOString(),
+          _pending: true,
+        };
+        setAdvanceEntries((prev) => [entry, ...prev]);
+        useOfflineCacheStore.getState().appendAdvanceEntry(customerId, entry);
       } else {
         setCustomer(result);
         await load();
@@ -267,6 +288,15 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setCreditModalVisible(false);
       if (queued) {
         setCustomer((c) => (c ? { ...c, advanceBalance: Number(c.advanceBalance ?? 0) - Number(amount) } : c));
+        const entry = {
+          id: `local-credit-${Date.now()}`,
+          amount: -Number(amount),
+          notes: notes?.trim() || null,
+          createdAt: new Date().toISOString(),
+          _pending: true,
+        };
+        setAdvanceEntries((prev) => [entry, ...prev]);
+        useOfflineCacheStore.getState().appendAdvanceEntry(customerId, entry);
       } else {
         setCustomer(result);
         await load();
@@ -293,6 +323,10 @@ export default function CustomerDetailScreen({ route, navigation }) {
 
   const handleDeleteCustomerPress = async () => {
     if (isLocalCustomer) return;
+    if (!getIsOnline()) {
+      setShowDeleteCustomer(true);
+      return;
+    }
     try {
       setDeleteCustomerChecking(true);
       setError(null);

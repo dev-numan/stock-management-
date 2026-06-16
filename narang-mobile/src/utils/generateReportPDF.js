@@ -4,7 +4,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { buildReportHTML } from '../components/reports/ReportPDFTemplate';
 import { getInvoiceLogoDataUri } from './invoiceLogo';
-import { getSettings } from '../api/settings.api';
+import { getCachedSettings } from '../stores/settingsStore';
 import { getT } from '../stores/languageStore';
 
 const REPORTS_DIR = `${FileSystem.documentDirectory}reports/`;
@@ -25,13 +25,7 @@ export const saveReportPdf = async (tempUri, periodLabel) => {
 
 export const exportReportPdf = async ({ summary, profitLoss, stock, periodLabel }) => {
   const t = getT();
-  let settings = null;
-  try {
-    const { data } = await getSettings();
-    settings = data.data;
-  } catch {
-    // report still exports without address/phone
-  }
+  const settings = getCachedSettings();
 
   let logoDataUri = null;
   try {

@@ -7,6 +7,8 @@ import { getProfitReport } from '../../api/reports.api';
 import { formatCurrency, formatCurrencyCompact } from '../../utils/formatCurrency';
 import { getPeriodLabel, getPeriodQueryParams } from '../../utils/formatDate';
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
+import { getIsOnline } from '../../stores/networkStore';
+import { useOfflineCacheStore, profitReportKey } from '../../stores/offlineCacheStore';
 import AppCard from '../../components/common/AppCard';
 import { ReportCardsSkeleton } from '../../components/common/Skeleton';
 import ErrorMessage from '../../components/common/ErrorMessage';
@@ -40,6 +42,19 @@ export default function ProfitScreen() {
     try {
       setLoading(true);
       setError(null);
+      const key = profitReportKey(mode, year, month, day);
+
+      if (!getIsOnline()) {
+        const cached = useOfflineCacheStore.getState().getProfitReport(key);
+        if (cached) {
+          setReport(cached);
+          return;
+        }
+        setReport(null);
+        setError(t('profit.offlineNoCache'));
+        return;
+      }
+
       const { data } = await getProfitReport({
         mode,
         year,
@@ -48,6 +63,7 @@ export default function ProfitScreen() {
         ...getPeriodQueryParams(mode, year, month, day),
       });
       setReport(data.data);
+      useOfflineCacheStore.getState().setProfitReport(key, data.data);
     } catch (err) {
       setReport(null);
       setError(getFriendlyErrorMessage(err, t('profit.loadFailed')));

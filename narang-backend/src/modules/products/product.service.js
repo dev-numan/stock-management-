@@ -95,28 +95,50 @@ const resolveAlternateFields = (data, existingUnit) => {
 };
 
 export const createProduct = async (data) => {
+  const clientRequestId = data.clientRequestId?.trim() || null;
+
+  if (clientRequestId) {
+    const existing = await db.product.findUnique({
+      where: { clientRequestId },
+      include: { party: true },
+    });
+    if (existing) return mapProductWithSupplier(existing);
+  }
+
   validateCategory(data.category);
   validateProductNumbers(data);
 
   const alternate = resolveAlternateFields(data, data.unit ?? 'BAG');
 
-  return mapProductWithSupplier(
-    await db.product.create({
-      data: {
-        name: data.name,
-        category: data.category.trim(),
-        unit: data.unit ?? 'BAG',
-        ...(alternate ?? {}),
-        costPrice: new Prisma.Decimal(data.costPrice),
-        salePrice: new Prisma.Decimal(data.salePrice),
-        currentStock: new Prisma.Decimal(0),
-        minStockAlert: new Prisma.Decimal(data.minStockAlert ?? 10),
-        expiryDate: parseExpiryDate(data.expiryDate),
-        partyId: data.partyId || data.supplierId || null,
-      },
-      include: { party: true },
-    })
-  );
+  try {
+    return mapProductWithSupplier(
+      await db.product.create({
+        data: {
+          name: data.name,
+          category: data.category.trim(),
+          unit: data.unit ?? 'BAG',
+          ...(alternate ?? {}),
+          costPrice: new Prisma.Decimal(data.costPrice),
+          salePrice: new Prisma.Decimal(data.salePrice),
+          currentStock: new Prisma.Decimal(0),
+          minStockAlert: new Prisma.Decimal(data.minStockAlert ?? 10),
+          expiryDate: parseExpiryDate(data.expiryDate),
+          partyId: data.partyId || data.supplierId || null,
+          clientRequestId,
+        },
+        include: { party: true },
+      })
+    );
+  } catch (err) {
+    if (err?.code === 'P2002' && clientRequestId) {
+      const existing = await db.product.findUnique({
+        where: { clientRequestId },
+        include: { party: true },
+      });
+      if (existing) return mapProductWithSupplier(existing);
+    }
+    throw err;
+  }
 };
 
 export const updateProduct = async (id, data) => {
@@ -284,6 +306,9 @@ export const addProductStock = async (
 };
 
 export const deleteProduct = async (id) => {
+  const product = await db.product.findUnique({ where: { id } });
+  if (!product) return { id, alreadyDeleted: true };
+
   const blockers = await getProductDeletionBlockers(id);
   if (!blockers.canDelete) {
     throw new ApiError(409, 'Product is linked to existing sales or purchases', {

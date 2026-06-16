@@ -18,6 +18,11 @@ export const createProductValidator = [
   body('minStockAlert').optional().isFloat({ min: 0 }),
   body('expiryDate').optional({ nullable: true }).isISO8601().withMessage('Expiry date must be YYYY-MM-DD'),
   body('supplierId').optional({ nullable: true }).isUUID(),
+  body('clientRequestId')
+    .optional()
+    .trim()
+    .isLength({ min: 8, max: 128 })
+    .withMessage('clientRequestId must be 8–128 characters'),
 ];
 
 export const updateProductValidator = [

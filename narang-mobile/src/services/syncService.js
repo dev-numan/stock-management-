@@ -30,6 +30,7 @@ import {
   deleteCustomerAdvanceEntry as deleteCustomerAdvanceEntryApi,
 } from '../api/customers.api';
 import { createExpense as createExpenseApi, deleteExpense as deleteExpenseApi } from '../api/expenses.api';
+import { deleteSale as deleteSaleApi } from '../api/sales.api';
 import { updateSettings as updateSettingsApi } from '../api/settings.api';
 import { useSyncStore } from '../stores/syncStore';
 import { useProductsStore } from '../stores/productsStore';
@@ -43,10 +44,13 @@ import { useDashboardStore } from '../stores/dashboardStore';
 import { getIsOnline } from '../stores/networkStore';
 import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { localDataService } from './localDataService';
+import { bootstrapOfflineCache } from './offlineBootstrap';
+import { isPermanentSyncError } from '../utils/offlineValidation';
+import { SYNC_BLOCK_AFTER_ATTEMPTS } from '../utils/syncQueueHelpers';
+import { createClientRequestId } from '../utils/clientRequestId';
+import { useOfflineCacheStore } from '../stores/offlineCacheStore';
 
-// Drop a queued change after this many failed attempts so one permanently
-// broken item can't loop forever and block the user's "pending" indicator.
-const MAX_RETRIES = 5;
+// After this many failures an item is marked blocked (kept in queue, not discarded).
 
 const isLocalId = (id) => typeof id === 'string' && id.startsWith('local-');
 
@@ -78,6 +82,8 @@ const clearIdMap = () => {
   localDataService.setMeta({ idMap: {} }).catch(() => {});
 };
 
+export { clearIdMap };
+
 const registerId = (localId, serverId) => {
   if (!localId || !serverId) return;
   idMap.set(localId, serverId);
@@ -98,14 +104,29 @@ const resolvePartyId = async (partyPayload, localPartyId) => {
   if (localPartyId && idMap.has(localPartyId)) {
     return idMap.get(localPartyId);
   }
+  const clientRequestId =
+    partyPayload.clientRequestId || createClientRequestId('party');
+  const body = { ...partyPayload, clientRequestId };
   const createFn =
     partyPayload.partyType === 'SUPPLIER'
-      ? () => createParty({ ...partyPayload, partyType: 'SUPPLIER' })
-      : () => createCustomer(partyPayload);
+      ? () => createParty({ ...body, partyType: 'SUPPLIER' })
+      : () => createCustomer(body);
   const { data } = await createFn();
   const id = data.data.id;
   registerId(localPartyId, id);
   return id;
+};
+
+/** DELETE replay after a successful server apply must not block the queue. */
+const idempotentDelete = async (fn) => {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      return { alreadyDeleted: true };
+    }
+    throw err;
+  }
 };
 
 const resolveCustomerId = async (customerPayload, localCustomerId) =>
@@ -262,7 +283,7 @@ const processItem = async (item) => {
     }
     case 'DELETE_PRODUCT': {
       const id = resolveProductId(item.payload.id);
-      await deleteProduct(id);
+      await idempotentDelete(() => deleteProduct(id));
       return { id };
     }
     case 'UPDATE_CUSTOMER': {
@@ -272,7 +293,7 @@ const processItem = async (item) => {
     }
     case 'DELETE_CUSTOMER': {
       const id = resolvePartyLikeId(item.payload.id);
-      await deleteCustomerApi(id);
+      await idempotentDelete(() => deleteCustomerApi(id));
       return { id };
     }
     case 'UPDATE_PARTY': {
@@ -282,7 +303,7 @@ const processItem = async (item) => {
     }
     case 'DELETE_PARTY': {
       const id = resolvePartyLikeId(item.payload.id);
-      await deletePartyApi(id);
+      await idempotentDelete(() => deletePartyApi(id));
       return { id };
     }
     case 'CONVERT_PARTY': {
@@ -302,7 +323,7 @@ const processItem = async (item) => {
       return processCreateSupplier(item.payload, item.localId);
     case 'DELETE_SUPPLIER': {
       const id = resolvePartyLikeId(item.payload.id);
-      await deleteSupplierApi(id);
+      await idempotentDelete(() => deleteSupplierApi(id));
       return { id };
     }
     case 'ADD_SUPPLIER_PAYMENT': {
@@ -317,14 +338,16 @@ const processItem = async (item) => {
     }
     case 'DELETE_SUPPLIER_PAYMENT': {
       const { supplierId, paymentId } = item.payload;
-      await deleteSupplierPaymentApi(resolvePartyLikeId(supplierId), paymentId);
+      await idempotentDelete(() =>
+        deleteSupplierPaymentApi(resolvePartyLikeId(supplierId), paymentId)
+      );
       return { id: paymentId };
     }
     case 'CREATE_PURCHASE':
       return processCreatePurchase(item.payload, item.localId);
     case 'DELETE_PURCHASE': {
       const { id } = item.payload;
-      await deletePurchaseApi(id);
+      await idempotentDelete(() => deletePurchaseApi(id));
       return { id };
     }
     case 'ADD_CUSTOMER_ADVANCE': {
@@ -339,14 +362,23 @@ const processItem = async (item) => {
     }
     case 'DELETE_CUSTOMER_ADVANCE_ENTRY': {
       const { customerId, entryId } = item.payload;
-      await deleteCustomerAdvanceEntryApi(resolvePartyLikeId(customerId), entryId);
+      await idempotentDelete(() =>
+        deleteCustomerAdvanceEntryApi(resolvePartyLikeId(customerId), entryId)
+      );
       return { id: entryId };
     }
     case 'CREATE_EXPENSE':
       return processCreateExpense(item.payload, item.localId);
     case 'DELETE_EXPENSE': {
       const { id } = item.payload;
-      await deleteExpenseApi(id);
+      await idempotentDelete(() => deleteExpenseApi(id));
+      return { id };
+    }
+    case 'DELETE_SALE': {
+      const { id } = item.payload;
+      await idempotentDelete(() => deleteSaleApi(id));
+      useOfflineCacheStore.getState().removeSale(id);
+      useSalesStore.getState().removeSaleFromCache(id);
       return { id };
     }
     case 'UPDATE_SETTINGS': {
@@ -358,15 +390,15 @@ const processItem = async (item) => {
   }
 };
 
-export const processSyncQueue = async () => {
+export const processSyncQueue = async ({ retryBlocked = false } = {}) => {
   if (!getIsOnline()) {
-    return { synced: 0, failed: 0, alreadySynced: false };
+    return { synced: 0, failed: 0, blocked: 0, alreadySynced: false };
   }
 
   // Guard against overlapping runs (e.g. rapid network flapping firing the
   // online handler repeatedly), which could process the queue twice.
   if (useSyncStore.getState().syncing) {
-    return { synced: 0, failed: 0, alreadySynced: true };
+    return { synced: 0, failed: 0, blocked: 0, alreadySynced: true };
   }
   useSyncStore.getState().setSyncing(true);
 
@@ -376,20 +408,33 @@ export const processSyncQueue = async () => {
     // restart, even when their CREATE synced in an earlier session.
     await hydrateIdMap();
     const sync = useSyncStore.getState();
-    const { queue } = sync;
+    let { queue } = sync;
+
+    if (retryBlocked) {
+      queue = queue.map((item) =>
+        item.blocked ? { ...item, blocked: false, retries: 0, error: null } : item
+      );
+      sync.setQueue(queue);
+    }
 
     if (!queue.length) {
-      return { synced: 0, failed: 0, alreadySynced: true };
+      return { synced: 0, failed: 0, blocked: 0, alreadySynced: true };
     }
 
     sync.setLastSyncError(null);
 
     let synced = 0;
     let failed = 0;
-    let dropped = 0;
+    let blocked = 0;
     const remaining = [];
 
     for (const item of queue) {
+      if (item.blocked) {
+        blocked += 1;
+        remaining.push(item);
+        continue;
+      }
+
       try {
         await processItem(item);
         synced += 1;
@@ -401,14 +446,31 @@ export const processSyncQueue = async () => {
           remaining.push({ ...item, error: message });
           continue;
         }
+
+        if (isPermanentSyncError(err)) {
+          blocked += 1;
+          remaining.push({
+            ...item,
+            error: message,
+            blocked: true,
+            blockedAt: new Date().toISOString(),
+          });
+          continue;
+        }
+
         const retries = (item.retries || 0) + 1;
-        if (retries >= MAX_RETRIES) {
-          // Give up on this item so it stops blocking the queue forever.
-          dropped += 1;
-          console.error(`[sync] dropping ${item.type} after ${retries} attempts: ${message}`);
+        if (retries >= SYNC_BLOCK_AFTER_ATTEMPTS) {
+          blocked += 1;
+          remaining.push({
+            ...item,
+            error: message,
+            retries,
+            blocked: true,
+            blockedAt: new Date().toISOString(),
+          });
         } else {
           failed += 1;
-          remaining.push({ ...item, error: message, retries });
+          remaining.push({ ...item, error: message, retries, blocked: false });
         }
       }
     }
@@ -417,24 +479,18 @@ export const processSyncQueue = async () => {
     sync.setLastSyncAt(new Date().toISOString());
     // Queue fully drained → no local ids can still be referenced; drop the
     // persisted map so it can't grow without bound.
-    if (remaining.length === 0) clearIdMap();
+    const hasOpenItems = remaining.some((item) => !item.blocked);
+    if (remaining.length === 0 || !hasOpenItems) {
+      if (remaining.length === 0) clearIdMap();
+    }
 
     if (synced > 0) {
       useDashboardStore.getState().invalidateTrends();
-      await Promise.all([
-        useProductsStore.getState().fetchProducts(true),
-        useCustomersStore.getState().fetchCustomers(true),
-        usePartiesStore.getState().fetchParties(true),
-        useSuppliersStore.getState().fetchSuppliers(true),
-        useExpensesStore.getState().fetchExpenses(true),
-        usePurchasesStore.getState().fetchPurchases(true),
-        useSalesStore.getState().invalidateAll(),
-        useDashboardStore.getState().fetchDashboard(true),
-      ]);
+      await bootstrapOfflineCache({ force: true });
     }
 
-    if (dropped > 0) {
-      sync.setLastSyncError(`${dropped} change(s) could not be synced and were discarded.`);
+    if (blocked > 0) {
+      sync.setLastSyncError('blocked');
     } else if (failed > 0) {
       sync.setLastSyncError(`${failed} item(s) could not sync — will retry.`);
     }
@@ -442,8 +498,8 @@ export const processSyncQueue = async () => {
     return {
       synced,
       failed,
-      dropped,
-      alreadySynced: synced === 0 && failed === 0 && dropped === 0,
+      blocked,
+      alreadySynced: synced === 0 && failed === 0 && blocked === 0,
     };
   } finally {
     useSyncStore.getState().setSyncing(false);

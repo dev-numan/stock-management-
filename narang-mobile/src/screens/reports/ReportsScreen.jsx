@@ -6,6 +6,8 @@ import { getSalesSummary, getProfitLoss, getStockValuation } from '../../api/rep
 import { formatCurrency } from '../../utils/formatCurrency';
 import { getPeriodQueryParams, getPeriodLabel } from '../../utils/formatDate';
 import { exportReportPdf } from '../../utils/generateReportPDF';
+import { getIsOnline } from '../../stores/networkStore';
+import { useOfflineCacheStore, reportPeriodKey } from '../../stores/offlineCacheStore';
 import AppCard from '../../components/common/AppCard';
 import AppButton from '../../components/common/AppButton';
 import { ReportCardsSkeleton } from '../../components/common/Skeleton';
@@ -35,18 +37,40 @@ export default function ReportsScreen() {
     try {
       setLoading(true);
       setError(null);
+      const params = getPeriodQueryParams(mode, year, month, day);
+      const periodKey = reportPeriodKey(mode, year, month, day);
+
+      if (!getIsOnline()) {
+        const cached = useOfflineCacheStore.getState().getReportsBundle(periodKey);
+        const stockCached = useOfflineCacheStore.getState().getStockValuation();
+        if (cached?.summary && cached?.profitLoss && stockCached) {
+          setSummary(cached.summary);
+          setProfitLoss(cached.profitLoss);
+          setStock(stockCached);
+          return;
+        }
+        setError(t('profit.offlineNoCache'));
+        return;
+      }
+
       setSummary(null);
       setProfitLoss(null);
       setStock(null);
-      const params = getPeriodQueryParams(mode, year, month, day);
       const [s, p, st] = await Promise.all([
         getSalesSummary(params),
         getProfitLoss(params),
         getStockValuation(),
       ]);
-      setSummary(s.data.data);
-      setProfitLoss(p.data.data);
-      setStock(st.data.data);
+      const summaryData = s.data.data;
+      const profitData = p.data.data;
+      const stockData = st.data.data;
+      setSummary(summaryData);
+      setProfitLoss(profitData);
+      setStock(stockData);
+      useOfflineCacheStore.getState().setReportsBundle(periodKey, {
+        summary: summaryData,
+        profitLoss: profitData,
+      });
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('reports.loadFailed')));
     } finally {

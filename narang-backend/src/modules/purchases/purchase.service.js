@@ -115,7 +115,7 @@ export const deletePurchase = async (id) => {
       where: { id },
       include: { items: true },
     });
-    if (!purchase) throw new ApiError(404, 'Purchase not found');
+    if (!purchase) return { id, alreadyDeleted: true };
 
     // Reversing a purchase removes the stock it added. Guard in the WHERE clause
     // so we never drive stock negative when some of it was already sold — a

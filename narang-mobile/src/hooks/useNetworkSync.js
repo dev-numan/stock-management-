@@ -3,9 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { useNetworkStore } from '../stores/networkStore';
 import { useSyncStore } from '../stores/syncStore';
 import { processSyncQueue } from '../services/syncService';
-import { useProductsStore } from '../stores/productsStore';
-import { useCustomersStore } from '../stores/customersStore';
-import { usePartiesStore } from '../stores/partiesStore';
+import { bootstrapOfflineCache } from '../services/offlineBootstrap';
 import { getToken } from '../utils/storage';
 import { pingHealth } from '../api/health.api';
 
@@ -18,16 +16,6 @@ export function useNetworkSync() {
   useEffect(() => {
     useSyncStore.getState().hydrate();
 
-    const refreshCaches = async () => {
-      const token = await getToken();
-      if (!token) return;
-      await Promise.all([
-        useProductsStore.getState().fetchProducts(true),
-        useCustomersStore.getState().fetchCustomers(true),
-        usePartiesStore.getState().fetchParties(true),
-      ]);
-    };
-
     const handleOnline = async (netOnline) => {
       setOnline(netOnline);
       if (!netOnline) return;
@@ -38,8 +26,11 @@ export function useNetworkSync() {
         return;
       }
 
+      const token = await getToken();
+      if (!token) return;
+
       await processSyncQueue();
-      await refreshCaches();
+      await bootstrapOfflineCache({ force: true });
     };
 
     const unsub = NetInfo.addEventListener((state) => {

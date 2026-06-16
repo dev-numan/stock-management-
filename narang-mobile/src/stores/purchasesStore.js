@@ -14,6 +14,7 @@ import { useProductsStore } from './productsStore';
 import { useSuppliersStore } from './suppliersStore';
 import { zustandStorage, isStale } from './storage';
 import { roundMoney } from '../utils/money';
+import { mergeServerWithLocal, pendingLocalsFromQueue } from '../utils/mergeLocalEntities';
 
 export const usePurchasesStore = create(
   persist(
@@ -35,8 +36,11 @@ export const usePurchasesStore = create(
           set({ loading: true, error: null });
           const { data } = await getPurchases();
           const list = data.data || [];
-          set({ purchases: list, lastFetched: Date.now(), loading: false });
-          return list;
+          const merged = mergeServerWithLocal(list, purchases, {
+            pendingFromQueue: pendingLocalsFromQueue(['CREATE_PURCHASE']),
+          });
+          set({ purchases: merged, lastFetched: Date.now(), loading: false });
+          return merged;
         } catch (err) {
           set({
             loading: false,

@@ -18,6 +18,8 @@ import { usePartiesStore } from './partiesStore';
 import { removePartyEverywhere } from '../utils/partyStoreActions';
 import { zustandStorage, isStale } from './storage';
 import { roundMoney } from '../utils/money';
+import { mergeServerWithLocal, pendingLocalsFromQueue } from '../utils/mergeLocalEntities';
+import { validatePartyPhoneUnique } from '../utils/offlineValidation';
 
 const syncToPartiesStore = (suppliers) => {
   const parties = usePartiesStore.getState().parties;
@@ -48,10 +50,13 @@ export const useSuppliersStore = create(
         try {
           set({ loading: true, error: null });
           const { data } = await getSuppliers();
-          const list = data.data || [];
-          set({ suppliers: list, lastFetched: Date.now(), loading: false });
-          syncToPartiesStore(list);
-          return list;
+          const serverList = data.data || [];
+          const merged = mergeServerWithLocal(serverList, suppliers, {
+            pendingFromQueue: pendingLocalsFromQueue(['CREATE_SUPPLIER', 'CREATE_PARTY']),
+          });
+          set({ suppliers: merged, lastFetched: Date.now(), loading: false });
+          syncToPartiesStore(merged);
+          return merged;
         } catch (err) {
           set({
             loading: false,
@@ -84,16 +89,29 @@ export const useSuppliersStore = create(
       },
 
       createSupplier: async (payload) => {
+        validatePartyPhoneUnique(payload.phone);
+
+        const clientRequestId = createClientRequestId('party');
+        const body = { ...payload, partyType: 'SUPPLIER', clientRequestId };
+
         if (!getIsOnline()) {
           const localId = `local-supplier-${Date.now()}`;
-          const local = { id: localId, ...payload, payableBalance: 0, partyType: 'SUPPLIER', _local: true };
-          useSyncStore.getState().enqueue({ type: 'CREATE_SUPPLIER', payload, localId });
+          const local = {
+            id: localId,
+            ...body,
+            payableBalance: 0,
+            partyType: 'SUPPLIER',
+            clientRequestId,
+            _local: true,
+          };
+          useSyncStore.getState().enqueue({ type: 'CREATE_SUPPLIER', payload: body, localId });
           const next = [...get().suppliers, local];
           set({ suppliers: next });
           syncToPartiesStore(next);
+          usePartiesStore.getState().upsertParty(local);
           return local;
         }
-        const { data } = await apiCreateSupplier(payload);
+        const { data } = await apiCreateSupplier(body);
         const created = data.data;
         const next = [...get().suppliers.filter((s) => s.id !== created.id), { ...created, payableBalance: created.payableBalance ?? 0, partyType: 'SUPPLIER' }];
         set({ suppliers: next, lastFetched: Date.now() });

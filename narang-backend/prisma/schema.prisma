@@ -54,13 +54,14 @@ model Settings {
 }
 
 model Party {
-  id             String              @id @default(uuid())
-  name           String
-  phone          String?
-  address        String?
-  partyType      PartyType           @default(CUSTOMER)
-  advanceBalance Decimal             @default(0)
-  createdAt      DateTime            @default(now())
+  id                String              @id @default(uuid())
+  clientRequestId   String?             @unique
+  name              String
+  phone             String?
+  address           String?
+  partyType         PartyType           @default(CUSTOMER)
+  advanceBalance    Decimal             @default(0)
+  createdAt         DateTime            @default(now())
   sales          Sale[]
   advanceEntries PartyAdvanceEntry[]
   purchases      Purchase[]
@@ -94,6 +95,7 @@ model PartyAdvanceEntry {
 
 model Product {
   id                  String         @id @default(uuid())
+  clientRequestId     String?        @unique
   name                String
   category            String
   unit                Unit           @default(BAG)

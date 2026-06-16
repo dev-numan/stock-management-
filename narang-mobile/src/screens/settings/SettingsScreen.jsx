@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Text, useTheme } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getSettings, updateSettings } from '../../api/settings.api';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { queueOrRun } from '../../services/offlineMutation';
 import AppInput from '../../components/common/AppInput';
 import AppButton from '../../components/common/AppButton';
@@ -17,6 +17,7 @@ import LanguageSettingsSection from '../../components/settings/LanguageSettingsS
 import { useAuth } from '../../context/AuthContext';
 import { useDashboardStore } from '../../stores/dashboardStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { createClientRequestId } from '../../utils/clientRequestId';
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -45,9 +46,10 @@ export default function SettingsScreen() {
       setLoading(false);
       return;
     }
-    getSettings()
-      .then(({ data }) => {
-        const s = data.data;
+    useSettingsStore
+      .getState()
+      .fetchSettings(true)
+      .then((s) => {
         reset({
           address: s.address,
           phone: s.phone,
@@ -66,10 +68,15 @@ export default function SettingsScreen() {
       setSuccess(false);
       await queueOrRun({
         online: async () => {
-          await updateSettings(formData);
+          await useSettingsStore.getState().updateSettings(formData);
         },
         type: 'UPDATE_SETTINGS',
-        payload: formData,
+        payload: { ...formData, clientRequestId: createClientRequestId('settings') },
+        optimistic: () => {
+          useSettingsStore.setState({
+            settings: { ...useSettingsStore.getState().settings, ...formData },
+          });
+        },
       });
       useDashboardStore.getState().invalidate();
       setSuccess(true);

@@ -4,6 +4,7 @@ import { SegmentedButtons, Text, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { getParty } from '../../api/parties.api';
 import AppButton from '../../components/common/AppButton';
+import { getIsOnline } from '../../stores/networkStore';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { CustomerDetailSkeleton } from '../../components/common/Skeleton';
@@ -53,6 +54,17 @@ export default function PartyDetailScreen({ route, navigation }) {
     try {
       setLoading(true);
       setError(null);
+      if (!getIsOnline()) {
+        const cached =
+          usePartiesStore.getState().parties.find((p) => p.id === partyId) ||
+          initialParty;
+        if (cached) {
+          setParty(cached);
+          if (cached.partyType === 'CUSTOMER') patchCustomer(cached);
+          else upsertSupplier(cached);
+        }
+        return;
+      }
       const { data } = await getParty(partyId);
       const fresh = data.data;
       setParty(fresh);

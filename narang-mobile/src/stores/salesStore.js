@@ -3,7 +3,12 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { getSales, deleteSale as deleteSaleApi } from '../api/sales.api';
 import { isInstantInLocalRange } from '../utils/formatDate';
 import { getIsOnline } from './networkStore';
+import { useSyncStore } from './syncStore';
+import { queueOrRun } from '../services/offlineMutation';
+import { useOfflineCacheStore } from './offlineCacheStore';
 import { zustandStorage, isStale } from './storage';
+
+export const ALL_SALES_KEY = '__all__';
 
 const cacheKey = (params) => JSON.stringify(params || {});
 
@@ -13,6 +18,34 @@ export const useSalesStore = create(
       pendingSales: [],
       salesByKey: {},
       lastFetchedByKey: {},
+
+      setAllSales: (sales) => {
+        set({
+          salesByKey: { ...get().salesByKey, [ALL_SALES_KEY]: sales },
+          lastFetchedByKey: { ...get().lastFetchedByKey, [ALL_SALES_KEY]: Date.now() },
+        });
+      },
+
+      getAllSalesCached: () => get().salesByKey[ALL_SALES_KEY] || [],
+
+      getSalesForCustomer: (customerId, { from, to } = {}) => {
+        const all = get().getAllSalesCached();
+        return all.filter((s) => {
+          const cid = s.customerId || s.partyId || s.customer?.id;
+          if (cid !== customerId) return false;
+          if (from && new Date(s.createdAt) < new Date(from)) return false;
+          if (to && new Date(s.createdAt) > new Date(to)) return false;
+          return true;
+        });
+      },
+
+      findSaleById: (id) => {
+        if (!id) return null;
+        const pending = get().pendingSales.find((s) => s.id === id || s.localId === id);
+        if (pending) return pending;
+        const all = get().getAllSalesCached();
+        return all.find((s) => s.id === id) || null;
+      },
 
       addPendingSale: (sale) =>
         set({ pendingSales: [sale, ...get().pendingSales] }),
@@ -41,6 +74,30 @@ export const useSalesStore = create(
 
         if (!getIsOnline()) {
           const pending = get().getPendingForRange(params.from, params.to);
+          const all = get().getAllSalesCached();
+          if (all.length) {
+            let list = all;
+            if (params.from || params.to) {
+              list = all.filter((s) => {
+                const t = new Date(s.createdAt);
+                if (params.from && t < new Date(params.from)) return false;
+                if (params.to && t > new Date(params.to)) return false;
+                return true;
+              });
+            }
+            if (params.customerId) {
+              list = list.filter(
+                (s) =>
+                  s.customerId === params.customerId ||
+                  s.partyId === params.customerId ||
+                  s.customer?.id === params.customerId
+              );
+            }
+            if (params.paymentMethod) {
+              list = list.filter((s) => s.paymentMethod === params.paymentMethod);
+            }
+            return get().mergeWithPending(list, params);
+          }
           return [...pending, ...(cached || [])];
         }
 
@@ -110,13 +167,22 @@ export const useSalesStore = create(
           get().removePendingSale(sale.localId || id);
           return { id };
         }
-        if (!getIsOnline()) {
-          throw new Error('Offline — connect to the internet to delete this sale.');
-        }
-        const { data } = await deleteSaleApi(id);
-        get().removeSaleFromCache(id);
-        get().invalidateAll();
-        return data.data;
+        const { queued, result } = await queueOrRun({
+          online: async () => {
+            const { data } = await deleteSaleApi(id);
+            get().removeSaleFromCache(id);
+            useOfflineCacheStore.getState().removeSale(id);
+            get().invalidateAll();
+            return data.data;
+          },
+          type: 'DELETE_SALE',
+          payload: { id },
+          optimistic: () => {
+            get().removeSaleFromCache(id);
+            useOfflineCacheStore.getState().removeSale(id);
+          },
+        });
+        return queued ? { id } : result;
       },
     }),
     {

@@ -3,18 +3,21 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getInvoiceLogoDataUri } from './invoiceLogo';
-import { getSettings } from '../api/settings.api';
+import { getCachedSettings, useSettingsStore } from '../stores/settingsStore';
 import { getT } from '../stores/languageStore';
 
 const REPORTS_DIR = `${FileSystem.documentDirectory}reports/`;
 
 export async function loadReportAssets() {
-  let settings = null;
-  try {
-    const { data } = await getSettings();
-    settings = data.data;
-  } catch {
-    // report still exports without address/phone
+  let settings = getCachedSettings();
+  if (useSettingsStore.getState().lastFetched) {
+    settings = useSettingsStore.getState().settings;
+  } else {
+    try {
+      settings = await useSettingsStore.getState().fetchSettings(true);
+    } catch {
+      // report still exports without address/phone
+    }
   }
 
   let logoDataUri = null;

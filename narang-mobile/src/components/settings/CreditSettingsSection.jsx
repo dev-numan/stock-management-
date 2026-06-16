@@ -12,6 +12,7 @@ import {
 import { getFriendlyErrorMessage } from '../../utils/apiErrors';
 import { useCustomersStore } from '../../stores/customersStore';
 import { useSalesStore } from '../../stores/salesStore';
+import { useOfflineCacheStore } from '../../stores/offlineCacheStore';
 import { getIsOnline } from '../../stores/networkStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
@@ -39,6 +40,8 @@ export default function CreditSettingsSection({ navigation }) {
       if (getIsOnline()) {
         const { data } = await getCredits();
         apiSales = data.data?.sales || [];
+      } else {
+        apiSales = useOfflineCacheStore.getState().getCreditSales();
       }
 
       setSales(mergeCreditSalesWithPending(apiSales));

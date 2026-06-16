@@ -5,6 +5,7 @@ import { usePartiesStore } from '../stores/partiesStore';
 import { useSalesStore } from '../stores/salesStore';
 import { localDataService } from './localDataService';
 import { getIsOnline } from '../stores/networkStore';
+import { bootstrapOfflineCache } from './offlineBootstrap';
 
 /** Clear stale read caches and refetch from server (does not delete pending writes). */
 export async function refreshAllData() {
@@ -27,6 +28,7 @@ export async function refreshAllData() {
     useProductsStore.getState().fetchProducts(true),
     useCustomersStore.getState().fetchCustomers(true),
     usePartiesStore.getState().fetchParties(true),
+    bootstrapOfflineCache({ force: true }),
   ]);
 
   return { offline: false };

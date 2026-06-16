@@ -18,6 +18,7 @@ import ConfirmModal from '../../components/common/ConfirmModal';
 import ProductDeletionBlockedModal from '../../components/products/ProductDeletionBlockedModal';
 import { useAuth } from '../../context/AuthContext';
 import { useProductsStore } from '../../stores/productsStore';
+import { getIsOnline } from '../../stores/networkStore';
 import {
   PRODUCT_CATEGORIES,
   PRODUCT_UNITS,
@@ -111,6 +112,28 @@ export default function AddEditProductScreen({ route, navigation }) {
 
   useEffect(() => {
     if (!initialProduct?.id) return undefined;
+
+    const cached = useProductsStore.getState().getById(initialProduct.id) || initialProduct;
+    if (!getIsOnline()) {
+      const p = cached;
+      setProductId(p.id);
+      setValue('name', p.name);
+      setValue('category', p.category || p.category?.name || PRODUCT_CATEGORIES[0]);
+      setValue('unit', p.unit);
+      setValue('sellByAlternate', Boolean(p.alternateSaleUnit));
+      setValue('alternateSaleUnit', p.alternateSaleUnit || '');
+      setValue('unitsPerStockUnit', p.unitsPerStockUnit ? String(Number(p.unitsPerStockUnit)) : '');
+      setValue('costPrice', String(Number(p.costPrice)));
+      setValue('salePrice', String(Number(p.salePrice)));
+      setDisplayStock(Number(p.currentStock));
+      setValue('minStockAlert', String(Number(p.minStockAlert)));
+      setValue('expiryDate', p.expiryDate ? new Date(p.expiryDate).toISOString().slice(0, 10) : '');
+      setLoadedSupplier(p.supplier || null);
+      setSupplierName(p.supplier?.name || '');
+      setSelectedSupplier(p.supplier || null);
+      setProductLoading(false);
+      return undefined;
+    }
 
     let cancelled = false;
     setProductLoading(true);
@@ -281,6 +304,10 @@ export default function AddEditProductScreen({ route, navigation }) {
 
   const handleDeletePress = async () => {
     if (!productId) return;
+    if (!getIsOnline()) {
+      setShowDelete(true);
+      return;
+    }
     try {
       setDeleteChecking(true);
       setError(null);

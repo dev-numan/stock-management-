@@ -4,6 +4,7 @@ import { useNetworkStore } from '../../stores/networkStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { processSyncQueue } from '../../services/syncService';
 import { useTranslation } from '../../i18n/useTranslation';
+import { countQueueStates } from '../../utils/syncQueueHelpers';
 
 export default function OfflineBanner() {
   const theme = useTheme();
@@ -13,19 +14,28 @@ export default function OfflineBanner() {
   const syncing = useSyncStore((s) => s.syncing);
   const lastSyncError = useSyncStore((s) => s.lastSyncError);
 
-  const pending = queue.length;
-  if (isOnline && pending === 0 && !lastSyncError) return null;
+  const { pending, blocked, total } = countQueueStates(queue);
+  if (isOnline && total === 0 && !lastSyncError) return null;
 
   const handleSync = async () => {
     if (!isOnline || syncing) return;
-    await processSyncQueue();
+    await processSyncQueue({ retryBlocked: true });
   };
 
-  const subtitle = isOnline
-    ? pending
-      ? t('sync.pendingSubtitle', { count: pending })
-      : String(lastSyncError || t('sync.retryHint'))
-    : t('sync.offlineSubtitle');
+  let subtitle;
+  if (!isOnline) {
+    subtitle = t('sync.offlineSubtitle');
+  } else if (blocked > 0 && pending > 0) {
+    subtitle = t('sync.mixedSubtitle', { pending, blocked });
+  } else if (blocked > 0) {
+    subtitle = t('sync.blockedSubtitle', { count: blocked });
+  } else if (pending > 0) {
+    subtitle = t('sync.pendingSubtitle', { count: pending });
+  } else if (lastSyncError === 'blocked') {
+    subtitle = t('sync.blockedSubtitle', { count: blocked });
+  } else {
+    subtitle = String(lastSyncError || t('sync.retryHint'));
+  }
 
   const title = isOnline ? t('sync.pendingTitle') : t('sync.offlineTitle');
 
@@ -34,7 +44,7 @@ export default function OfflineBanner() {
       visible
       icon={isOnline ? 'cloud-sync' : 'cloud-off-outline'}
       actions={
-        isOnline && pending > 0
+        isOnline && total > 0
           ? [{ label: syncing ? t('sync.syncing') : t('sync.syncNow'), onPress: handleSync, loading: syncing }]
           : []
       }

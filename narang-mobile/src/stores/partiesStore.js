@@ -11,8 +11,14 @@ import { getFriendlyErrorMessage } from '../utils/apiErrors';
 import { normalizePhone } from '../utils/phone';
 import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
+import { queueOrRun } from '../services/offlineMutation';
 import { zustandStorage, isStale } from './storage';
 import { removePartyEverywhere } from '../utils/partyStoreActions';
+import { mergeServerWithLocal, pendingLocalsFromQueue } from '../utils/mergeLocalEntities';
+import { validatePartyPhoneUnique } from '../utils/offlineValidation';
+import { createClientRequestId } from '../utils/clientRequestId';
+import { useCustomersStore } from './customersStore';
+import { useSuppliersStore } from './suppliersStore';
 
 export const usePartiesStore = create(
   persist(
@@ -34,9 +40,12 @@ export const usePartiesStore = create(
         set({ loading: true, error: null });
         try {
           const { data } = await getParties();
-          const list = data.data || [];
-          set({ parties: list, lastFetched: Date.now(), loading: false });
-          return list;
+          const serverList = data.data || [];
+          const merged = mergeServerWithLocal(serverList, parties, {
+            pendingFromQueue: pendingLocalsFromQueue(['CREATE_PARTY', 'CREATE_CUSTOMER', 'CREATE_SUPPLIER']),
+          });
+          set({ parties: merged, lastFetched: Date.now(), loading: false });
+          return merged;
         } catch (err) {
           set({
             loading: false,
@@ -80,9 +89,13 @@ export const usePartiesStore = create(
         }),
 
       createParty: async ({ name, phone, address, partyType = 'CUSTOMER' }) => {
+        validatePartyPhoneUnique(phone);
+
+        const clientRequestId = createClientRequestId('party');
         const body = {
           name,
           partyType,
+          clientRequestId,
           ...(phone ? { phone } : {}),
           ...(address ? { address } : {}),
         };
@@ -95,6 +108,7 @@ export const usePartiesStore = create(
             phone: phone || null,
             address: address || null,
             partyType,
+            clientRequestId,
             advanceBalance: 0,
             payableBalance: 0,
             _local: true,
@@ -118,28 +132,57 @@ export const usePartiesStore = create(
       },
 
       updateParty: async (id, data) => {
-        if (!getIsOnline() || String(id).startsWith('local-')) {
-          set({
-            parties: get().parties.map((p) => (p.id === id ? { ...p, ...data } : p)),
-          });
-          useSyncStore.getState().enqueue({
-            type: 'UPDATE_PARTY',
-            payload: { id, body: data },
-          });
-          return get().parties.find((p) => p.id === id);
+        if (data.phone != null) {
+          validatePartyPhoneUnique(data.phone, id);
         }
-        const { data: res } = await updatePartyApi(id, data);
-        const updated = res.data;
-        set({
-          parties: get().parties.map((p) => (p.id === id ? { ...p, ...updated } : p)),
-          lastFetched: Date.now(),
+        const body = { ...data };
+        const { queued, result } = await queueOrRun({
+          online: async () => {
+            const { data: res } = await updatePartyApi(id, body);
+            const updated = res.data;
+            set({
+              parties: get().parties.map((p) => (p.id === id ? { ...p, ...updated } : p)),
+              lastFetched: Date.now(),
+            });
+            return updated;
+          },
+          type: 'UPDATE_PARTY',
+          payload: { id, body },
+          optimistic: () => {
+            set({
+              parties: get().parties.map((p) => (p.id === id ? { ...p, ...body } : p)),
+            });
+          },
         });
-        return updated;
+        return queued ? get().parties.find((p) => p.id === id) : result;
       },
 
       convertPartyType: async (id, partyType) => {
+        const party = get().parties.find((p) => p.id === id);
+        const applyLocalConvert = () => {
+          if (!party) return;
+          const updated = { ...party, partyType };
+          set({
+            parties: get().parties.map((p) => (p.id === id ? updated : p)),
+          });
+          if (partyType === 'CUSTOMER') {
+            useSuppliersStore.setState({
+              suppliers: useSuppliersStore.getState().suppliers.filter((s) => s.id !== id),
+            });
+            useCustomersStore.getState().patchCustomer(updated);
+          } else {
+            useCustomersStore.setState({
+              customers: useCustomersStore.getState().customers.filter((c) => c.id !== id),
+            });
+            useSuppliersStore.getState().upsertSupplier({
+              ...updated,
+              payableBalance: updated.payableBalance ?? 0,
+            });
+          }
+        };
+
         if (!getIsOnline() || String(id).startsWith('local-')) {
-          get().patchParty({ id, partyType });
+          applyLocalConvert();
           useSyncStore.getState().enqueue({
             type: 'CONVERT_PARTY',
             payload: { id, partyType },
@@ -148,8 +191,24 @@ export const usePartiesStore = create(
         }
         const { data } = await convertPartyApi(id, partyType);
         const updated = data.data;
-        get().upsertParty(updated);
-        set({ lastFetched: Date.now() });
+        set({
+          parties: get().parties.map((p) => (p.id === id ? { ...p, ...updated } : p)),
+          lastFetched: Date.now(),
+        });
+        if (partyType === 'CUSTOMER') {
+          useSuppliersStore.setState({
+            suppliers: useSuppliersStore.getState().suppliers.filter((s) => s.id !== id),
+          });
+          useCustomersStore.getState().patchCustomer(updated);
+        } else {
+          useCustomersStore.setState({
+            customers: useCustomersStore.getState().customers.filter((c) => c.id !== id),
+          });
+          useSuppliersStore.getState().upsertSupplier({
+            ...updated,
+            payableBalance: updated.payableBalance ?? 0,
+          });
+        }
         return updated;
       },
 

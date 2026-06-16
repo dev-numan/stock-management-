@@ -13,6 +13,11 @@ const partyBody = [
   body('phone').optional().trim(),
   body('address').optional().trim(),
   body('partyType').optional().isIn(['CUSTOMER', 'SUPPLIER']),
+  body('clientRequestId')
+    .optional()
+    .trim()
+    .isLength({ min: 8, max: 128 })
+    .withMessage('clientRequestId must be 8–128 characters'),
 ];
 
 const advanceBody = [

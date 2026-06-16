@@ -16,6 +16,8 @@ import { createClientRequestId } from '../utils/clientRequestId';
 import { useDashboardStore } from './dashboardStore';
 import { zustandStorage, isStale } from './storage';
 import { filterAndSortProducts } from '../utils/productListFilters';
+import { mergeServerWithLocal, pendingLocalsFromQueue } from '../utils/mergeLocalEntities';
+import { validateProductPrices } from '../utils/offlineValidation';
 
 /** Mark the dashboard stale so inventory stats refetch on next focus. */
 const invalidateDashboard = () => useDashboardStore.getState().invalidate();
@@ -77,9 +79,12 @@ export const useProductsStore = create(
         set({ loading: isInitialLoad, error: null });
         try {
           const { data } = await getProducts({ search: '' });
-          const list = data.data || [];
-          set({ products: list, lastFetched: Date.now(), loading: false, error: null });
-          return list;
+          const serverList = data.data || [];
+          const merged = mergeServerWithLocal(serverList, products, {
+            pendingFromQueue: pendingLocalsFromQueue(['CREATE_PRODUCT']),
+          });
+          set({ products: merged, lastFetched: Date.now(), loading: false, error: null });
+          return merged;
         } catch (err) {
           const message = getFriendlyErrorMessage(err, getT()('products.loadFailedRefresh'));
           set({ loading: false, error: products.length ? null : message });
@@ -88,20 +93,29 @@ export const useProductsStore = create(
       },
 
       saveProduct: async (id, data) => {
-        if (!getIsOnline()) {
-          useSyncStore.getState().enqueue({
-            type: 'UPDATE_PRODUCT',
-            payload: { id, body: data },
-          });
-          get().patchProduct(id, data);
-          invalidateDashboard();
-          return { id, ...data };
-        }
-        const { data: res } = await updateProductApi(id, data);
-        get().patchProduct(id, res.data);
-        set({ lastFetched: Date.now() });
-        invalidateDashboard();
-        return res.data;
+        validateProductPrices({
+          costPrice: data.costPrice,
+          salePrice: data.salePrice,
+          currentStock: data.currentStock,
+          minStockAlert: data.minStockAlert,
+        });
+        const body = { ...data };
+        const { queued, result } = await queueOrRun({
+          online: async () => {
+            const { data: res } = await updateProductApi(id, body);
+            get().patchProduct(id, res.data);
+            set({ lastFetched: Date.now() });
+            invalidateDashboard();
+            return res.data;
+          },
+          type: 'UPDATE_PRODUCT',
+          payload: { id, body },
+          optimistic: () => {
+            get().patchProduct(id, body);
+            invalidateDashboard();
+          },
+        });
+        return queued ? get().getById(id) : result;
       },
 
       addProductStock: async (productId, { quantity, supplierId, supplierName, notes, costPrice, salePrice }) => {
@@ -137,11 +151,16 @@ export const useProductsStore = create(
       },
 
       createProduct: async (data) => {
+        validateProductPrices(data);
+
+        const clientRequestId = createClientRequestId('product');
+        const payload = { ...data, clientRequestId };
+
         if (!getIsOnline()) {
           const localId = `local-product-${Date.now()}`;
           const local = {
             id: localId,
-            ...data,
+            ...payload,
             _local: true,
             costPrice: data.costPrice,
             salePrice: data.salePrice,
@@ -150,14 +169,14 @@ export const useProductsStore = create(
           };
           useSyncStore.getState().enqueue({
             type: 'CREATE_PRODUCT',
-            payload: data,
+            payload,
             localId,
           });
           set({ products: [local, ...get().products] });
           invalidateDashboard();
           return local;
         }
-        const { data: res } = await createProductApi(data);
+        const { data: res } = await createProductApi(payload);
         set({
           products: [res.data, ...get().products.filter((p) => p.id !== res.data.id)],
           lastFetched: Date.now(),
@@ -167,18 +186,19 @@ export const useProductsStore = create(
       },
 
       deleteProduct: async (id) => {
-        if (!getIsOnline()) {
-          useSyncStore.getState().enqueue({
-            type: 'DELETE_PRODUCT',
-            payload: { id },
-          });
-          get().removeProduct(id);
-          invalidateDashboard();
-          return;
-        }
-        await deleteProductApi(id);
-        get().removeProduct(id);
-        invalidateDashboard();
+        await queueOrRun({
+          online: async () => {
+            await deleteProductApi(id);
+            get().removeProduct(id);
+            invalidateDashboard();
+          },
+          type: 'DELETE_PRODUCT',
+          payload: { id },
+          optimistic: () => {
+            get().removeProduct(id);
+            invalidateDashboard();
+          },
+        });
       },
     }),
     {

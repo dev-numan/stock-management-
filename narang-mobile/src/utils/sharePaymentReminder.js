@@ -1,5 +1,5 @@
 import { Alert, Platform } from 'react-native';
-import { getSettings } from '../api/settings.api';
+import { getCachedSettings, useSettingsStore } from '../stores/settingsStore';
 import { APP_NAME_URDU } from '../constants/branding';
 import { buildPaymentReminderText } from './paymentReminder';
 import { toWhatsAppPhone } from './phone';
@@ -25,10 +25,12 @@ function getWhatsAppErrorMessage(err) {
 
 const loadShopSettings = async () => {
   try {
-    const { data } = await getSettings();
-    return data.data || {};
+    if (getCachedSettings()?.phone || getCachedSettings()?.address) {
+      return getCachedSettings();
+    }
+    return await useSettingsStore.getState().fetchSettings(true);
   } catch {
-    return {};
+    return getCachedSettings() || {};
   }
 };
 

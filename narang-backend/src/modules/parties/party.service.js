@@ -108,6 +108,16 @@ export const getPartyById = async (id) => {
 
 export const createParty = async (data) => {
   const partyType = data.partyType === 'SUPPLIER' ? 'SUPPLIER' : 'CUSTOMER';
+  const clientRequestId = data.clientRequestId?.trim() || null;
+
+  if (clientRequestId) {
+    const existing = await db.party.findUnique({ where: { clientRequestId } });
+    if (existing) {
+      const totals = await getPartySupplierTotals(existing.id);
+      return enrichParty(existing, totals);
+    }
+  }
+
   const phoneKey = normalizePhone(data.phone);
   if (phoneKey) {
     const withPhone = await db.party.findMany({
@@ -120,18 +130,47 @@ export const createParty = async (data) => {
       throw new ApiError(409, `${label} with this phone is already saved in the list`);
     }
   }
-  return db.party.create({
-    data: {
-      name: data.name,
-      phone: data.phone || null,
-      address: data.address || null,
-      partyType,
-    },
-  });
+
+  try {
+    const party = await db.party.create({
+      data: {
+        name: data.name,
+        phone: data.phone || null,
+        address: data.address || null,
+        partyType,
+        clientRequestId,
+      },
+    });
+    const totals = await getPartySupplierTotals(party.id);
+    return enrichParty(party, totals);
+  } catch (err) {
+    if (err?.code === 'P2002' && clientRequestId) {
+      const existing = await db.party.findUnique({ where: { clientRequestId } });
+      if (existing) {
+        const totals = await getPartySupplierTotals(existing.id);
+        return enrichParty(existing, totals);
+      }
+    }
+    throw err;
+  }
 };
 
 export const updateParty = async (id, data) => {
   await getPartyById(id);
+
+  const phoneKey = normalizePhone(data.phone);
+  if (phoneKey) {
+    const withPhone = await db.party.findMany({
+      where: { phone: { not: null }, id: { not: id } },
+      select: { id: true, phone: true, partyType: true },
+    });
+    const duplicate = withPhone.find((p) => normalizePhone(p.phone) === phoneKey);
+    if (duplicate) {
+      const label = duplicate.partyType === 'SUPPLIER' ? 'Supplier' : 'Customer';
+      throw new ApiError(409, `${label} with this phone is already saved in the list`);
+    }
+  }
+
   return db.party.update({
     where: { id },
     data: {
@@ -146,7 +185,11 @@ export const convertPartyType = async (id, partyType) => {
   if (partyType !== 'CUSTOMER' && partyType !== 'SUPPLIER') {
     throw new ApiError(400, 'partyType must be CUSTOMER or SUPPLIER');
   }
-  await getPartyById(id);
+  const party = await getPartyById(id);
+  if (party.partyType === partyType) {
+    const totals = await getPartySupplierTotals(id);
+    return enrichParty(party, totals);
+  }
   const updated = await db.party.update({
     where: { id },
     data: { partyType },
@@ -156,6 +199,9 @@ export const convertPartyType = async (id, partyType) => {
 };
 
 export const deleteParty = async (id) => {
+  const party = await db.party.findUnique({ where: { id } });
+  if (!party) return { id, alreadyDeleted: true };
+
   const blockers = await getPartyDeletionBlockers(id);
   if (!blockers.canDelete) {
     throw new ApiError(409, 'Party is linked to existing records', {
@@ -210,7 +256,7 @@ export const deletePartyAdvanceEntry = async (partyId, entryId) => {
     const entry = await tx.partyAdvanceEntry.findFirst({
       where: { id: entryId, partyId },
     });
-    if (!entry) throw new ApiError(404, 'Payment entry not found');
+    if (!entry) return getPartyById(partyId);
     if (entry.saleId) {
       throw new ApiError(
         400,
@@ -377,8 +423,12 @@ export const addPartyPayment = async (partyId, { amount, notes, clientRequestId 
       return { payment, payableBalance };
     },
     async (database) => {
+      const payment = await database.partyPayment.findFirst({
+        where: { partyId, amount: value },
+        orderBy: { createdAt: 'desc' },
+      });
       const { payableBalance } = await getPartySupplierTotals(partyId);
-      return { duplicate: true, payableBalance };
+      return { payment, payableBalance, duplicate: true };
     },
     TRANSACTION_OPTS
   );
@@ -407,8 +457,12 @@ export const addPartyPurchase = async (partyId, { amount, notes, clientRequestId
       return { purchase, payableBalance };
     },
     async (database) => {
+      const purchase = await database.purchase.findFirst({
+        where: { partyId, totalAmount: value },
+        orderBy: { createdAt: 'desc' },
+      });
       const { payableBalance } = await getPartySupplierTotals(partyId);
-      return { duplicate: true, payableBalance };
+      return { purchase, payableBalance, duplicate: true };
     },
     TRANSACTION_OPTS
   );
@@ -419,7 +473,7 @@ export const deletePartyPayment = async (partyId, paymentId) => {
     const payment = await tx.partyPayment.findFirst({
       where: { id: paymentId, partyId },
     });
-    if (!payment) throw new ApiError(404, 'Payment not found');
+    if (!payment) return { id: paymentId, alreadyDeleted: true };
 
     await tx.partyPayment.delete({ where: { id: paymentId } });
     const { payableBalance } = await getPartySupplierTotals(partyId);

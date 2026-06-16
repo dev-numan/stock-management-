@@ -12,6 +12,7 @@ import { queueOrRun } from '../services/offlineMutation';
 import { createClientRequestId } from '../utils/clientRequestId';
 import { useDashboardStore } from './dashboardStore';
 import { zustandStorage, isStale } from './storage';
+import { mergeServerWithLocal, pendingLocalsFromQueue } from '../utils/mergeLocalEntities';
 
 export const useExpensesStore = create(
   persist(
@@ -36,8 +37,11 @@ export const useExpensesStore = create(
             year: new Date().getFullYear(),
           });
           const list = data.data || [];
-          set({ expenses: list, lastFetched: Date.now(), loading: false });
-          return list;
+          const merged = mergeServerWithLocal(list, expenses, {
+            pendingFromQueue: pendingLocalsFromQueue(['CREATE_EXPENSE']),
+          });
+          set({ expenses: merged, lastFetched: Date.now(), loading: false });
+          return merged;
         } catch (err) {
           set({
             loading: false,

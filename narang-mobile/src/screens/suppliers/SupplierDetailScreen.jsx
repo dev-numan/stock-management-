@@ -35,6 +35,9 @@ import { usePurchasesStore } from '../../stores/purchasesStore';
 import { useDashboardStore } from '../../stores/dashboardStore';
 import { useTranslation } from '../../i18n/useTranslation';
 import { exportSupplierLedgerPdf } from '../../utils/generateDetailPDF';
+import { useOfflineCacheStore } from '../../stores/offlineCacheStore';
+import { getIsOnline } from '../../stores/networkStore';
+import { mergePendingSupplierLedger } from '../../utils/pendingLedgerMerge';
 
 export default function SupplierDetailScreen({ route, navigation }) {
   const theme = useTheme();
@@ -73,22 +76,39 @@ export default function SupplierDetailScreen({ route, navigation }) {
     try {
       setLoading(true);
       setError(null);
-      const [supplierRes, ledgerRes] = await Promise.all([
-        getSupplier(supplierId),
-        getSupplierLedger(supplierId),
-      ]);
-      const freshSupplier = supplierRes.data.data;
-      setSupplier(freshSupplier);
-      setAllLedger(ledgerRes.data.data || []);
-      // Keep the suppliers list/summary in sync so balances update immediately
-      // when the user navigates back after a purchase/payment change.
-      upsertSupplier(freshSupplier);
+      const isLocal = String(supplierId).startsWith('local-');
+
+      if (!isLocal && getIsOnline()) {
+        const [supplierRes, ledgerRes] = await Promise.all([
+          getSupplier(supplierId),
+          getSupplierLedger(supplierId),
+        ]);
+        const freshSupplier = supplierRes.data.data;
+        const ledgerData = ledgerRes.data.data || [];
+        setSupplier(freshSupplier);
+        setAllLedger(ledgerData);
+        useOfflineCacheStore.getState().patchSupplierLedger(supplierId, ledgerData);
+        upsertSupplier(freshSupplier);
+      } else {
+        let freshSupplier = initialSupplier || useSuppliersStore.getState().getById(supplierId);
+        setSupplier(freshSupplier);
+        if (!isLocal) {
+          const cached = mergePendingSupplierLedger(
+            supplierId,
+            useOfflineCacheStore.getState().getSupplierLedger(supplierId)
+          );
+          setAllLedger(cached);
+        } else {
+          setAllLedger([]);
+        }
+        if (freshSupplier) upsertSupplier(freshSupplier);
+      }
     } catch (err) {
       setError(getFriendlyErrorMessage(err, t('supplier.loadFailed')));
     } finally {
       setLoading(false);
     }
-  }, [supplierId, t, upsertSupplier]);
+  }, [supplierId, initialSupplier, t, upsertSupplier]);
 
   const ledger = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -127,17 +147,16 @@ export default function SupplierDetailScreen({ route, navigation }) {
           }
         : s
     );
-    setAllLedger((prev) => [
-      {
-        id: `local-ledger-${Date.now()}`,
-        type,
-        amount: Number(amount),
-        notes: notes || null,
-        createdAt: new Date().toISOString(),
-        _pending: true,
-      },
-      ...prev,
-    ]);
+    const entry = {
+      id: `local-ledger-${Date.now()}`,
+      type,
+      amount: Number(amount),
+      notes: notes || null,
+      createdAt: new Date().toISOString(),
+      _pending: true,
+    };
+    useOfflineCacheStore.getState().appendSupplierLedgerEntry(supplierId, entry);
+    setAllLedger((prev) => [entry, ...prev]);
   };
 
   const handlePayment = async ({ amount, notes }) => {
@@ -191,8 +210,8 @@ export default function SupplierDetailScreen({ route, navigation }) {
       const removedId = deleteTarget.id;
       setDeleteTarget(null);
       if (queued) {
-        // Offline: drop the row locally; server ledger refreshes on reconnect.
         setAllLedger((prev) => prev.filter((e) => e.id !== removedId));
+        useOfflineCacheStore.getState().removeSupplierLedgerEntry(supplierId, removedId);
       } else {
         await load();
       }
@@ -209,6 +228,10 @@ export default function SupplierDetailScreen({ route, navigation }) {
       : t('supplier.deletePurchaseConfirmMessage');
 
   const handleDeleteSupplierPress = async () => {
+    if (!getIsOnline()) {
+      setShowDeleteSupplier(true);
+      return;
+    }
     try {
       setDeleteSupplierChecking(true);
       setError(null);

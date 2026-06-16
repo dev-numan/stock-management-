@@ -2,20 +2,13 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { login as loginApi, getMe } from '../api/auth.api';
 import { getToken, setToken, getUser, setUser, clearAuth, migrateLegacyAuth } from '../utils/storage';
 import { setSessionExpiredHandler } from '../utils/authSession';
-import { useProductsStore } from '../stores/productsStore';
-import { useCustomersStore } from '../stores/customersStore';
-import { usePartiesStore } from '../stores/partiesStore';
-import { useDashboardStore } from '../stores/dashboardStore';
+import { bootstrapOfflineCache } from '../services/offlineBootstrap';
+import { clearSessionData } from '../services/clearSessionData';
 
 const AuthContext = createContext(null);
 
-// Force-refresh the core caches without blocking navigation. Screens already
-// render from persisted store state, so the user lands instantly and fresh
-// data fills in when (and if) the network responds.
 const refreshDataInBackground = () => {
-  useProductsStore.getState().fetchProducts(true);
-  useCustomersStore.getState().fetchCustomers(true);
-  usePartiesStore.getState().fetchParties(true);
+  bootstrapOfflineCache({ force: true }).catch(() => {});
 };
 
 export const AuthProvider = ({ children }) => {
@@ -70,9 +63,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    await clearSessionData();
     await clearAuth();
     setUserState(null);
-    useDashboardStore.setState({ dashboard: null, error: null, lastFetched: null });
   };
 
   const isAdmin = user?.role === 'ADMIN';

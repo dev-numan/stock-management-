@@ -17,6 +17,7 @@ import ScreenContainer from '../../components/common/ScreenContainer';
 import { useCustomersStore } from '../../stores/customersStore';
 import { useSalesStore } from '../../stores/salesStore';
 import { getIsOnline } from '../../stores/networkStore';
+import { useOfflineCacheStore } from '../../stores/offlineCacheStore';
 import { useTranslation } from '../../i18n/useTranslation';
 
 export default function CreditsScreen({ navigation }) {
@@ -44,6 +45,8 @@ export default function CreditsScreen({ navigation }) {
       if (getIsOnline()) {
         const { data } = await getCredits();
         apiSales = data.data?.sales || [];
+      } else {
+        apiSales = useOfflineCacheStore.getState().getCreditSales();
       }
 
       const merged = mergeCreditSalesWithPending(apiSales);

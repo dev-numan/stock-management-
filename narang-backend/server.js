@@ -20,6 +20,7 @@ import expenseRoutes from './src/modules/expenses/expense.routes.js';
 import reportRoutes from './src/modules/reports/report.routes.js';
 import settingsRoutes from './src/modules/settings/settings.routes.js';
 import creditRoutes from './src/modules/credits/credit.routes.js';
+import syncRoutes from './src/modules/sync/sync.routes.js';
 
 // Fail fast on a missing/weak JWT secret rather than booting an insecure server.
 const KNOWN_WEAK_SECRETS = new Set([
@@ -69,6 +70,7 @@ apiRouter.use('/expenses', expenseRoutes);
 apiRouter.use('/reports', reportRoutes);
 apiRouter.use('/settings', settingsRoutes);
 apiRouter.use('/credits', creditRoutes);
+apiRouter.use('/sync', syncRoutes);
 
 app.use('/api/v1', apiRouter);
 
