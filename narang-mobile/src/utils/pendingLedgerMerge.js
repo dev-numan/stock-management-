@@ -37,7 +37,9 @@ export function mergePendingAdvanceEntries(partyId, entries = []) {
     }
   }
 
-  const kept = entries.filter((e) => !removedIds.has(e.id));
+  // Drop locally-appended optimistic rows (_pending) and rebuild them from the
+  // queue, so a queued op is never counted twice (cache local-* + queue queue-*).
+  const kept = entries.filter((e) => !removedIds.has(e.id) && !e._pending);
   const existingIds = new Set(kept.map((e) => e.id));
   const extra = pending.filter((p) => !existingIds.has(p.id));
   return [...extra, ...kept].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -83,7 +85,9 @@ export function mergePendingSupplierLedger(supplierId, ledger = []) {
     }
   }
 
-  const kept = ledger.filter((e) => !removedIds.has(e.id));
+  // Drop locally-appended optimistic rows (_pending) and rebuild them from the
+  // queue, so a queued op is never counted twice (cache local-* + queue queue-*).
+  const kept = ledger.filter((e) => !removedIds.has(e.id) && !e._pending);
   const existingIds = new Set(kept.map((e) => e.id));
   const extra = pending.filter((p) => !existingIds.has(p.id));
   return [...extra, ...kept].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

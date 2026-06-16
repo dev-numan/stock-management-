@@ -6,6 +6,9 @@ import { getIsOnline } from './networkStore';
 import { useSyncStore } from './syncStore';
 import { queueOrRun } from '../services/offlineMutation';
 import { useOfflineCacheStore } from './offlineCacheStore';
+import { useProductsStore } from './productsStore';
+import { useCustomersStore } from './customersStore';
+import { getStockDeduction } from '../utils/productUnits';
 import { zustandStorage, isStale } from './storage';
 
 export const ALL_SALES_KEY = '__all__';
@@ -161,10 +164,44 @@ export const useSalesStore = create(
         set({ salesByKey: next });
       },
 
+      // Undo a sale's effect on local caches when it is deleted. Mirrors the
+      // server's deleteSale: stock that was deducted goes back, and a credit
+      // sale's debt is reversed on the customer's running balance.
+      reverseSaleEffects: (sale, { reverseBalance } = {}) => {
+        for (const item of sale?.items || []) {
+          const product =
+            useProductsStore.getState().getById(item.productId) || item.product;
+          const deduction = getStockDeduction(
+            product,
+            item.soldUnit,
+            Number(item.quantity)
+          );
+          // applyStockDelta subtracts its arg, so a negative delta adds stock back.
+          if (deduction) {
+            useProductsStore.getState().applyStockDelta(item.productId, -deduction);
+          }
+        }
+        if (reverseBalance && sale?.paymentMethod === 'CREDIT') {
+          const customerId = sale.customerId || sale.partyId || sale.customer?.id;
+          if (customerId) {
+            useCustomersStore
+              .getState()
+              .adjustAdvance(customerId, Number(sale.totalAmount ?? 0));
+          }
+        }
+      },
+
       deleteSale: async (sale) => {
         const id = sale?.id;
         if (sale?.pendingSync) {
-          get().removePendingSale(sale.localId || id);
+          const localId = sale.localId || id;
+          // Give back the stock this pending sale optimistically deducted. A
+          // pending credit sale never touched the balance on creation, so don't
+          // reverse it here.
+          get().reverseSaleEffects(sale, { reverseBalance: false });
+          // Cancel the queued CREATE_SALE so it doesn't upload a ghost sale.
+          useSyncStore.getState().removeByLocalId(localId);
+          get().removePendingSale(localId);
           return { id };
         }
         const { queued, result } = await queueOrRun({
@@ -173,6 +210,9 @@ export const useSalesStore = create(
             get().removeSaleFromCache(id);
             useOfflineCacheStore.getState().removeSale(id);
             get().invalidateAll();
+            // Reflect the server-side stock/balance reversal locally so lists
+            // are right immediately, before the next fetch reconciles.
+            get().reverseSaleEffects(sale, { reverseBalance: true });
             return data.data;
           },
           type: 'DELETE_SALE',
@@ -180,6 +220,9 @@ export const useSalesStore = create(
           optimistic: () => {
             get().removeSaleFromCache(id);
             useOfflineCacheStore.getState().removeSale(id);
+            // Offline: restore stock and reverse the credit-sale balance locally
+            // so the numbers stay right until the next bootstrap.
+            get().reverseSaleEffects(sale, { reverseBalance: true });
           },
         });
         return queued ? { id } : result;

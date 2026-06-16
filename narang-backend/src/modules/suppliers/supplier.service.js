@@ -1,4 +1,5 @@
 import { ApiError } from '../../utils/ApiError.js';
+import { db } from '../../config/db.js';
 import * as partyService from '../parties/party.service.js';
 
 export const getAllSuppliers = async ({ search }) =>
@@ -12,6 +13,9 @@ export const createSupplier = async (data) =>
 export const updateSupplier = async (id, data) => partyService.updateParty(id, data);
 
 export const deleteSupplier = async (id) => {
+  // Idempotent: a replayed offline delete (party already gone) must not 404.
+  const existing = await db.party.findUnique({ where: { id } });
+  if (!existing) return { id, alreadyDeleted: true };
   const blockers = await partyService.getPartyDeletionBlockers(id);
   if (!blockers.canDelete) {
     throw new ApiError(409, 'Supplier is linked to products or purchases', {

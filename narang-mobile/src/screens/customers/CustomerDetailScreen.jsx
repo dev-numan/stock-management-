@@ -324,6 +324,15 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const handleDeleteCustomerPress = async () => {
     if (isLocalCustomer) return;
     if (!getIsOnline()) {
+      // Offline: the server blocker API is unreachable, so check cached sales.
+      // Mirrors the backend rule (a customer with sales can't be deleted) and
+      // avoids queueing a delete that would 409 on sync.
+      const linkedSales = useSalesStore.getState().getSalesForCustomer(customerId);
+      if (linkedSales.length > 0) {
+        setDeleteCustomerBlockers({ sales: linkedSales });
+        setShowDeleteCustomerBlocked(true);
+        return;
+      }
       setShowDeleteCustomer(true);
       return;
     }

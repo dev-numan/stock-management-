@@ -27,8 +27,9 @@ async function buildSupplierLedgersByPartyId() {
       include: { items: { include: { product: { select: { name: true } } } } },
       orderBy: { createdAt: 'asc' },
     }),
+    // partyId is a required column on PartyPayment, so every row already has one
+    // — a `{ not: null }` filter here is both redundant and rejected by Prisma.
     db.partyPayment.findMany({
-      where: { partyId: { not: null } },
       orderBy: { createdAt: 'asc' },
     }),
   ]);
@@ -80,8 +81,13 @@ async function buildSupplierLedgersByPartyId() {
   return entriesByParty;
 }
 
-/** One-shot payload so the mobile app can work fully offline after login. */
-export const getBootstrapPayload = async () => {
+/**
+ * One-shot payload so the mobile app can work fully offline after login.
+ * Profit/report data (profitReports, reportsByPeriodKey, stockValuation) is
+ * ADMIN-only and is omitted entirely for CASHIER users — both to honour the
+ * authorization rules in report.routes.js and to avoid the extra queries.
+ */
+export const getBootstrapPayload = async ({ isAdmin = false } = {}) => {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -100,12 +106,6 @@ export const getBootstrapPayload = async () => {
     creditSales,
     salesTrendMonth,
     salesTrendYear,
-    profitMonth,
-    profitYear,
-    profitAll,
-    salesSummaryAll,
-    profitLossAll,
-    stockValuation,
   ] = await Promise.all([
     db.settings.findUnique({ where: { id: 1 } }),
     productService.getAllProducts({ search: '' }),
@@ -129,12 +129,6 @@ export const getBootstrapPayload = async () => {
     }).then((rows) => rows.map(mapSaleWithCustomer)),
     reportService.getSalesTrend({ mode: 'month', year, month }),
     reportService.getSalesTrend({ mode: 'year', year }),
-    reportService.getProfitReport({ mode: 'month', year, month, day }),
-    reportService.getProfitReport({ mode: 'year', year }),
-    reportService.getProfitReport({ mode: 'all' }),
-    reportService.getSalesSummary({}),
-    reportService.getProfitLoss({}),
-    reportService.getStockValuation(),
   ]);
 
   const customers = parties.filter((p) => p.partyType === 'CUSTOMER');
@@ -142,7 +136,7 @@ export const getBootstrapPayload = async () => {
 
   const advanceEntriesByPartyId = groupBy(advanceRows, (e) => e.partyId);
 
-  return {
+  const payload = {
     syncedAt: new Date().toISOString(),
     settings,
     products,
@@ -160,14 +154,29 @@ export const getBootstrapPayload = async () => {
       [`month-${year}`]: salesTrendMonth,
       [`year-${year}`]: salesTrendYear,
     },
-    profitReports: {
+  };
+
+  if (isAdmin) {
+    const [profitMonth, profitYear, profitAll, salesSummaryAll, profitLossAll, stockValuation] =
+      await Promise.all([
+        reportService.getProfitReport({ mode: 'month', year, month, day }),
+        reportService.getProfitReport({ mode: 'year', year }),
+        reportService.getProfitReport({ mode: 'all' }),
+        reportService.getSalesSummary({}),
+        reportService.getProfitLoss({}),
+        reportService.getStockValuation(),
+      ]);
+
+    payload.profitReports = {
       [`month-${year}-${month}-${day}`]: profitMonth,
       [`year-${year}`]: profitYear,
       all: profitAll,
-    },
-    reportsByPeriodKey: {
+    };
+    payload.reportsByPeriodKey = {
       all: { summary: salesSummaryAll, profitLoss: profitLossAll },
-    },
-    stockValuation,
-  };
+    };
+    payload.stockValuation = stockValuation;
+  }
+
+  return payload;
 };

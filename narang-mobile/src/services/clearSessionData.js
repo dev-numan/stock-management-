@@ -11,6 +11,7 @@ import { useExpensesStore } from '../stores/expensesStore';
 import { useSalesStore } from '../stores/salesStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useDashboardStore } from '../stores/dashboardStore';
+import { useCategoriesStore } from '../stores/categoriesStore';
 
 /** Wipe persisted business data on logout (keeps language preference). */
 export async function clearSessionData() {
@@ -28,6 +29,7 @@ export async function clearSessionData() {
   usePartiesStore.setState({ parties: [], lastFetched: null, loading: false, error: null });
   usePurchasesStore.setState({ purchases: [], lastFetched: null, loading: false, error: null });
   useExpensesStore.setState({ expenses: [], lastFetched: null, loading: false, error: null });
+  useCategoriesStore.setState({ categories: [], lastFetched: null, loading: false, error: null });
   useSalesStore.setState({ pendingSales: [], salesByKey: {}, lastFetchedByKey: {} });
   useSettingsStore.setState({ settings: useSettingsStore.getState().settings, lastFetched: null });
   useDashboardStore.setState({

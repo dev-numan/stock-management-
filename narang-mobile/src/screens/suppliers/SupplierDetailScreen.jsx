@@ -229,6 +229,23 @@ export default function SupplierDetailScreen({ route, navigation }) {
 
   const handleDeleteSupplierPress = async () => {
     if (!getIsOnline()) {
+      // Offline: the server blocker API is unreachable, so check cached data.
+      // Mirrors the backend rule (a supplier linked to products or purchases
+      // can't be deleted) and avoids queueing a delete that would 409 on sync.
+      const linkedProducts = useProductsStore
+        .getState()
+        .products.filter(
+          (p) => (p.partyId || p.party?.id || p.supplierId) === supplierId
+        );
+      const linkedPurchases = allLedger.filter((e) => e.type === 'PURCHASE');
+      if (linkedProducts.length > 0 || linkedPurchases.length > 0) {
+        setDeleteSupplierBlockers({
+          products: linkedProducts.map((p) => ({ id: p.id, name: p.name })),
+          purchases: linkedPurchases,
+        });
+        setShowDeleteSupplierBlocked(true);
+        return;
+      }
       setShowDeleteSupplier(true);
       return;
     }

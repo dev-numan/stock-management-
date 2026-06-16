@@ -109,6 +109,9 @@ const completeSaleOffline = async ({
 
   useSyncStore.getState().enqueue({
     type: 'CREATE_SALE',
+    // localId mirrors localSaleId so a pending sale deleted before it syncs can
+    // cancel its queued CREATE via syncStore.removeByLocalId().
+    localId,
     payload: {
       sale: salePayload,
       customer: customer
